@@ -106,6 +106,8 @@ public final class EventLayer {
     }
 
     private final class MaterializingList extends ArrayList<LineEvent> {
+        private static final long serialVersionUID = 1L;
+
         @Override
         public boolean add(LineEvent value) {
             sourceNull = false;

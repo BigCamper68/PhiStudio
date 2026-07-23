@@ -76,7 +76,7 @@ public final class ProjectWorkspaceCreator {
             copyAsset(illustrationInput, new File(workspace, illustrationPath), totalBytes);
             return new PackageWorkspaceLoader(limits).load(
                     workspace, safeSourceDisplayName(spec.name));
-        } catch (IOException | RuntimeException exception) {
+        } catch (IOException | RuntimeException | OutOfMemoryError exception) {
             try {
                 deleteRecursively(workspace);
             } catch (IOException cleanupFailure) {

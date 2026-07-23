@@ -38,5 +38,7 @@ public final class EditorSettingsTest {
         assertEquals("Z", chord.key);
         assertTrue(ShortcutChord.isValid("SPACE"));
         assertTrue(ShortcutChord.isValid("ALT+F4"));
+        assertFalse(ShortcutChord.isValid("CTRL+LEFTCTRL+Z"));
+        assertFalse(ShortcutChord.isValid("ALT+RIGHTALT+F4"));
     }
 }

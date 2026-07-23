@@ -61,6 +61,9 @@ public final class PackageImporter {
         } catch (IOException | RuntimeException exception) {
             deleteRecursively(workspace);
             throw exception;
+        } catch (OutOfMemoryError error) {
+            deleteRecursively(workspace);
+            throw error;
         }
     }
 
@@ -170,8 +173,8 @@ public final class PackageImporter {
             filePaths.add(entry.getPath());
             File file = resolveInside(workspace, entry.getPath());
             if (looksLikeLegacyPec(file)) {
-                legacyPecCandidates.add(new JsonCandidate(entry.getPath(), null,
-                        readUtf8(file), ChartJsonFormat.LEGACY_PEC));
+                legacyPecCandidates.add(new JsonCandidate(
+                        entry.getPath(), ChartJsonFormat.LEGACY_PEC));
                 continue;
             }
             if (!looksLikeJsonObject(file)) continue;
@@ -181,17 +184,17 @@ public final class PackageImporter {
                 JSONObject root = new JSONObject(source);
                 ChartJsonFormat format = ChartJsonFormatDetector.detect(root);
                 if (format == ChartJsonFormat.RPE) {
-                    rpeCandidates.add(new JsonCandidate(entry.getPath(), root, null, format));
+                    rpeCandidates.add(new JsonCandidate(entry.getPath(), format));
                 } else if (format == ChartJsonFormat.OFFICIAL_PHIGROS) {
-                    officialCandidates.add(new JsonCandidate(entry.getPath(), root, null, format));
+                    officialCandidates.add(new JsonCandidate(entry.getPath(), format));
                 }
             } catch (Exception ignored) {
                 // Non-chart JSON is an unknown package resource and remains preserved.
             }
         }
 
-        JsonCandidate selected = selectChart(
-                manifests, rpeCandidates, officialCandidates, legacyPecCandidates);
+        JsonCandidate selected = loadCandidate(workspace, selectChart(
+                manifests, rpeCandidates, officialCandidates, legacyPecCandidates));
         if (selected.format == ChartJsonFormat.OFFICIAL_PHIGROS) {
             validateOfficialCandidate(selected.root);
         }
@@ -205,6 +208,24 @@ public final class PackageImporter {
         boolean useRpe170Speed = selectUseRpe170Speed(manifests);
         return new WorkspaceAnalysis(manifests, selected, audioPath, illustrationPath,
                 projectName, manifestOffsetMs, useRpe170Speed);
+    }
+
+    private static JsonCandidate loadCandidate(File workspace, JsonCandidate candidate)
+            throws IOException {
+        File file = resolveInside(workspace, candidate.path);
+        String source = readUtf8(file);
+        if (candidate.format == ChartJsonFormat.LEGACY_PEC) {
+            return new JsonCandidate(candidate.path, null, source, candidate.format);
+        }
+        if (!source.isEmpty() && source.charAt(0) == '\ufeff') {
+            source = source.substring(1);
+        }
+        try {
+            return new JsonCandidate(
+                    candidate.path, new JSONObject(source), null, candidate.format);
+        } catch (JSONException exception) {
+            throw new IOException("Unable to parse the selected chart candidate", exception);
+        }
     }
 
     private List<PackageManifest> readManifests(File workspace, List<ChartPackage.Entry> entries)
@@ -563,6 +584,10 @@ public final class PackageImporter {
         final String source;
         final ChartJsonFormat format;
 
+        JsonCandidate(String path, ChartJsonFormat format) {
+            this(path, null, null, format);
+        }
+
         JsonCandidate(String path, JSONObject root, String source, ChartJsonFormat format) {
             this.path = path;
             this.root = root;
@@ -594,6 +619,8 @@ public final class PackageImporter {
     }
 
     private static final class ArchiveLimitIOException extends IOException {
+        private static final long serialVersionUID = 1L;
+
         ArchiveLimitIOException() {
             super("Compressed package size limit exceeded");
         }

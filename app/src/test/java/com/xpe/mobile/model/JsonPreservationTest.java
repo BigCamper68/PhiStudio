@@ -208,13 +208,22 @@ public final class JsonPreservationTest {
         assertEquals(1, chart.judgeLines.get(0).noteControls.position.size());
         assertEquals(AttachedUiElement.SCORE, chart.judgeLines.get(0).attachUi);
         parsed.positionX = 25.0;
+        parsed.tintRgb = 0xA1B2C3;
+        parsed.hitEffectTintRgb = 0x010203;
+        parsed.judgeArea = 2.25;
 
         JSONObject exportedLine = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0);
         JSONObject exportedNote = exportedLine.getJSONArray("notes").getJSONObject(0);
         assertEquals(4, exportedNote.getJSONArray("tint").length());
+        assertEquals(0xA1, exportedNote.getJSONArray("tint").getInt(0));
+        assertEquals(0xB2, exportedNote.getJSONArray("tint").getInt(1));
+        assertEquals(0xC3, exportedNote.getJSONArray("tint").getInt(2));
         assertEquals(77, exportedNote.getJSONArray("tint").getInt(3));
-        assertEquals(1.75, exportedNote.getDouble("judgeArea"), 0.0);
+        assertEquals(1, exportedNote.getJSONArray("tintHitEffects").getInt(0));
+        assertEquals(2, exportedNote.getJSONArray("tintHitEffects").getInt(1));
+        assertEquals(3, exportedNote.getJSONArray("tintHitEffects").getInt(2));
+        assertEquals(2.25, exportedNote.getDouble("judgeArea"), 0.0);
         assertEquals("keep", exportedLine.getJSONObject("extended")
                 .getJSONArray("scaleXEvents").getJSONObject(0)
                 .getString("futureExtendedEvent"));
@@ -223,6 +232,21 @@ public final class JsonPreservationTest {
         assertEquals(42, exportedLine.getJSONArray("posControl")
                 .getJSONObject(0).getInt("futureControlValue"));
         assertEquals("score", exportedLine.getString("attachUI"));
+    }
+
+    @Test
+    public void removesDisabledTypedNoteTintsFromRawJson() throws Exception {
+        JSONObject source = new JSONObject()
+                .put("tint", new JSONArray().put(1).put(2).put(3).put(4))
+                .put("tintHitEffects", new JSONArray().put(5).put(6).put(7));
+        Note note = Note.fromJson(source);
+        note.hasTint = false;
+        note.hasHitEffectTint = false;
+
+        JSONObject exported = note.toJson();
+
+        assertFalse(exported.has("tint"));
+        assertFalse(exported.has("tintHitEffects"));
     }
 
     private static JSONObject layerWithMoveX(JSONObject event) throws Exception {

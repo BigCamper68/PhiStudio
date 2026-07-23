@@ -40,7 +40,12 @@ public final class ChartEvaluator {
     private ChartEvaluator() {
     }
 
-    /** Builds immutable playback indexes off the UI thread before the first preview frame. */
+    /**
+     * Builds immutable playback indexes before the first preview frame.
+     *
+     * <p>The caller must exclusively own {@code chart} for the duration of this call; the chart
+     * model is intentionally UI-thread confined and is not safe to mutate concurrently.
+     */
     public static void prepare(ChartDocument chart, boolean useRpe170Speed) {
         if (chart != null) prepared(chart, useRpe170Speed);
     }
