@@ -190,6 +190,21 @@ public final class PackageIoTest {
     }
 
     @Test
+    public void manifestSelectsAndLoadsOneOfMultipleRpeCandidates() throws Exception {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("info.yml", bytes("name: Selected package\nchart: charts/second.json\n"));
+        entries.put("charts/first.json", bytes(new String(
+                rpeJson(), StandardCharsets.UTF_8).replace("Unit chart", "First chart")));
+        entries.put("charts/second.json", bytes(new String(
+                rpeJson(), StandardCharsets.UTF_8).replace("Unit chart", "Second chart")));
+
+        ChartPackage chartPackage = importPackage(zip(entries), PackageLimits.DEFAULT);
+
+        assertEquals("charts/second.json", chartPackage.getChartPath());
+        assertEquals("Second chart", chartPackage.getChart().name);
+    }
+
+    @Test
     public void convertsOfficialPhigrosV3IntoEditableRpe() throws Exception {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("info.yml", bytes("name: Official\ncomposer: Composer\n"

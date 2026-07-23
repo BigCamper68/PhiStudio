@@ -27,7 +27,7 @@ public final class PackageWorkspaceCopier {
         long[] totals = new long[]{0L, 0L};
         try {
             copyDirectory(source, source, destination, totals);
-        } catch (IOException | RuntimeException exception) {
+        } catch (IOException | RuntimeException | OutOfMemoryError exception) {
             deleteRecursively(destination);
             throw exception;
         }

@@ -55,6 +55,8 @@ public final class Note {
 
     public JSONObject toJson() throws JSONException {
         JSONObject object = RawJson.shallowCopy(raw);
+        JSONArray sourceTint = object.optJSONArray("tint");
+        JSONArray sourceHitTint = object.optJSONArray("tintHitEffects");
         object.put("above", above);
         object.put("alpha", alpha);
         object.put("endTime", endTime.toJson());
@@ -66,6 +68,16 @@ public final class Note {
         object.put("type", type.rpeCode);
         object.put("visibleTime", visibleTime);
         object.put("yOffset", yOffset);
+        if (hasTint) object.put("tint", colorArray(tintRgb, sourceTint));
+        else object.remove("tint");
+        if (hasHitEffectTint) {
+            object.put("tintHitEffects", colorArray(hitEffectTintRgb, sourceHitTint));
+        } else {
+            object.remove("tintHitEffects");
+        }
+        if (object.has("judgeArea") || Double.compare(judgeArea, 1.0) != 0) {
+            object.put("judgeArea", judgeArea);
+        }
         return object;
     }
 
@@ -96,5 +108,18 @@ public final class Note {
         int green = Math.max(0, Math.min(255, value.optInt(1, 255)));
         int blue = Math.max(0, Math.min(255, value.optInt(2, 255)));
         return red << 16 | green << 8 | blue;
+    }
+
+    private static JSONArray colorArray(int rgb, JSONArray source) {
+        JSONArray result = new JSONArray()
+                .put((rgb >> 16) & 0xff)
+                .put((rgb >> 8) & 0xff)
+                .put(rgb & 0xff);
+        if (source != null) {
+            for (int index = 3; index < source.length(); index++) {
+                result.put(source.opt(index));
+            }
+        }
+        return result;
     }
 }

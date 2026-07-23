@@ -2,6 +2,17 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseStorePath = providers.environmentVariable('PHISTUDIO_KEYSTORE_PATH').orNull
+def releaseStorePassword = providers.environmentVariable('PHISTUDIO_KEYSTORE_PASSWORD').orNull
+def releaseKeyAlias = providers.environmentVariable('PHISTUDIO_KEY_ALIAS').orNull
+def releaseKeyPassword = providers.environmentVariable('PHISTUDIO_KEY_PASSWORD').orNull
+def releaseSigningConfigured = [
+        releaseStorePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+].every { value -> value != null && !value.isBlank() }
+
 android {
     namespace 'com.xpe.mobile'
     compileSdk 35
@@ -11,12 +22,27 @@ android {
         applicationId 'com.xpe.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 38
-        versionName '1.0.1'
+        versionCode 39
+        versionName '1.0.2'
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                storeType 'PKCS12'
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.getByName('release')
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

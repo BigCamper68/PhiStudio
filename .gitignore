@@ -11,3 +11,5 @@ app/build/
 keystore.properties
 *.jks
 *.keystore
+*.p12
+*-release-password.txt

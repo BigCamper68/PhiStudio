@@ -38,13 +38,22 @@ public final class ShortcutChord {
                 case "CTRL":
                 case "CONTROL":
                 case "LEFTCTRL":
-                case "RIGHTCTRL": control = true; break;
+                case "RIGHTCTRL":
+                    if (control) throw new IllegalArgumentException("duplicate control modifier");
+                    control = true;
+                    break;
                 case "ALT":
                 case "LEFTALT":
-                case "RIGHTALT": alt = true; break;
+                case "RIGHTALT":
+                    if (alt) throw new IllegalArgumentException("duplicate alt modifier");
+                    alt = true;
+                    break;
                 case "SHIFT":
                 case "LEFTSHIFT":
-                case "RIGHTSHIFT": shift = true; break;
+                case "RIGHTSHIFT":
+                    if (shift) throw new IllegalArgumentException("duplicate shift modifier");
+                    shift = true;
+                    break;
                 default:
                     if (key != null || !validKey(part)) {
                         throw new IllegalArgumentException("invalid shortcut key");

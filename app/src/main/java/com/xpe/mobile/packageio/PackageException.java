@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 
 public final class PackageException extends IOException {
+    private static final long serialVersionUID = 1L;
+
     public enum Code {
         UNSAFE_PATH,
         DUPLICATE_PATH,

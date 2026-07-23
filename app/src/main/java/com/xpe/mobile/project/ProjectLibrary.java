@@ -346,7 +346,7 @@ public final class ProjectLibrary {
             State updated = new State(records, newId);
             writeState(updated);
             return new OpenResult(duplicated, duplicateRecord, updated);
-        } catch (IOException | RuntimeException exception) {
+        } catch (IOException | RuntimeException | OutOfMemoryError exception) {
             cleanupAfterFailedDuplicate(moved ? target : staging, exception);
             throw exception;
         }
