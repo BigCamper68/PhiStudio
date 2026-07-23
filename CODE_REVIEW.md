@@ -183,8 +183,7 @@ cache. Нужны продуктовые лимиты для максималь�
 - `clean testDebugUnitTest lintRelease assembleRelease`: успешно;
 - подписанный APK проходит `zipalign` и `apksigner verify`;
 - package: `com.xpe.mobile`, min SDK 26, target SDK 35;
-- SHA-256 APK:
-  `b6e6f68b83e8b554cbba6e353cd66725a5c659d08ac30480fd30042a1a2d21b6`;
+- SHA-256 финального APK фиксируется в неизменяемых заметках GitHub Release;
 - SHA-256 сертификата:
   `0711ce5197d30d09c71630447f8898fa9f195da36387b3f9fe385a084798a9d2`.
 
