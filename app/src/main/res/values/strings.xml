@@ -1,0 +1,629 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="audio_player_not_ready">Audio player is not ready</string>
+    <string name="app_name">PhiStudio</string>
+    <string name="toolbar_play">Play</string>
+    <string name="toolbar_pause">Pause</string>
+    <string name="toolbar_preview">Preview</string>
+    <string name="toolbar_editor">Editor</string>
+    <string name="toolbar_save">Save</string>
+    <string name="toolbar_undo">Undo</string>
+    <string name="toolbar_redo">Redo</string>
+    <string name="toolbar_menu">Menu</string>
+    <string name="preview_status" tools:ignore="PluralsCandidate">Preview · beat %1$.3f · BPM %2$.2f · %3$d notes · %4$d events</string>
+    <string name="preview_hud_autoplay">AUTOPLAY</string>
+
+    <string name="menu_title">Menu</string>
+    <string name="menu_section_projects">Projects</string>
+    <string name="menu_section_chart">Chart editing</string>
+    <string name="menu_projects">Project library</string>
+    <string name="menu_import_package">Import package</string>
+    <string name="menu_export_package">Export package</string>
+    <string name="menu_metadata">Chart metadata</string>
+    <string name="menu_bpm">BPM List</string>
+    <string name="menu_lines">Line List</string>
+    <string name="menu_storyboard">Storyboard events</string>
+    <string name="menu_curve_notes">Curve Notes</string>
+    <string name="menu_complex_move">Complex Move</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_diagnostics">Chart diagnostics</string>
+    <string name="package_imported">Package imported: %1$s</string>
+    <string name="package_exported">Package exported: %1$s</string>
+    <string name="package_required">Import a chart package before exporting a package</string>
+    <string name="package_source_overwrite_blocked">Choose a new output document; the imported source package is never overwritten</string>
+    <string name="package_import_failed">Package import failed: %1$s</string>
+    <string name="package_import_failed_retained">Package import failed: %1$s Extracted files were retained in the private workspace for safety.</string>
+    <string name="package_export_failed">Package export failed: %1$s</string>
+    <string name="project_autosave">Autosave</string>
+    <string name="project_demo">Demo chart</string>
+    <string name="project_library_title">Projects</string>
+    <string name="project_library_create">＋ New chart</string>
+    <string name="project_library_import">＋ Import package</string>
+    <string name="project_library_empty">No local projects yet. Create a chart or import a package.</string>
+    <string name="project_create_title">Create chart project</string>
+    <string name="project_create_name">Chart name</string>
+    <string name="project_create_composer">Composer</string>
+    <string name="project_create_charter">Charter</string>
+    <string name="project_create_level">Difficulty / level</string>
+    <string name="project_create_bpm">Base BPM</string>
+    <string name="project_create_audio">Choose audio</string>
+    <string name="project_create_illustration">Choose illustration</string>
+    <string name="project_create_audio_none">Audio is required</string>
+    <string name="project_create_illustration_none">Illustration is required</string>
+    <string name="project_create_selected">Selected: %1$s</string>
+    <string name="project_create_action">Create project</string>
+    <string name="project_creating">Creating chart project…</string>
+    <string name="project_created">Chart project created: %1$s</string>
+    <string name="project_create_invalid">Enter a chart name and a positive finite BPM</string>
+    <string name="project_create_assets_required">Choose both audio and illustration before creating the project</string>
+    <string name="project_create_asset_unsupported">The selected %1$s format is unsupported</string>
+    <string name="project_create_asset_audio">audio</string>
+    <string name="project_create_asset_illustration">illustration</string>
+    <string name="project_library_continue">Continue to editor</string>
+    <string name="project_library_close">Close</string>
+    <string name="project_library_error">Project library error: %1$s</string>
+    <string name="project_save_required">Open or create a local project before saving</string>
+    <string name="project_memory_error">This chart is too large for the available memory. The local project was kept unchanged.</string>
+    <string name="field_chart_offset">Chart offset from META.offset (ms)</string>
+    <string name="chart_offset_hint">Package info.yml offset: %1$d ms (kept for export only, not applied). Playback offset: %2$d ms.</string>
+    <string name="project_action_open">Open</string>
+    <string name="project_action_export">Export package</string>
+    <string name="project_action_rename">Rename</string>
+    <string name="project_action_duplicate">Duplicate</string>
+    <string name="project_action_remove">Remove local copy</string>
+    <string name="project_remove_title">Remove local project?</string>
+    <string name="project_remove_message">Remove %1$s from this device? The original imported package will not be changed.</string>
+    <string name="project_removed">Local project removed: %1$s</string>
+    <string name="project_opened">Project opened: %1$s</string>
+    <string name="project_audio_unavailable">Project opened, but audio could not be loaded: %1$s</string>
+    <string name="project_library_card_details">%1$s · last opened %2$s</string>
+    <string name="project_never_opened">never</string>
+    <string name="project_rename_title">Rename local project</string>
+    <string name="project_renamed">Local project renamed: %1$s</string>
+    <string name="project_duplicated">Local project duplicated: %1$s</string>
+    <string name="project_library_loading">Scanning local projects…</string>
+    <string name="project_opening">Opening project…</string>
+    <string name="project_importing">Importing and indexing chart…</string>
+    <string name="chart_imported">Chart imported</string>
+    <string name="file_error">File error: %1$s</string>
+    <string name="project_duplicating">Duplicating project…</string>
+    <string name="project_removing">Removing local project…</string>
+    <string name="project_recovering">Recovering local project…</string>
+    <string name="project_recovery_title">Workspace recovery</string>
+    <string name="project_recovery_row">%1$s · %2$s</string>
+    <string name="project_recovery_recover">Recover project</string>
+    <string name="project_recovery_remove">Remove local data</string>
+    <string name="project_recovery_remove_title">Remove unindexed local data?</string>
+    <string name="project_recovery_remove_message">Remove %1$s from app-private storage? Details: %2$s</string>
+    <string name="project_recovery_removed">Unindexed local data removed: %1$s</string>
+    <string name="project_recovered">Project recovered: %1$s</string>
+    <string name="project_status_recoverable">recoverable</string>
+    <string name="project_status_missing">workspace missing</string>
+    <string name="project_status_damaged">damaged</string>
+    <string name="project_status_unsupported">unsupported format</string>
+    <string name="project_media_both">audio + illustration</string>
+    <string name="project_media_audio">audio</string>
+    <string name="project_media_illustration">illustration</string>
+    <string name="project_media_none">chart only</string>
+
+    <string name="diagnostics_title">Chart diagnostics</string>
+    <string name="diagnostics_summary">Errors: %1$d · Warnings: %2$d · Cautions: %3$d · showing %4$d of %5$d</string>
+    <string name="diagnostics_navigated">Moved to the diagnostic location</string>
+    <string name="diagnostics_severity_error">Error</string>
+    <string name="diagnostics_severity_warning">Warning</string>
+    <string name="diagnostics_severity_caution">Caution</string>
+    <string name="diagnostics_location_global">Chart · beat %1$s</string>
+    <string name="diagnostics_location_note">Line %1$d · beat %2$s</string>
+    <string name="diagnostics_location_event">Line %1$d · layer %2$d · beat %3$s</string>
+    <string name="diagnostic_invalid_bpm">BPM must be a positive finite number.</string>
+    <string name="diagnostic_negative_bpm_start">A BPM change starts before beat zero.</string>
+    <string name="diagnostic_duplicate_bpm_start">More than one BPM change starts at this beat.</string>
+    <string name="diagnostic_note_time_out_of_range">The note time is before beat zero or beyond the loaded audio duration.</string>
+    <string name="diagnostic_hold_interval_invalid">Hold end time must be after its start time.</string>
+    <string name="diagnostic_note_x_too_large">Note X is outside ±675: %1$.3f.</string>
+    <string name="diagnostic_fake_note">This is a fake note.</string>
+    <string name="diagnostic_custom_note_size">The note uses a custom width: %1$.3f.</string>
+    <string name="diagnostic_custom_visible_time">The note uses a custom visible time: %1$.3f seconds.</string>
+    <string name="diagnostic_event_time_out_of_range">The event time is before beat zero or beyond the loaded audio duration.</string>
+    <string name="diagnostic_event_interval_invalid">Event end time must be after its start time.</string>
+    <string name="diagnostic_event_overlap">%1$s overlaps another event of the same type on this layer.</string>
+    <string name="diagnostic_alpha_out_of_range">Alpha start or end is outside 0–255.</string>
+    <string name="diagnostic_reserved_layer_event">Layer 4 or later contains normal events; these layers are reserved for storyboard data.</string>
+
+    <string name="properties_button">Properties</string>
+    <string name="note_properties_title">Note properties</string>
+    <string name="event_properties_title">%1$s event properties</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_generate">Generate</string>
+
+    <string name="complex_move_title">Complex Move</string>
+    <string name="complex_move_scope">Active target: line %1$d, event layer %2$d</string>
+    <string name="complex_move_time_help">Times accept exact whole:numerator/denominator or decimal beats.</string>
+    <string name="complex_move_start_time">Start beat</string>
+    <string name="complex_move_end_time">End beat</string>
+    <string name="complex_move_x_equation">X equation</string>
+    <string name="complex_move_y_equation">Y equation</string>
+    <string name="complex_move_equation_help">Use $t$ (0 to 1), Pi, + − * / mod ^, parentheses, sin/cos/tan, min/max, pow, sqrt, abs, clamp and related math functions.</string>
+    <string name="complex_move_default_x">300*cos($t$*2*Pi)</string>
+    <string name="complex_move_default_y">300*sin($t$*2*Pi)</string>
+    <string name="complex_move_default_easing">1</string>
+    <string name="complex_move_default_density">16</string>
+    <string name="complex_move_x_time_easing">X time easing</string>
+    <string name="complex_move_y_time_easing">Y time easing</string>
+    <string name="complex_move_time_easing_help">Enter an easing ID 1–28, or three values type,left,right for a bounded easing slice.</string>
+    <string name="complex_move_density">Density (linear event segments per beat)</string>
+    <string name="complex_move_preview_description">Live Complex Move path preview, colored green at the start and red at the end</string>
+    <plurals name="complex_move_preview_ready">
+        <item quantity="one">Live preview: %1$d paired linear segment</item>
+        <item quantity="other">Live preview: %1$d paired linear segments</item>
+    </plurals>
+    <string name="complex_move_preview_invalid">Preview unavailable: check the highlighted values</string>
+    <plurals name="complex_move_generated">
+        <item quantity="one">Complex Move generated: %1$d paired MoveX/MoveY segment</item>
+        <item quantity="other">Complex Move generated: %1$d paired MoveX/MoveY segments</item>
+    </plurals>
+    <string name="complex_move_error_time">Start and end must be valid non-negative beats, with end after start</string>
+    <string name="complex_move_error_density">Density must be a positive finite number</string>
+    <string name="complex_move_error_too_many">The requested density would generate more than 4096 segments</string>
+    <string name="complex_move_error_easing">Time easing must be ID 1–28 or type,left,right with 0 ≤ left ≤ right ≤ 1</string>
+    <string name="complex_move_error_expression">Invalid equation: %1$s</string>
+    <string name="complex_move_error_result">An equation produced an undefined or infinite result</string>
+    <string name="complex_move_error_x_range">The generated X path leaves the supported range −675 to 675</string>
+    <string name="complex_move_error_y_range">The generated Y path leaves the supported range −450 to 450</string>
+    <string name="complex_move_error_reserved">Complex Move can only generate normal events on layers 0–3</string>
+    <string name="complex_move_error_overlap">Complex Move overlaps an existing MoveX or MoveY event on this layer</string>
+
+    <string name="curve_notes_title">Curve Notes</string>
+    <string name="curve_notes_help">Choose two existing notes on the active line. If two or more notes were selected before opening this tool, the earliest and latest selected notes are prefilled.</string>
+    <string name="curve_notes_start">Start note</string>
+    <string name="curve_notes_end">End note</string>
+    <string name="curve_notes_endpoint">%1$d · %2$s · %3$s · X %4$s</string>
+    <string name="curve_notes_density">Density multiplier</string>
+    <string name="curve_notes_default_density">1</string>
+    <string name="curve_notes_density_help">Active beat-grid step: 1/%1$d. Density 1 fills every step; higher values create a finer curve.</string>
+    <string name="curve_notes_type">Generated note type</string>
+    <string name="curve_notes_easing">Curve easing</string>
+    <string name="curve_notes_preview_description">Live preview of intermediate notes between the chosen start and end notes</string>
+    <plurals name="curve_notes_preview_ready">
+        <item quantity="one">Live preview: %1$d intermediate note</item>
+        <item quantity="other">Live preview: %1$d intermediate notes</item>
+    </plurals>
+    <string name="curve_notes_preview_invalid">Preview unavailable: check the endpoints and density</string>
+    <plurals name="curve_notes_generated">
+        <item quantity="one">Curve Notes generated: %1$d intermediate note</item>
+        <item quantity="other">Curve Notes generated: %1$d intermediate notes</item>
+    </plurals>
+    <string name="curve_notes_need_two">Curve Notes needs at least two existing notes on the active line</string>
+    <string name="curve_notes_error_target">One of the selected endpoint notes is no longer available</string>
+    <string name="curve_notes_error_same">Choose two different endpoint notes</string>
+    <string name="curve_notes_error_order">The start note must occur before the end note</string>
+    <string name="curve_notes_error_density">Density must be a positive finite number</string>
+    <string name="curve_notes_error_type">Curve Notes supports Tap, Drag, and Flick output</string>
+    <string name="curve_notes_error_easing">Curve easing must be between 1 and 28</string>
+    <string name="curve_notes_error_too_many">The requested density would create more than 4095 intermediate notes</string>
+    <string name="curve_notes_error_empty">This duration and density do not leave room for an intermediate note</string>
+    <string name="curve_notes_error_x_range">The eased note curve leaves the supported X range −675 to 675</string>
+
+    <string name="field_note_type">Note type</string>
+    <string name="field_start_beat">Start beat (whole:numerator/denominator)</string>
+    <string name="field_end_beat">End beat (whole:numerator/denominator)</string>
+    <string name="field_end_beat_hold">End beat (Hold only)</string>
+    <string name="field_position_x">X position (-675 to 675)</string>
+    <string name="field_note_speed">Note speed</string>
+    <string name="field_note_side">Side</string>
+    <string name="field_note_fake">Fake note</string>
+    <string name="field_note_size">Width multiplier</string>
+    <string name="field_note_y_offset">Y offset</string>
+    <string name="field_note_visible_time">Visible time (seconds)</string>
+    <string name="field_note_alpha">Alpha (0 to 255)</string>
+
+    <string name="field_event_start_value">Start value</string>
+    <string name="field_event_end_value">End value</string>
+    <string name="field_event_locked">Lock start and end values</string>
+    <string name="field_event_easing_type">Easing</string>
+    <string name="field_event_easing_help">Choose by name. Speed always uses Linear; custom Bézier overrides the numbered curve.</string>
+    <string name="field_event_easing_preview">Live easing preview</string>
+    <string name="field_event_easing_preview_description">Orange preview of the selected easing curve from event start to event end</string>
+    <string name="field_event_easing_left">Easing left (0 to 1)</string>
+    <string name="field_event_easing_right">Easing right (0 to 1)</string>
+    <string name="field_event_link_group">Link group (0 or greater)</string>
+    <string name="field_event_bezier">Use custom Bézier curve</string>
+    <string name="field_event_bezier_x1">Bézier control X1</string>
+    <string name="field_event_bezier_y1">Bézier control Y1</string>
+    <string name="field_event_bezier_x2">Bézier control X2</string>
+    <string name="field_event_bezier_y2">Bézier control Y2</string>
+
+    <string name="note_properties_applied">Note properties applied</string>
+    <string name="event_properties_applied">Event properties applied</string>
+    <string name="validation_invalid_number_or_beat">Enter valid finite numbers and beats in whole:numerator/denominator form</string>
+    <string name="validation_missing_type">A note or event type and both times are required</string>
+    <string name="validation_non_finite">All numeric values must be finite</string>
+    <string name="validation_negative_start">Start beat cannot be negative</string>
+    <string name="validation_end_after_start">End beat must be after start beat</string>
+    <string name="validation_note_x">Note X must be between -675 and 675</string>
+    <string name="validation_note_alpha">Note alpha must be between 0 and 255</string>
+    <string name="validation_note_size">Note width must be greater than zero</string>
+    <string name="validation_note_visible_time">Visible time cannot be negative</string>
+    <string name="validation_event_alpha">Alpha event values must be between -255 and 255</string>
+    <string name="validation_event_easing">Easing must be 1 to 29; Speed events use 1</string>
+    <string name="validation_event_easing_window">Easing bounds must satisfy 0 ≤ left ≤ right ≤ 1</string>
+    <string name="validation_event_link_group">Link group cannot be negative</string>
+    <string name="validation_event_overlap">Events of the same type and layer cannot overlap</string>
+    <string name="validation_event_reserved_layer">Normal events can only be edited on layers 0–3; layer 4 is reserved</string>
+    <string name="validation_target_changed">The selected item is no longer available</string>
+    <string name="validation_event_invalid_time">The selected event has invalid imported times and was left unchanged</string>
+    <string name="validation_event_cut_inside">Move the playhead strictly inside the selected event</string>
+    <string name="validation_event_no_previous">No previous event of the same type is available to glue</string>
+    <string name="validation_xy_binding_pair">XY binding needs one unique MoveX/MoveY event with exactly matching start and end beats</string>
+    <string name="xy_binding_button_on">XY ✓</string>
+    <string name="xy_binding_button_off">XY Off</string>
+    <string name="xy_binding_enabled">XY binding enabled</string>
+    <string name="xy_binding_disabled">XY binding disabled; MoveX and MoveY can now be edited independently</string>
+    <string name="xy_binding_enable_rejected">XY binding cannot be enabled until all editable MoveX/MoveY intervals are paired</string>
+    <string name="event_glue_button">Glue</string>
+    <string name="event_split_button">Split</string>
+    <string name="event_pass_button">Pass</string>
+    <string name="event_rand_button">Rand</string>
+    <string name="event_split_applied_grid">Event split at the playhead, snapped to the active beat grid</string>
+    <string name="event_split_applied_exact">Event split at the exact playhead position</string>
+    <string name="event_split_xy_applied_grid">Paired MoveX/MoveY events split at the playhead, snapped to the active beat grid</string>
+    <string name="event_split_xy_applied_exact">Paired MoveX/MoveY events split at the exact playhead position</string>
+    <string name="event_pass_applied">Pass extrapolated the event to %1$s → %2$s</string>
+    <string name="event_pass_needs_two">Pass needs two earlier events of the same type</string>
+    <string name="event_pass_invalid">Pass would create an invalid value and was not applied</string>
+    <string name="event_rand_applied">Rand set the event tail to %1$s</string>
+    <string name="event_rand_invalid">Rand could not create a valid value for this event</string>
+    <string name="event_glue_applied">Previous event end value glued into the selected event start</string>
+    <string name="event_glue_no_change">The selected event is already glued to the previous value</string>
+
+    <string name="event_type_move_x">Move X</string>
+    <string name="event_type_move_y">Move Y</string>
+    <string name="event_type_rotate">Rotate</string>
+    <string name="event_type_alpha">Alpha</string>
+    <string name="event_type_speed">Speed</string>
+
+    <string name="storyboard_title">Storyboard events</string>
+    <string name="storyboard_scope">Active target: line %1$d, %2$s · RPE extended events</string>
+    <string name="storyboard_chart_required">Open a chart before editing storyboard events</string>
+    <string name="storyboard_filter">Event family</string>
+    <string name="storyboard_filter_all">All storyboard types</string>
+    <string name="storyboard_choose_type">Choose storyboard event type</string>
+    <string name="storyboard_add">Add</string>
+    <string name="storyboard_edit">Edit</string>
+    <string name="storyboard_duplicate">Duplicate</string>
+    <string name="storyboard_delete">Delete</string>
+    <string name="storyboard_glue">Glue</string>
+    <string name="storyboard_split">Split</string>
+    <string name="storyboard_close">Close</string>
+    <string name="storyboard_new_title">New %1$s event</string>
+    <string name="storyboard_edit_title">Edit %1$s event</string>
+    <string name="storyboard_start_value">Start value</string>
+    <string name="storyboard_end_value">End value</string>
+    <string name="storyboard_time_help">Times accept exact whole:numerator/denominator notation or decimal beats.</string>
+    <string name="storyboard_use_start_beat">Start = playhead</string>
+    <string name="storyboard_use_end_beat">End = playhead</string>
+    <string name="storyboard_row">%1$s · %2$s → %3$s\n%4$s</string>
+    <string name="storyboard_values">%1$s → %2$s</string>
+    <string name="storyboard_text_values">“%1$s” → “%2$s”</string>
+    <string name="storyboard_type_scale_x">Scale X</string>
+    <string name="storyboard_type_scale_y">Scale Y</string>
+    <string name="storyboard_type_color">Color</string>
+    <string name="storyboard_type_paint">Paint</string>
+    <string name="storyboard_type_text">Text</string>
+    <string name="storyboard_type_incline">Incline</string>
+    <string name="storyboard_type_gif">GIF progress</string>
+    <string name="storyboard_help_generic">Storyboard events are stored in the active line’s RPE extended structure and support the same timing and easing controls as normal events.</string>
+    <string name="storyboard_help_scale_x">Controls horizontal scale. The manual-defined neutral value is 1.0; negative values mirror the visual.</string>
+    <string name="storyboard_help_scale_y">Controls vertical scale. The manual-defined neutral value is 1.0; negative values mirror the visual.</string>
+    <string name="storyboard_help_color">Controls line, texture, paint and text tint. Enter colors as #RRGGBB.</string>
+    <string name="storyboard_help_paint">Controls brush radius. Zero disables painting; a negative value clears the accumulated canvas at that time.</string>
+    <string name="storyboard_help_text" formatted="false">Controls displayed text. Prefix growth is animated; numeric endpoints containing %P% interpolate as numbers.</string>
+    <string name="storyboard_help_incline">Controls simulated X-axis incline in degrees. RPE does not apply incline to Hold notes.</string>
+    <string name="storyboard_help_gif">Controls the progress of an animated custom line texture while this event is active.</string>
+    <string name="storyboard_delete_title">Delete storyboard event?</string>
+    <string name="storyboard_delete_message">Delete the %1$s event starting at %2$s? Undo remains available.</string>
+    <string name="storyboard_created">Storyboard event created</string>
+    <string name="storyboard_saved">Storyboard event saved</string>
+    <string name="storyboard_deleted">Storyboard event deleted</string>
+    <string name="storyboard_glued">Previous end value glued into this event’s start</string>
+    <string name="storyboard_split_applied">Storyboard event split at the current snapped beat</string>
+    <string name="storyboard_no_previous">No previous storyboard event of this type is available</string>
+    <string name="storyboard_glue_no_change">This event already starts at the previous event’s end value</string>
+    <string name="storyboard_split_inside">Move the playhead strictly inside the selected storyboard event</string>
+    <string name="storyboard_invalid_time">The duplicated time interval is outside the supported beat range</string>
+    <string name="storyboard_text_required">Text event values cannot be null</string>
+
+    <string name="bpm_list_title">BPM List</string>
+    <string name="bpm_list_base_hint">The earliest entry is the base BPM, is effective from beat zero, and cannot be moved or deleted.</string>
+    <string name="bpm_list_row">%1$d. %2$s — %3$s BPM%4$s</string>
+    <string name="bpm_list_base_suffix"> (base)</string>
+    <string name="bpm_list_edit_title">Edit BPM change %1$d</string>
+    <string name="bpm_list_new_title">New BPM change</string>
+    <string name="bpm_list_new">New</string>
+    <string name="bpm_list_apply">Apply</string>
+    <string name="bpm_list_delete">Delete</string>
+    <string name="bpm_list_close">Close</string>
+    <string name="field_bpm_start">Start beat (whole:numerator/denominator)</string>
+    <string name="field_bpm_value">BPM (positive finite number)</string>
+    <string name="bpm_list_saved">BPM change saved</string>
+    <string name="bpm_list_deleted">BPM change deleted</string>
+    <string name="bpm_validation_invalid">Enter a non-negative beat in whole:numerator/denominator form and a positive finite BPM</string>
+    <string name="bpm_validation_duplicate">A BPM change already starts at this beat</string>
+    <string name="bpm_validation_first_locked">The earliest BPM entry cannot be moved, deleted, or preceded by another entry</string>
+    <string name="bpm_validation_last_required">The chart must keep at least one BPM entry</string>
+
+    <string name="line_manager_title">Line List</string>
+    <string name="line_manager_row">Line %1$d: %2$s%3$s</string>
+    <string name="line_manager_active_suffix"> (active)</string>
+    <string name="line_manager_summary">Notes: %1$d · Events: %2$d</string>
+    <string name="line_manager_details">Texture: %1$s\nGroup: %2$d · BPM factor: %3$s\nZ-order: %4$d · %5$s</string>
+    <string name="line_manager_cover_on">cover on</string>
+    <string name="line_manager_cover_off">cover off</string>
+    <string name="line_manager_add">Add line</string>
+    <string name="line_manager_delete">Delete</string>
+    <string name="line_delete_title">Delete line?</string>
+    <string name="line_delete_message">Delete line %1$d: %2$s? Notes and events on this line will be removed from the chart. Undo remains available.</string>
+    <string name="line_properties_title">Line properties</string>
+    <string name="field_line_name">Line name</string>
+    <string name="field_line_texture">Texture/material filename</string>
+    <string name="field_line_group">Group index (0 or greater)</string>
+    <string name="field_line_bpm_factor">BPM factor (positive finite number)</string>
+    <string name="field_line_z_order">Z-order</string>
+    <string name="field_line_cover">Cover notes behind the line</string>
+    <string name="line_properties_applied">Line properties applied</string>
+    <string name="line_validation_invalid">Enter a name, texture filename, non-negative group and positive finite BPM factor</string>
+    <string name="line_validation_zero_protected">Line 0 cannot be deleted</string>
+    <string name="line_validation_last_required">The chart must keep line 0</string>
+
+    <string name="selection_box_add_armed">Drag a rectangle to add notes and events to the selection</string>
+    <string name="clipboard_empty_selection">Select at least one note or event</string>
+    <string name="clipboard_copied">Copied — notes: %1$d, events: %2$d</string>
+    <string name="clipboard_cut">Selection cut to clipboard</string>
+    <string name="clipboard_pasted">Clipboard pasted at the current snapped beat</string>
+    <string name="clipboard_xy_pair_required">XY binding requires selecting complete matching MoveX/MoveY pairs</string>
+    <string name="clipboard_invalid">Clipboard objects cannot be placed on the current line or layer</string>
+
+    <string name="seek_audio_unavailable">Load audio to use the track scrub bar</string>
+    <string name="seek_audio_label">%1$s / %2$s</string>
+
+    <string name="controls_panel_create">Create</string>
+    <string name="controls_panel_edit">Edit</string>
+    <string name="controls_panel_arrange">Arrange</string>
+    <string name="controls_select">Select</string>
+    <string name="controls_tap">Tap</string>
+    <string name="controls_drag">Drag</string>
+    <string name="controls_flick">Flick</string>
+    <string name="controls_hold">Hold</string>
+    <string name="controls_event">Event</string>
+    <string name="controls_delete">Delete</string>
+    <string name="controls_copy">Copy</string>
+    <string name="controls_cut">Cut</string>
+    <string name="controls_paste">Paste</string>
+    <string name="controls_mirror_paste">Mirror paste</string>
+    <string name="controls_box_add_off">Box+ Off</string>
+    <string name="controls_box_add_on">Box+ ✓</string>
+    <string name="controls_move_off">Move Off</string>
+    <string name="controls_move_xy">Move XY</string>
+    <string name="controls_move_x">Move X</string>
+    <string name="controls_move_y">Move Y</string>
+    <string name="controls_clear">Clear</string>
+    <string name="controls_batch_edit">Batch edit</string>
+    <string name="controls_event_clone">Event Clone</string>
+    <string name="controls_mirror_x">Mirror X</string>
+    <string name="controls_side_up">Side Up</string>
+    <string name="controls_side_down">Side Down</string>
+    <string name="controls_fake">Fake</string>
+    <string name="controls_fake_checked">Fake ✓</string>
+    <string name="controls_width_decrease">Width −</string>
+    <string name="controls_width_increase">Width +</string>
+    <string name="controls_event_start_decrease">Start −</string>
+    <string name="controls_event_start_increase">Start +</string>
+    <string name="controls_event_end_decrease">End −</string>
+    <string name="controls_event_end_increase">End +</string>
+    <string name="controls_event_ease">Ease %1$s</string>
+    <string name="controls_event_ease_custom">Custom Bézier</string>
+    <string name="controls_event_ease_unknown">Unknown %1$d</string>
+    <string name="controls_event_link">Link</string>
+    <string name="controls_event_linked">Linked</string>
+    <string name="controls_layer_decrease">Layer −</string>
+    <string name="controls_layer_increase">Layer +</string>
+    <string name="controls_beat_grid_decrease">Beat grid −</string>
+    <string name="controls_beat_grid_increase">Beat grid +</string>
+    <string name="controls_x_grid_decrease">X grid −</string>
+    <string name="controls_x_grid_increase">X grid +</string>
+    <string name="controls_line_decrease">Line −</string>
+    <string name="controls_line_increase">Line +</string>
+    <string name="controls_page_previous">‹</string>
+    <string name="controls_page_next">›</string>
+    <string name="controls_page_indicator">%1$d/%2$d</string>
+    <string name="controls_status_summary">%1$s · L%2$d · layer %3$d · beat 1/%4$d · X grid %5$d</string>
+    <string name="controls_no_selection">No selection</string>
+    <plurals name="controls_selection_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="controls_note_summary">%1$s %2$s · X %3$s</string>
+    <string name="controls_event_summary">%1$s %2$s→%3$s · %4$s→%5$s</string>
+    <string name="controls_hint_create">Choose a placement tool; drag Hold or Event to set its duration</string>
+    <string name="controls_hint_edit">Box+ adds to selection and blocks scrolling; Move cycles Off, XY, X-only and Y-only</string>
+    <string name="controls_hint_arrange">Adjust the event layer, beat subdivision, vertical X grid, and active line</string>
+
+    <string name="note_touch_invalid">The note move or Hold resize is invalid and was not applied</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_general">General</string>
+    <string name="settings_other">Other Settings</string>
+    <string name="settings_hotkeys">Hotkeys</string>
+    <string name="settings_correction">A.C. Parameters</string>
+    <string name="settings_music_volume">Music volume (0 to 1)</string>
+    <string name="settings_sound_effect_volume">Sound-effect volume (0 to 1)</string>
+    <string name="settings_highlight_simultaneous">Highlight simultaneous same-type notes</string>
+    <string name="settings_note_width">Default note width (screen pixels)</string>
+    <string name="settings_line_width">Default judgment-line width multiplier</string>
+    <string name="settings_mark_line_id">Mark active line ID</string>
+    <string name="settings_line_color">Default line color (#RRGGBB)</string>
+    <string name="settings_background_brightness">Background viewer brightness (0 to 255)</string>
+    <string name="settings_hitsound_tap_offset">Tap/Flick hitsound offset (ms)</string>
+    <string name="settings_hitsound_drag_offset">Drag hitsound offset (ms)</string>
+    <string name="settings_autosave">Enable periodic autosave</string>
+    <string name="settings_autosave_interval">Autosave interval (seconds)</string>
+    <string name="settings_timeline_scroll_speed">Touch timeline scroll multiplier</string>
+    <string name="settings_event_scroll_speed">Event adjustment speed multiplier</string>
+    <string name="settings_preview_background_alpha">Preview background alpha (0 to 1)</string>
+    <string name="settings_player_width">Preview player width</string>
+    <string name="settings_player_height">Preview player height</string>
+    <string name="settings_auto_apply">Autoapply property edits</string>
+    <string name="settings_auto_clipboard">Automatically copy a completed multi-selection</string>
+    <string name="settings_show_tips">Show editor tips</string>
+    <string name="settings_xy_binding">MoveX and MoveY binding</string>
+    <string name="settings_skip_undo">Jump to the edited selection on undo/redo</string>
+    <string name="settings_auto_stick">Autostick the next same-type event after an edit</string>
+    <string name="settings_split_snap_to_grid">Snap Split to the active beat grid</string>
+    <string name="settings_cut_density">Event cut density per X-axis unit</string>
+    <string name="settings_draw_event_curves">Draw event easing curves</string>
+    <string name="settings_draw_event_numbers">Draw event values</string>
+    <string name="settings_hotkeys_help">Hardware-keyboard chords use CTRL/ALT/SHIFT plus one letter, digit, function key, SPACE, DELETE, ENTER, ESC or an arrow key.</string>
+    <string name="settings_hotkey_play">Play / pause</string>
+    <string name="settings_hotkey_save">Save chart/project</string>
+    <string name="settings_hotkey_undo">Undo</string>
+    <string name="settings_hotkey_redo">Redo</string>
+    <string name="settings_hotkey_copy">Copy</string>
+    <string name="settings_hotkey_cut">Cut</string>
+    <string name="settings_hotkey_paste">Paste</string>
+    <string name="settings_hotkey_mirror">Mirror paste</string>
+    <string name="settings_hotkey_delete">Delete selection</string>
+    <string name="settings_correction_x">X-size caution threshold</string>
+    <string name="settings_correction_collision">Collision distance</string>
+    <string name="settings_correction_read">Minimum reading time (seconds)</string>
+    <string name="settings_correction_drag">Drag warning distance (seconds)</string>
+    <string name="settings_correction_combination">Combination upper time (seconds)</string>
+    <string name="settings_invalid">Check all Settings values: ranges, RGB color, dimensions and hotkey chords</string>
+    <string name="settings_saved">Settings saved and applied</string>
+    <string name="shortcut_project_saved">Project saved</string>
+
+    <string name="batch_title">Advanced Batch Edit</string>
+    <string name="batch_help">Items are processed chronologically. Z = (lower + (upper − lower) × easing + random disturbance) × periodic sequence; By/To/Times/Max/Min then combines Z with each current value.</string>
+    <string name="batch_target">Selection target</string>
+    <string name="batch_target_notes">Notes (%1$d)</string>
+    <string name="batch_target_events">Events (%1$d)</string>
+    <string name="batch_event_type">Event type filter</string>
+    <string name="batch_data_type">Data type</string>
+    <string name="batch_lower_bound">Lower bound</string>
+    <string name="batch_upper_bound">Upper bound</string>
+    <string name="batch_easing">Easing ID (1 to 28)</string>
+    <string name="batch_periodic_sequence">Periodic sequence (space/comma separated)</string>
+    <string name="batch_disturbance">Random disturbance ±</string>
+    <string name="batch_edit_mode">Modification mode</string>
+    <string name="batch_stick">Stick events</string>
+    <string name="batch_empty_selection">Select at least one note or event for batch editing</string>
+    <string name="batch_mixed_events">Choose one event type for this batch operation</string>
+    <string name="batch_unsupported_field">Speed event easing is fixed to Linear and cannot be batch-edited</string>
+    <string name="batch_invalid_profile">Enter finite bounds/disturbance, easing 1–28, and a finite periodic sequence</string>
+    <string name="batch_invalid_result">The generated batch values violate a note or event constraint</string>
+    <plurals name="batch_applied">
+        <item quantity="one">Batch edit applied to %1$d item</item>
+        <item quantity="other">Batch edit applied to %1$d items</item>
+    </plurals>
+    <plurals name="batch_stick_applied">
+        <item quantity="one">Stuck %1$d selected event front-to-back</item>
+        <item quantity="other">Stuck %1$d selected events front-to-back</item>
+    </plurals>
+
+    <string name="event_clone_title">Event Clone</string>
+    <plurals name="event_clone_help">
+        <item quantity="one">Clone %1$d selected event from the active layer %2$d. U.L.E.D. is four values: lower upper easing disturbance.</item>
+        <item quantity="other">Clone %1$d selected events from the active layer %2$d. U.L.E.D. is four values: lower upper easing disturbance.</item>
+    </plurals>
+    <string name="event_clone_line_sequence">Line sequence (indices separated by spaces/commas)</string>
+    <string name="event_clone_time_increment">Time increment per target line (beat or whole:numerator/denominator)</string>
+    <string name="event_clone_x_uled">MoveX U.L.E.D.</string>
+    <string name="event_clone_x_sequence">MoveX periodic sequence</string>
+    <string name="event_clone_y_uled">MoveY U.L.E.D.</string>
+    <string name="event_clone_y_sequence">MoveY periodic sequence</string>
+    <string name="event_clone_rotate_uled">Rotate U.L.E.D.</string>
+    <string name="event_clone_rotate_sequence">Rotate periodic sequence</string>
+    <string name="event_clone_alpha_uled">Alpha U.L.E.D.</string>
+    <string name="event_clone_alpha_sequence">Alpha periodic sequence</string>
+    <string name="event_clone_keep_source">Keep source events</string>
+    <string name="event_clone_apply">Clone</string>
+    <string name="event_clone_empty">Select at least one event to clone</string>
+    <string name="event_clone_invalid">Check the line sequence, time increment, U.L.E.D. values and sequences</string>
+    <string name="event_clone_invalid_lines">Every target line index must exist and appear once</string>
+    <string name="event_clone_invalid_time">The time increment creates an invalid or negative event interval</string>
+    <string name="event_clone_invalid_profile">Each U.L.E.D. profile needs finite bounds/disturbance, easing 1–28 and a finite sequence</string>
+    <string name="event_clone_too_many">Event Clone is limited to 4096 generated events per operation</string>
+    <string name="event_clone_overlap">Cloned events would overlap existing or other cloned same-type events</string>
+    <string name="event_clone_invalid_result">A cloned value violates the event constraints</string>
+    <plurals name="event_clone_applied">
+        <item quantity="one">Event Clone created %1$d event</item>
+        <item quantity="other">Event Clone created %1$d events</item>
+    </plurals>
+
+    <string name="bpm_list_selected_prefix">● %1$s</string>
+
+    <string-array name="note_types">
+        <item>Tap</item>
+        <item>Hold</item>
+        <item>Flick</item>
+        <item>Drag</item>
+    </string-array>
+    <string-array name="curve_note_types">
+        <item>Tap</item>
+        <item>Drag</item>
+        <item>Flick</item>
+    </string-array>
+    <string-array name="batch_note_fields">
+        <item>X position</item>
+        <item>Speed</item>
+        <item>Size</item>
+        <item>Y offset</item>
+        <item>Visible time</item>
+    </string-array>
+    <string-array name="batch_event_fields">
+        <item>Start value</item>
+        <item>End value</item>
+        <item>Easing type</item>
+    </string-array>
+    <string-array name="batch_edit_modes">
+        <item>By</item>
+        <item>To</item>
+        <item>Times</item>
+        <item>Max</item>
+        <item>Min</item>
+    </string-array>
+    <string-array name="note_sides">
+        <item>Up</item>
+        <item>Down</item>
+    </string-array>
+    <string-array name="event_easing_entries">
+        <item>01 · Linear</item>
+        <item>02 · Out Sine</item>
+        <item>03 · In Sine</item>
+        <item>04 · Out Quad</item>
+        <item>05 · In Quad</item>
+        <item>06 · In Out Sine</item>
+        <item>07 · In Out Quad</item>
+        <item>08 · Out Cubic</item>
+        <item>09 · In Cubic</item>
+        <item>10 · Out Quart</item>
+        <item>11 · In Quart</item>
+        <item>12 · In Out Cubic</item>
+        <item>13 · In Out Quart</item>
+        <item>14 · Out Quint</item>
+        <item>15 · In Quint</item>
+        <item>16 · Out Expo</item>
+        <item>17 · In Expo</item>
+        <item>18 · Out Circ</item>
+        <item>19 · In Circ</item>
+        <item>20 · Out Back</item>
+        <item>21 · In Back</item>
+        <item>22 · In Out Circ</item>
+        <item>23 · In Out Back</item>
+        <item>24 · Out Elastic</item>
+        <item>25 · In Elastic</item>
+        <item>26 · Out Bounce</item>
+        <item>27 · In Bounce</item>
+        <item>28 · In Out Bounce</item>
+        <item>29 · In Out Elastic</item>
+    </string-array>
+</resources>

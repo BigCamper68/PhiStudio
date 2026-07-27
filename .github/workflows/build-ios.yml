@@ -1,0 +1,113 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/ios-build-1.0.4
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Report build environment
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: Resolve pinned Swift packages
+        working-directory: ios/PhiStudioIOS
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project PhiStudioIOS.xcodeproj \
+            -scheme PhiStudioIOS
+
+      - name: Run XCTest suite
+        working-directory: ios/PhiStudioIOS
+        run: |
+          SIMULATOR_UDID="$(
+            xcrun simctl list devices available -j |
+              python3 -c 'import json, sys; devices = json.load(sys.stdin)["devices"]; iphones = [device for runtime_devices in devices.values() for device in runtime_devices if device.get("isAvailable") and device.get("name", "").startswith("iPhone")]; print(iphones[-1]["udid"]) if iphones else sys.exit("No available iPhone simulator")'
+          )"
+          echo "Using simulator $SIMULATOR_UDID"
+          xcodebuild \
+            test \
+            -project PhiStudioIOS.xcodeproj \
+            -scheme PhiStudioIOS \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/PhiStudioTestDerivedData" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build unsigned device application
+        working-directory: ios/PhiStudioIOS
+        run: |
+          xcodebuild \
+            clean build \
+            -project PhiStudioIOS.xcodeproj \
+            -scheme PhiStudioIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/PhiStudioDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package and inspect IPA
+        working-directory: ios/PhiStudioIOS
+        run: |
+          APP_PATH="$RUNNER_TEMP/PhiStudioDerivedData/Build/Products/Release-iphoneos/PhiStudioIOS.app"
+          STAGING_PATH="$RUNNER_TEMP/PhiStudioIPA"
+          ARTIFACT_PATH="$GITHUB_WORKSPACE/artifacts"
+          IPA_PATH="$ARTIFACT_PATH/PhiStudio-1.0.4-unsigned.ipa"
+
+          test -d "$APP_PATH"
+          mkdir -p "$STAGING_PATH/Payload" "$ARTIFACT_PATH"
+          ditto "$APP_PATH" "$STAGING_PATH/Payload/PhiStudioIOS.app"
+          (
+            cd "$STAGING_PATH"
+            ditto -c -k --sequesterRsrc --keepParent Payload "$IPA_PATH"
+          )
+
+          unzip -t "$IPA_PATH"
+          /usr/libexec/PlistBuddy -c "Print:CFBundleIdentifier" \
+            "$STAGING_PATH/Payload/PhiStudioIOS.app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print:CFBundleShortVersionString" \
+            "$STAGING_PATH/Payload/PhiStudioIOS.app/Info.plist"
+          file "$STAGING_PATH/Payload/PhiStudioIOS.app/PhiStudioIOS"
+          lipo -archs "$STAGING_PATH/Payload/PhiStudioIOS.app/PhiStudioIOS"
+
+          if codesign --verify --deep --strict "$STAGING_PATH/Payload/PhiStudioIOS.app"; then
+            echo "Unexpectedly signed application"
+            exit 1
+          else
+            echo "Application is unsigned as intended"
+          fi
+
+          shasum -a 256 "$IPA_PATH" | tee "$ARTIFACT_PATH/SHA256SUMS.txt"
+          {
+            sw_vers
+            xcodebuild -version
+            echo "SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+            echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print:CFBundleIdentifier' "$STAGING_PATH/Payload/PhiStudioIOS.app/Info.plist")"
+            echo "Version: $(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' "$STAGING_PATH/Payload/PhiStudioIOS.app/Info.plist")"
+            echo "Architectures: $(lipo -archs "$STAGING_PATH/Payload/PhiStudioIOS.app/PhiStudioIOS")"
+            echo "Signing: unsigned"
+          } > "$ARTIFACT_PATH/BUILD-INFO.txt"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhiStudio-iOS-unsigned
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 7
