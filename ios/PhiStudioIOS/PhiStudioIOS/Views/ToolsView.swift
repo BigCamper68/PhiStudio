@@ -608,11 +608,13 @@ struct BPMManagerView: View {
 private struct BPMEditorRow: View {
     @Bindable var store: EditorStore
     @State private var draft: BPMChange
+    let change: BPMChange
     let canDelete: Bool
 
     init(store: EditorStore, change: BPMChange, canDelete: Bool) {
         self.store = store
         _draft = State(initialValue: change)
+        self.change = change
         self.canDelete = canDelete
     }
 
