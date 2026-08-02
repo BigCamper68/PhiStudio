@@ -43,6 +43,10 @@ public final class EventLayer {
     }
 
     public JSONObject toJson() throws JSONException {
+        return toJson(false);
+    }
+
+    JSONObject toJson(boolean baseLayer) throws JSONException {
         JSONObject object = RawJson.shallowCopy(raw);
         for (EventType type : EventType.values()) {
             List<LineEvent> values = events(type);
@@ -55,6 +59,7 @@ public final class EventLayer {
                 continue;
             }
             JSONArray array = new JSONArray();
+            appendCompatibilityPrefix(array, type, values.get(0), baseLayer);
             for (LineEvent event : values) array.put(event.toJson());
             object.put(type.jsonKey, array);
         }
@@ -62,8 +67,32 @@ public final class EventLayer {
     }
 
     public Object toJsonValue() throws JSONException {
+        return toJsonValue(false);
+    }
+
+    Object toJsonValue(boolean baseLayer) throws JSONException {
         if (sourceNull && count() == 0) return JSONObject.NULL;
-        return toJson();
+        return toJson(baseLayer);
+    }
+
+    private static void appendCompatibilityPrefix(JSONArray target, EventType type,
+                                                   LineEvent first, boolean baseLayer)
+            throws JSONException {
+        if (first == null || first.startTime == null
+                || first.startTime.compareTo(BeatTime.zero()) <= 0) return;
+
+        // Phira/RPE Anim starts evaluating from the first keyframe even before its timestamp.
+        // A delayed nonlinear first event therefore extrapolates backwards and can produce
+        // thousands of degrees of rotation. Materialize the value PhiStudio already uses
+        // before that event: the base-layer default, or zero for additive layers.
+        LineEvent prefix = new LineEvent();
+        prefix.type = type;
+        prefix.startTime = BeatTime.zero();
+        prefix.endTime = first.startTime;
+        prefix.start = baseLayer ? LineEvent.defaultValue(type) : 0.0;
+        prefix.end = prefix.start;
+        prefix.easingType = 1;
+        target.put(prefix.toJson());
     }
 
     public boolean isNullPlaceholder() {
