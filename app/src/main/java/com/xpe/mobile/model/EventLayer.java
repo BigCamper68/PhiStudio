@@ -43,10 +43,15 @@ public final class EventLayer {
     }
 
     public JSONObject toJson() throws JSONException {
-        return toJson(false);
+        return toJson(false, false);
     }
 
     JSONObject toJson(boolean baseLayer) throws JSONException {
+        return toJson(true, baseLayer);
+    }
+
+    private JSONObject toJson(boolean addCompatibilityPrefix,
+                              boolean baseLayer) throws JSONException {
         JSONObject object = RawJson.shallowCopy(raw);
         for (EventType type : EventType.values()) {
             List<LineEvent> values = events(type);
@@ -59,7 +64,9 @@ public final class EventLayer {
                 continue;
             }
             JSONArray array = new JSONArray();
-            appendCompatibilityPrefix(array, type, values.get(0), baseLayer);
+            if (addCompatibilityPrefix) {
+                appendCompatibilityPrefix(array, type, values.get(0), baseLayer);
+            }
             for (LineEvent event : values) array.put(event.toJson());
             object.put(type.jsonKey, array);
         }
@@ -67,7 +74,8 @@ public final class EventLayer {
     }
 
     public Object toJsonValue() throws JSONException {
-        return toJsonValue(false);
+        if (sourceNull && count() == 0) return JSONObject.NULL;
+        return toJson();
     }
 
     Object toJsonValue(boolean baseLayer) throws JSONException {
