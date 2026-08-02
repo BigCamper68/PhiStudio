@@ -175,7 +175,7 @@ public final class PreviewRenderer {
                             Paint.Align.RIGHT, color, alpha);
                     float levelBaseline = nameBottom - paint.descent();
                     target.drawText(ellipsize(hud.level, viewport.width() * 0.4f),
-                            right, nameBaseline, paint);
+                            right, levelBaseline, paint);
                 });
 
         float barY = viewport.top;
