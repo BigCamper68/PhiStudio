@@ -85,7 +85,8 @@ public final class PackageExporter {
         }
     }
 
-    private static PackageManifest preferredYamlManifest(List<PackageManifest> manifests) {
+    private static PackageManifest preferredYamlManifest(List<PackageManifest> manifests)
+            throws PackageException {
         PackageManifest fallback = null;
         for (PackageManifest manifest : manifests) {
             if (manifest.getKind() != PackageManifest.Kind.YAML) continue;
