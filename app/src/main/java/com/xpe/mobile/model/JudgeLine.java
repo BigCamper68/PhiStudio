@@ -107,7 +107,9 @@ public final class JudgeLine {
         object.put("numOfNotes", nonHoldNotes);
 
         JSONArray layersJson = new JSONArray();
-        for (EventLayer layer : eventLayers) layersJson.put(layer.toJsonValue());
+        for (int index = 0; index < eventLayers.size(); index++) {
+            layersJson.put(eventLayers.get(index).toJsonValue(index == 0));
+        }
         object.put("eventLayers", layersJson);
         return object;
     }
