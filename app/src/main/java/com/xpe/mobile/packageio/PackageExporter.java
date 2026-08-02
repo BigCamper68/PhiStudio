@@ -4,15 +4,12 @@ import com.xpe.mobile.model.ChartDocument;
 
 import org.json.JSONException;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,10 +47,8 @@ public final class PackageExporter {
                 if (!packageEntry.isDirectory()) {
                     if (path.equals(chartPackage.getChartPath())) {
                         try {
-                            Writer writer = new BufferedWriter(new OutputStreamWriter(
-                                    zip, StandardCharsets.UTF_8), 32 * 1024);
-                            editedChart.writeJson(writer);
-                            writer.flush();
+                            writeUtf8(zip, RpePackageCompat.normalize(
+                                    editedChart.toJsonString()));
                         } catch (JSONException exception) {
                             throw new IOException("Unable to serialize the edited RPE chart", exception);
                         }
