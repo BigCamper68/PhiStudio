@@ -58,7 +58,20 @@ public final class ChartPackage {
         this.manifestOffsetMs = manifestOffsetMs;
         this.useRpe170Speed = useRpe170Speed;
         this.chart = chart;
-        this.entries = Collections.unmodifiableList(new ArrayList<>(entries));
+        List<Entry> packageEntries = new ArrayList<>(entries);
+        boolean hasInfoTxt = false;
+        for (Entry entry : packageEntries) {
+            if (!entry.isDirectory() && InfoTxtManifestWriter.isInfoTxt(entry.getPath())) {
+                hasInfoTxt = true;
+                break;
+            }
+        }
+        if (!hasInfoTxt) {
+            // The file is generated during export; representing it here keeps package entry
+            // accounting stable across the first export/import round trip.
+            packageEntries.add(new Entry(InfoTxtManifestWriter.FILE_NAME, false, 0L));
+        }
+        this.entries = Collections.unmodifiableList(packageEntries);
         this.manifests = Collections.unmodifiableList(new ArrayList<>(manifests));
     }
 
