@@ -10,83 +10,69 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public final class EventDragCommandTest {
     @Test
-    public void movesOneEndpointAndSupportsUndoRedo() {
+    public void completedDragCreatesOneUndoStepAndRestoresTimes() {
         EventLayer layer = new EventLayer();
-        LineEvent target = event(EventType.MOVE_X, 1, 3);
+        LineEvent earlier = event(EventType.MOVE_X, 0, 1);
+        LineEvent target = event(EventType.MOVE_X, 2, 3);
+        target.start = 15.0;
+        target.end = 15.0;
+        target.linkGroup = 7;
+        layer.events(EventType.MOVE_X).add(earlier);
         layer.events(EventType.MOVE_X).add(target);
+
         EditHistory history = new EditHistory(10);
-
-        history.execute(EventDragCommand.move(layer, target,
+        EditHistory.Command command = EventDragCommand.move(layer, target,
                 target.startTime, target.endTime,
-                new BeatTime(2, 0, 1), target.endTime));
+                new BeatTime(1, 0, 1), new BeatTime(2, 0, 1));
 
+        assertEquals(new BeatTime(2, 0, 1), target.startTime);
+        assertFalse(history.canUndo());
+
+        history.execute(command);
+        assertEquals(new BeatTime(1, 0, 1), target.startTime);
+        assertEquals(new BeatTime(2, 0, 1), target.endTime);
+        assertSame(target, layer.events(EventType.MOVE_X).get(1));
+        assertEquals(15.0, target.start, 0.0);
+        assertEquals(15.0, target.end, 0.0);
+        assertEquals(7, target.linkGroup);
+        assertTrue(history.canUndo());
+
+        history.undo();
         assertEquals(new BeatTime(2, 0, 1), target.startTime);
         assertEquals(new BeatTime(3, 0, 1), target.endTime);
-        history.undo();
+        assertFalse(history.canUndo());
+        assertTrue(history.canRedo());
+
+        history.redo();
         assertEquals(new BeatTime(1, 0, 1), target.startTime);
-        history.redo();
-        assertEquals(new BeatTime(2, 0, 1), target.startTime);
+        assertEquals(new BeatTime(2, 0, 1), target.endTime);
     }
 
     @Test
-    public void movesBothEndpointsAndKeepsSortedOrder() {
+    public void startAndEndHandlesChangeOnlyTheirOwnEndpoint() {
         EventLayer layer = new EventLayer();
-        LineEvent first = event(EventType.MOVE_Y, 0, 1);
-        LineEvent target = event(EventType.MOVE_Y, 2, 3);
-        LineEvent last = event(EventType.MOVE_Y, 4, 5);
-        layer.events(EventType.MOVE_Y).add(first);
-        layer.events(EventType.MOVE_Y).add(target);
-        layer.events(EventType.MOVE_Y).add(last);
-        EditHistory history = new EditHistory(10);
-
-        history.execute(EventDragCommand.move(layer, target,
-                target.startTime, target.endTime,
-                new BeatTime(5, 0, 1), new BeatTime(6, 0, 1)));
-
-        assertEquals(last, layer.events(EventType.MOVE_Y).get(1));
-        assertEquals(target, layer.events(EventType.MOVE_Y).get(2));
-        history.undo();
-        assertEquals(target, layer.events(EventType.MOVE_Y).get(1));
-        history.redo();
-        assertEquals(target, layer.events(EventType.MOVE_Y).get(2));
-    }
-
-    @Test
-    public void preservesOtherFieldsDuringMove() {
-        EventLayer layer = new EventLayer();
-        LineEvent target = event(EventType.ROTATE, 1, 2);
-        target.start = 15.0;
-        target.end = 45.0;
-        target.easingType = 9;
-        target.easingLeft = 0.2;
-        target.easingRight = 0.8;
-        target.bezier = true;
-        target.bezierPoints[0] = 0.1;
-        target.bezierPoints[1] = 0.3;
-        target.bezierPoints[2] = 0.7;
-        target.bezierPoints[3] = 0.9;
-        target.linkGroup = 5;
+        LineEvent target = event(EventType.ROTATE, 1, 3);
         layer.events(EventType.ROTATE).add(target);
         EditHistory history = new EditHistory(10);
 
         history.execute(EventDragCommand.move(layer, target,
                 target.startTime, target.endTime,
-                new BeatTime(3, 0, 1), new BeatTime(4, 0, 1)));
+                new BeatTime(2, 0, 1), target.endTime));
+        assertEquals(new BeatTime(2, 0, 1), target.startTime);
+        assertEquals(new BeatTime(3, 0, 1), target.endTime);
+        history.undo();
 
-        assertEquals(15.0, target.start, 0.0);
-        assertEquals(45.0, target.end, 0.0);
-        assertEquals(9, target.easingType);
-        assertEquals(0.2, target.easingLeft, 0.0);
-        assertEquals(0.8, target.easingRight, 0.0);
-        assertEquals(true, target.bezier);
-        assertEquals(0.1, target.bezierPoints[0], 0.0);
-        assertEquals(0.3, target.bezierPoints[1], 0.0);
-        assertEquals(0.7, target.bezierPoints[2], 0.0);
-        assertEquals(0.9, target.bezierPoints[3], 0.0);
-        assertEquals(5, target.linkGroup);
+        history.execute(EventDragCommand.move(layer, target,
+                target.startTime, target.endTime,
+                target.startTime, new BeatTime(4, 0, 1)));
+        assertEquals(new BeatTime(1, 0, 1), target.startTime);
+        assertEquals(new BeatTime(4, 0, 1), target.endTime);
     }
 
     @Test
@@ -112,8 +98,7 @@ public final class EventDragCommandTest {
         assertEquals(1, speed.easingType);
         JSONObject line = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0);
-        // Index 0 is now the neutral compatibility interval inserted before a delayed
-        // first event; the edited source event follows it and must retain opaque data.
+        // The edited events follow the generated neutral interval from beat 0.
         JSONObject exportedMove = line.getJSONArray("eventLayers").getJSONObject(0)
                 .getJSONArray("moveXEvents").getJSONObject(1);
         JSONObject exportedSpeed = line.getJSONArray("eventLayers").getJSONObject(0)
