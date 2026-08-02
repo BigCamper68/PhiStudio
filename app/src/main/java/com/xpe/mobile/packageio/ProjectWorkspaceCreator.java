@@ -43,6 +43,7 @@ public final class ProjectWorkspaceCreator {
 
     private static final String CHART_PATH = "chart.json";
     private static final String MANIFEST_PATH = "info.yml";
+    private static final String REPHIEDIT_INFO_PATH = "info.txt";
 
     private final PackageLimits limits;
 
@@ -74,6 +75,10 @@ public final class ProjectWorkspaceCreator {
                     audioPath, illustrationPath, 0L, false);
             writeBytes(new File(workspace, MANIFEST_PATH),
                     manifest.getBytes(StandardCharsets.UTF_8), totalBytes);
+            String rePhiInfo = RePhiEditInfoCompat.normalize("", chart, CHART_PATH,
+                    audioPath, illustrationPath);
+            writeBytes(new File(workspace, REPHIEDIT_INFO_PATH),
+                    rePhiInfo.getBytes(StandardCharsets.UTF_8), totalBytes);
             copyAsset(audioInput, new File(workspace, audioPath), totalBytes);
             copyAsset(illustrationInput, new File(workspace, illustrationPath), totalBytes);
             return new PackageWorkspaceLoader(limits).load(
