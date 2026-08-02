@@ -83,8 +83,13 @@ jobs:
             fi
           done
           keystore_path="$RUNNER_TEMP/phistudio-release.p12"
-          printf '%s' "$PHISTUDIO_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          printf '%s' "$PHISTUDIO_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$keystore_path"
           chmod 600 "$keystore_path"
+          keytool -list \
+            -keystore "$keystore_path" \
+            -storetype PKCS12 \
+            -storepass "$PHISTUDIO_KEYSTORE_PASSWORD" \
+            -alias "$PHISTUDIO_KEY_ALIAS" >/dev/null
           echo "PHISTUDIO_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
 
       - name: Run tests, lint, and signed release build
