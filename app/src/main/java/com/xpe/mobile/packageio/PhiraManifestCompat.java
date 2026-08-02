@@ -90,13 +90,13 @@ final class PhiraManifestCompat {
         put(fields, "charter", quote(defaultText(value.charter, "Unknown")));
         put(fields, "composer", quote(defaultText(value.composer, "Unknown")));
         put(fields, "illustrator", quote("Unknown"));
-        put(fields, "chart", quote(defaultText(chartPath, "chart.json")));
+        put(fields, "chart", pathScalar(defaultText(chartPath, "chart.json")));
         put(fields, "format", "rpe");
         if (audioPath != null && !audioPath.trim().isEmpty()) {
-            put(fields, "music", quote(audioPath));
+            put(fields, "music", pathScalar(audioPath));
         }
         if (illustrationPath != null && !illustrationPath.trim().isEmpty()) {
-            put(fields, "illustration", quote(illustrationPath));
+            put(fields, "illustration", pathScalar(illustrationPath));
         }
         put(fields, "previewStart", "0");
         put(fields, "aspectRatio", "1.7777778");
@@ -142,6 +142,11 @@ final class PhiraManifestCompat {
     private static String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    private static String pathScalar(String value) {
+        String safe = defaultText(value, "");
+        return safe.matches("[A-Za-z0-9._/-]+") ? safe : quote(safe);
     }
 
     private static String quote(String value) {
