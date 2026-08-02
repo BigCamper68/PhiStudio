@@ -59,6 +59,12 @@ public final class Mp3PcmDecoder {
 
             extractor.selectTrack(trackIndex);
             codec = MediaCodec.createDecoderByType(mime);
+            // Some Android codecs consume encoder-delay / encoder-padding themselves while
+            // others expose the untrimmed PCM. PhiStudio performs deterministic trimming below,
+            // so disable codec-side gapless trimming to avoid deleting the delay twice and
+            // shifting the chart clock by tens of milliseconds on affected devices.
+            sourceFormat.setInteger(ENCODER_DELAY_KEY, 0);
+            sourceFormat.setInteger(ENCODER_PADDING_KEY, 0);
             codec.configure(sourceFormat, null, null, 0);
             codec.start();
             codecStarted = true;
