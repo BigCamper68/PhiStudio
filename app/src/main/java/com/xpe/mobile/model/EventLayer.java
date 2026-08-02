@@ -62,8 +62,13 @@ public final class EventLayer {
     }
 
     public Object toJsonValue() throws JSONException {
-        if (sourceNull && count() == 0) return JSONObject.NULL;
-        return toJson();
+        JSONObject object = toJson();
+        // RPE defines an unused layer as JSON null. Empty objects are accepted by some
+        // editors, but older Phira/prpr builds may treat them as a real layer and combine
+        // uninitialized values into the line transform. Preserve an object only when it
+        // carries unknown extension data that must survive a round trip.
+        if (count() == 0 && object.length() == 0) return JSONObject.NULL;
+        return object;
     }
 
     public boolean isNullPlaceholder() {
