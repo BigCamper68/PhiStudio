@@ -3,15 +3,25 @@ package com.xpe.mobile.packageio;
 import com.xpe.mobile.model.ChartDocument;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Keeps info.yml complete enough for Phira and legacy .pez importers. */
 final class PhiraManifestCompat {
     private static final Pattern LEVEL_NUMBER = Pattern.compile("[-+]?\\d+(?:\\.\\d+)?");
+    private static final Set<String> KNOWN_FIELDS = new HashSet<>(Arrays.asList(
+            "id", "uploader", "name", "difficulty", "level", "charter", "composer",
+            "illustrator", "chart", "format", "music", "illustration", "unlockvideo",
+            "previewstart", "previewend", "aspectratio", "backgrounddim", "linelength",
+            "offset", "tip", "tags", "intro", "holdpartialcover", "noteuniformscale",
+            "forceaspectratio", "userpe170speed", "useattachuifix", "created", "updated",
+            "chartupdated"));
 
     private PhiraManifestCompat() {
     }
@@ -20,6 +30,10 @@ final class PhiraManifestCompat {
                             String audioPath, String illustrationPath,
                             long packageOffsetMs, boolean useRpe170Speed) {
         String original = source == null ? "" : source;
+        // Unknown keys and free-form lines may belong to a future package format. Keep those
+        // manifests byte-for-byte instead of rewriting information PhiStudio does not own.
+        if (!original.trim().isEmpty() && !isKnownManifest(original)) return original;
+
         String newline = original.contains("\r\n") ? "\r\n" : "\n";
         LinkedHashMap<String, Field> fields = fields(chart, chartPath, audioPath,
                 illustrationPath, packageOffsetMs, useRpe170Speed);
@@ -46,6 +60,22 @@ final class PhiraManifestCompat {
             }
         }
         return output.toString();
+    }
+
+    private static boolean isKnownManifest(String source) {
+        String[] lines = source.split("\\r?\\n", -1);
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")
+                    || Character.isWhitespace(line.charAt(0))) {
+                continue;
+            }
+            String key = topLevelKey(line);
+            if (key == null || !KNOWN_FIELDS.contains(key.toLowerCase(Locale.ROOT))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static LinkedHashMap<String, Field> fields(ChartDocument chart, String chartPath,
