@@ -4,12 +4,12 @@ import com.xpe.mobile.model.ChartDocument;
 
 import org.json.JSONException;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +31,10 @@ public final class PackageExporter {
         List<ChartPackage.Entry> entries = new ArrayList<>(chartPackage.getEntries());
         entries.sort(Comparator.comparing(ChartPackage.Entry::getPath)
                 .thenComparing(ChartPackage.Entry::isDirectory));
+        PackageManifest yamlManifest = preferredYamlManifest(chartPackage.getManifests());
+        String yamlPath = yamlManifest == null ? null
+                : PackageImporter.normalizePath(yamlManifest.getPath());
+        boolean manifestWritten = false;
         boolean chartWritten = false;
         try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
             zip.setLevel(Deflater.DEFAULT_COMPRESSION);
@@ -50,16 +54,16 @@ public final class PackageExporter {
                             throw new IOException("Unable to serialize the edited RPE chart", exception);
                         }
                         chartWritten = true;
+                    } else if (path.equals(yamlPath)) {
+                        writeUtf8(zip, PhiraManifestCompat.normalize(
+                                yamlManifest.getSourceText(), editedChart,
+                                chartPackage.getChartPath(), chartPackage.getAudioPath(),
+                                chartPackage.getIllustrationPath(),
+                                chartPackage.getManifestOffsetMs(),
+                                chartPackage.isUseRpe170Speed()));
+                        manifestWritten = true;
                     } else {
-                        File source = PackageImporter.resolveInside(chartPackage.getWorkspace(), path);
-                        if (!source.isFile()) {
-                            throw new IOException("Preserved package entry is missing from the workspace: " + path);
-                        }
-                        try (InputStream input = new FileInputStream(source)) {
-                            byte[] buffer = new byte[32 * 1024];
-                            int count;
-                            while ((count = input.read(buffer)) != -1) zip.write(buffer, 0, count);
-                        }
+                        copyWorkspaceEntry(chartPackage, path, zip);
                     }
                 }
                 zip.closeEntry();
@@ -67,7 +71,47 @@ public final class PackageExporter {
             if (!chartWritten) {
                 throw new IOException("The selected RPE chart path is missing from the package entry list");
             }
+            if (!manifestWritten) {
+                ZipEntry manifestEntry = new ZipEntry("info.yml");
+                manifestEntry.setTime(0L);
+                zip.putNextEntry(manifestEntry);
+                writeUtf8(zip, PhiraManifestCompat.normalize(
+                        "", editedChart, chartPackage.getChartPath(),
+                        chartPackage.getAudioPath(), chartPackage.getIllustrationPath(),
+                        chartPackage.getManifestOffsetMs(), chartPackage.isUseRpe170Speed()));
+                zip.closeEntry();
+            }
             zip.finish();
+        }
+    }
+
+    private static PackageManifest preferredYamlManifest(List<PackageManifest> manifests) {
+        PackageManifest fallback = null;
+        for (PackageManifest manifest : manifests) {
+            if (manifest.getKind() != PackageManifest.Kind.YAML) continue;
+            String path = PackageImporter.normalizePath(manifest.getPath());
+            if ("info.yml".equalsIgnoreCase(path) || "info.yaml".equalsIgnoreCase(path)) {
+                return manifest;
+            }
+            if (fallback == null) fallback = manifest;
+        }
+        return fallback;
+    }
+
+    private static void writeUtf8(OutputStream output, String value) throws IOException {
+        output.write(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void copyWorkspaceEntry(ChartPackage chartPackage, String path,
+                                           OutputStream output) throws IOException {
+        File source = PackageImporter.resolveInside(chartPackage.getWorkspace(), path);
+        if (!source.isFile()) {
+            throw new IOException("Preserved package entry is missing from the workspace: " + path);
+        }
+        try (InputStream input = new FileInputStream(source)) {
+            byte[] buffer = new byte[32 * 1024];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
         }
     }
 }
