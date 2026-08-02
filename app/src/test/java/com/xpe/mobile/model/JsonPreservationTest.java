@@ -78,7 +78,7 @@ public final class JsonPreservationTest {
     }
 
     @Test
-    public void preservesUntouchedNullEventLayersAndMaterializesEditedOnes() throws Exception {
+    public void normalizesEmptyEventLayersToNull() throws Exception {
         JSONObject root = new JSONObject()
                 .put("BPMList", new JSONArray().put(new JSONObject()
                         .put("bpm", 120.0)
@@ -93,27 +93,27 @@ public final class JsonPreservationTest {
         JSONArray untouchedLayers = untouched.getJSONArray("judgeLineList")
                 .getJSONObject(0).getJSONArray("eventLayers");
         assertTrue(untouchedLayers.isNull(0));
-        assertFalse(untouchedLayers.isNull(1));
+        assertTrue(untouchedLayers.isNull(1));
 
         EventLayer nullLayer = chart.judgeLines.get(0).layer(0);
         LineEvent marker = new LineEvent();
         marker.type = EventType.MOVE_X;
         nullLayer.events(EventType.MOVE_X).add(marker);
         nullLayer.events(EventType.MOVE_X).remove(marker);
-        JSONObject materialized = new JSONObject(chart.toJsonString());
-        assertFalse(materialized.getJSONArray("judgeLineList").getJSONObject(0)
+        JSONObject emptiedAgain = new JSONObject(chart.toJsonString());
+        assertTrue(emptiedAgain.getJSONArray("judgeLineList").getJSONObject(0)
                 .getJSONArray("eventLayers").isNull(0));
     }
 
     @Test
-    public void omitsEmptyEventArraysForLegacyPhiraCompatibility() throws Exception {
+    public void serializesUnusedLayersAsNullForPhiraCompatibility() throws Exception {
         JudgeLine line = new JudgeLine();
         line.layer(3);
 
         JSONArray layers = line.toJson().getJSONArray("eventLayers");
         assertEquals(4, layers.length());
         for (int index = 1; index < layers.length(); index++) {
-            assertEquals(0, layers.getJSONObject(index).length());
+            assertTrue(layers.isNull(index));
         }
 
         EventLayer partial = line.layer(1);
