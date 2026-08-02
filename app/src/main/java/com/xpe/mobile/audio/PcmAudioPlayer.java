@@ -2,6 +2,7 @@ package com.xpe.mobile.audio;
 
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
+import android.media.AudioTimestamp;
 import android.media.AudioTrack;
 import android.media.PlaybackParams;
 import android.os.Handler;
@@ -9,7 +10,7 @@ import android.os.Handler;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-/** Plays decoded MP3 PCM with sample-accurate seeks and a playback-head based clock. */
+/** Plays decoded MP3 PCM with sample-accurate seeks and a presentation-timestamp clock. */
 public final class PcmAudioPlayer {
     public interface Listener {
         void onCompletion();
@@ -24,14 +25,17 @@ public final class PcmAudioPlayer {
     private final PcmAudioAsset asset;
     private final Handler callbackHandler;
     private final Listener listener;
+    private final AudioTimestamp presentationTimestamp = new AudioTimestamp();
 
     private AudioTrack activeTrack;
     private Thread worker;
     private int generation;
     private long playbackStartFrame;
+    private long playbackStartNanoTime;
     private long lastPositionMs;
     private boolean playRequested;
     private boolean released;
+    private float playbackSpeed = 1.0f;
     private float volume = 1.0f;
 
     public PcmAudioPlayer(PcmAudioAsset asset, Handler callbackHandler, Listener listener) {
@@ -53,6 +57,8 @@ public final class PcmAudioPlayer {
             if (released) return;
             nextGeneration = ++generation;
             playbackStartFrame = targetFrame;
+            playbackStartNanoTime = 0L;
+            playbackSpeed = targetSpeed;
             lastPositionMs = asset.positionMillisForFrame(targetFrame);
             playRequested = true;
             nextWorker = new Thread(
@@ -73,6 +79,7 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             if (released) return;
             playbackStartFrame = targetFrame;
+            playbackStartNanoTime = 0L;
             lastPositionMs = asset.positionMillisForFrame(targetFrame);
         }
     }
@@ -82,6 +89,7 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             released = true;
             generation++;
+            playbackStartNanoTime = 0L;
         }
     }
 
@@ -93,7 +101,7 @@ public final class PcmAudioPlayer {
 
     public long positionMillis() {
         synchronized (lock) {
-            updatePositionFromPlaybackHeadLocked(activeTrack);
+            updatePositionFromPresentationClockLocked(activeTrack);
             return lastPositionMs;
         }
     }
@@ -114,13 +122,14 @@ public final class PcmAudioPlayer {
         AudioTrack track;
         Thread currentWorker;
         synchronized (lock) {
-            updatePositionFromPlaybackHeadLocked(activeTrack);
+            updatePositionFromPresentationClockLocked(activeTrack);
             playRequested = false;
             generation++;
             track = activeTrack;
             activeTrack = null;
             currentWorker = worker;
             worker = null;
+            playbackStartNanoTime = 0L;
         }
         if (track != null) {
             try {
@@ -166,6 +175,12 @@ public final class PcmAudioPlayer {
 
             if (!isCurrent(expectedGeneration)) return;
             track.play();
+            long startedNanoTime = System.nanoTime();
+            synchronized (lock) {
+                if (isCurrentLocked(expectedGeneration) && activeTrack == track) {
+                    playbackStartNanoTime = startedNanoTime;
+                }
+            }
 
             while (isCurrent(expectedGeneration) && !endOfFile) {
                 if (pendingOffset >= pendingBytes) {
@@ -204,6 +219,7 @@ public final class PcmAudioPlayer {
             synchronized (lock) {
                 if (activeTrack == track) activeTrack = null;
                 if (worker == Thread.currentThread()) worker = null;
+                if (activeTrack == null) playbackStartNanoTime = 0L;
             }
             releaseTrack(track);
         }
@@ -292,6 +308,7 @@ public final class PcmAudioPlayer {
             if (isCurrentLocked(expectedGeneration)) {
                 lastPositionMs = asset.durationMillis();
                 playRequested = false;
+                playbackStartNanoTime = 0L;
                 notify = true;
             }
         }
@@ -303,6 +320,7 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             if (generation == expectedGeneration && !released) {
                 playRequested = false;
+                playbackStartNanoTime = 0L;
                 notify = true;
             }
         }
@@ -313,12 +331,30 @@ public final class PcmAudioPlayer {
         }
     }
 
-    private void updatePositionFromPlaybackHeadLocked(AudioTrack track) {
+    private void updatePositionFromPresentationClockLocked(AudioTrack track) {
         if (track == null) return;
         try {
-            long headFrames = playbackHeadFrames(track);
-            lastPositionMs = Math.max(lastPositionMs,
-                    PcmPlaybackClock.positionMillis(asset, playbackStartFrame, headFrames));
+            long remainingFrames = Math.max(0L, asset.totalFrames - playbackStartFrame);
+            long presentedFrames;
+            long nowNanoTime = System.nanoTime();
+            if (track.getTimestamp(presentationTimestamp)) {
+                presentedFrames = PcmPresentationClock.timestampFrames(
+                        presentationTimestamp.framePosition,
+                        presentationTimestamp.nanoTime, nowNanoTime,
+                        asset.sampleRate, playbackSpeed, remainingFrames);
+            } else {
+                long headFrames = Math.min(remainingFrames, playbackHeadFrames(track));
+                long elapsedFrames = PcmPresentationClock.wallClockFrames(
+                        playbackStartNanoTime, nowNanoTime,
+                        asset.sampleRate, playbackSpeed, remainingFrames);
+                // The playback head may advance into the device queue before samples are audible.
+                // Until a presentation timestamp is available, never let it outrun wall time.
+                presentedFrames = playbackStartNanoTime > 0L
+                        ? Math.min(headFrames, elapsedFrames) : headFrames;
+            }
+            long positionMs = PcmPlaybackClock.positionMillis(
+                    asset, playbackStartFrame, presentedFrames);
+            lastPositionMs = Math.max(lastPositionMs, positionMs);
         } catch (IllegalStateException ignored) {
             // Keep the last stable position while a cancelled worker releases the track.
         }
