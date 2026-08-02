@@ -5,6 +5,7 @@ import com.xpe.mobile.model.ChartDocument;
 import org.json.JSONException;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -21,6 +22,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public final class PackageExporter {
+    private static final String REPHIEDIT_INFO_PATH = "info.txt";
+
     public void exportPackage(ChartPackage chartPackage, ChartDocument editedChart,
                               OutputStream output) throws IOException {
         if (chartPackage == null || editedChart == null) {
@@ -35,6 +38,7 @@ public final class PackageExporter {
         String yamlPath = yamlManifest == null ? null
                 : PackageImporter.normalizePath(yamlManifest.getPath());
         boolean manifestWritten = false;
+        boolean rePhiInfoWritten = false;
         boolean chartWritten = false;
         try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
             zip.setLevel(Deflater.DEFAULT_COMPRESSION);
@@ -62,6 +66,12 @@ public final class PackageExporter {
                                 chartPackage.getManifestOffsetMs(),
                                 chartPackage.isUseRpe170Speed()));
                         manifestWritten = true;
+                    } else if (REPHIEDIT_INFO_PATH.equalsIgnoreCase(path)) {
+                        writeUtf8(zip, RePhiEditInfoCompat.normalize(
+                                readWorkspaceUtf8(chartPackage, path), editedChart,
+                                chartPackage.getChartPath(), chartPackage.getAudioPath(),
+                                chartPackage.getIllustrationPath()));
+                        rePhiInfoWritten = true;
                     } else {
                         copyWorkspaceEntry(chartPackage, path, zip);
                     }
@@ -79,6 +89,15 @@ public final class PackageExporter {
                         "", editedChart, chartPackage.getChartPath(),
                         chartPackage.getAudioPath(), chartPackage.getIllustrationPath(),
                         chartPackage.getManifestOffsetMs(), chartPackage.isUseRpe170Speed()));
+                zip.closeEntry();
+            }
+            if (!rePhiInfoWritten) {
+                ZipEntry infoEntry = new ZipEntry(REPHIEDIT_INFO_PATH);
+                infoEntry.setTime(0L);
+                zip.putNextEntry(infoEntry);
+                writeUtf8(zip, RePhiEditInfoCompat.normalize(
+                        "", editedChart, chartPackage.getChartPath(),
+                        chartPackage.getAudioPath(), chartPackage.getIllustrationPath()));
                 zip.closeEntry();
             }
             zip.finish();
@@ -101,6 +120,19 @@ public final class PackageExporter {
 
     private static void writeUtf8(OutputStream output, String value) throws IOException {
         output.write(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String readWorkspaceUtf8(ChartPackage chartPackage, String path)
+            throws IOException {
+        File source = PackageImporter.resolveInside(chartPackage.getWorkspace(), path);
+        if (!source.isFile()) return "";
+        try (InputStream input = new FileInputStream(source);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8 * 1024];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
     }
 
     private static void copyWorkspaceEntry(ChartPackage chartPackage, String path,
