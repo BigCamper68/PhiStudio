@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Keeps info.yml complete enough for Phira and legacy .pez importers. */
+/** Keeps info.yml complete enough for Phira while matching Re:PhiEdit package conventions. */
 final class PhiraManifestCompat {
     private static final Pattern LEVEL_NUMBER = Pattern.compile("[-+]?\\d+(?:\\.\\d+)?");
     private static final Set<String> KNOWN_FIELDS = new HashSet<>(Arrays.asList(
@@ -38,7 +38,7 @@ final class PhiraManifestCompat {
         LinkedHashMap<String, Field> fields = fields(chart, chartPath, audioPath,
                 illustrationPath, packageOffsetMs, useRpe170Speed);
 
-        StringBuilder output = new StringBuilder(original.length() + 384);
+        StringBuilder output = new StringBuilder(original.length() + 448);
         String[] lines = original.split("\\r?\\n", -1);
         for (int index = 0; index < lines.length; index++) {
             String line = lines[index];
@@ -91,24 +91,29 @@ final class PhiraManifestCompat {
         put(fields, "composer", quote(defaultText(value.composer, "Unknown")));
         put(fields, "illustrator", quote("Unknown"));
         put(fields, "chart", pathScalar(defaultText(chartPath, "chart.json")));
-        put(fields, "format", "rpe");
+        // null lets Phira infer RPE from META and matches packages exported by Re:PhiEdit.
+        put(fields, "format", "null");
         if (audioPath != null && !audioPath.trim().isEmpty()) {
             put(fields, "music", pathScalar(audioPath));
         }
         if (illustrationPath != null && !illustrationPath.trim().isEmpty()) {
             put(fields, "illustration", pathScalar(illustrationPath));
         }
+        put(fields, "unlockVideo", "null");
         put(fields, "previewStart", "0");
+        put(fields, "previewEnd", "null");
         put(fields, "aspectRatio", "1.7777778");
         put(fields, "backgroundDim", "0.6");
         put(fields, "lineLength", "6");
         put(fields, "offset", decimal(packageOffsetMs / 1000.0));
+        put(fields, "tip", "null");
         put(fields, "tags", "[]");
         put(fields, "intro", quote(""));
         put(fields, "holdPartialCover", "false");
         put(fields, "noteUniformScale", "false");
         put(fields, "forceAspectRatio", "false");
-        put(fields, "useRpe170Speed", Boolean.toString(useRpe170Speed));
+        put(fields, "useRpe170Speed", useRpe170Speed ? "true" : "null");
+        put(fields, "useAttachUiFix", "null");
         return fields;
     }
 
