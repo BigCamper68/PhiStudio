@@ -114,7 +114,8 @@ public final class ProjectWorkspaceCreator {
 
     private static byte[] serializeChart(ChartDocument chart) throws IOException {
         try {
-            return chart.toJsonString().getBytes(StandardCharsets.UTF_8);
+            return RpePackageCompat.normalize(chart.toJsonString())
+                    .getBytes(StandardCharsets.UTF_8);
         } catch (JSONException exception) {
             throw new IOException("Unable to serialize new chart", exception);
         }
