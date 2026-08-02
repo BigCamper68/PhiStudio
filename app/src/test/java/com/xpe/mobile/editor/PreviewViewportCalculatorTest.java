@@ -28,13 +28,13 @@ public final class PreviewViewportCalculatorTest {
     }
 
     @Test
-    public void invalidPlayerDimensionsUseDefaultThreeByTwo() {
+    public void invalidPlayerDimensionsUsePhiraDefaultSixteenByNine() {
         PreviewViewportCalculator.Result result = PreviewViewportCalculator.fit(
                 0.0, 0.0, 300.0, 300.0, 0, 0);
 
         assertEquals(0.0, result.left, 0.0);
-        assertEquals(50.0, result.top, 0.0);
+        assertEquals(65.625, result.top, 1.0e-9);
         assertEquals(300.0, result.right, 0.0);
-        assertEquals(250.0, result.bottom, 0.0);
+        assertEquals(234.375, result.bottom, 1.0e-9);
     }
 }

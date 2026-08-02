@@ -224,7 +224,7 @@ final class StoryboardDialogSection extends EditorDialogSection {
         });
         close.setOnClickListener(view -> dialog.dismiss());
         refresh[0].run();
-        showEditorWindow(dialog, null, 0.84f, 0.96f);
+        showEditorWindow(dialog, null, 0.94f, 0.96f);
     }
 
     private void chooseStoryboardType(StoryboardTypeAction action) {

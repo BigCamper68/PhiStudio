@@ -11,6 +11,8 @@ public final class EditorSettingsTest {
     public void defaultsAndCopyAreValidAndIndependent() {
         EditorSettings settings = new EditorSettings();
         assertTrue(settings.isValid());
+        assertEquals(1920, settings.playerWidth);
+        assertEquals(1080, settings.playerHeight);
         EditorSettings copy = settings.copy();
         copy.musicVolume = 0.25;
         copy.splitSnapToGrid = false;
@@ -18,6 +20,18 @@ public final class EditorSettingsTest {
         assertEquals(0.25, copy.musicVolume, 0.0);
         assertTrue(settings.splitSnapToGrid);
         assertFalse(copy.splitSnapToGrid);
+    }
+
+    @Test
+    public void migratesLegacyThreeByTwoPreviewDefault() {
+        EditorSettings settings = new EditorSettings();
+        settings.playerWidth = 1350;
+        settings.playerHeight = 900;
+
+        EditorSettingsStore.migrateLegacyPreviewAspect(settings);
+
+        assertEquals(1920, settings.playerWidth);
+        assertEquals(1080, settings.playerHeight);
     }
 
     @Test

@@ -18,8 +18,8 @@ public final class EditorSettings {
     public double timelineScrollSpeed = 1.0;
     public double eventScrollSpeed = 1.0;
     public double previewBackgroundAlpha = 0.6;
-    public int playerWidth = 1350;
-    public int playerHeight = 900;
+    public int playerWidth = 1920;
+    public int playerHeight = 1080;
     public boolean autoApplyPropertyEdits;
     public boolean autoMoveToClipboard;
     public boolean showTips = true;

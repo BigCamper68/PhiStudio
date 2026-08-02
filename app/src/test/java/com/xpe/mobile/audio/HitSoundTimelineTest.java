@@ -9,8 +9,8 @@ import com.xpe.mobile.model.NoteType;
 
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -29,12 +29,43 @@ public final class HitSoundTimelineTest {
         HitSoundTimeline timeline = HitSoundTimeline.build(chart, 50, -30);
 
         assertEquals(4, timeline.size());
-        assertEquals(Collections.singletonList(NoteType.DRAG), timeline.between(469L, 470L));
-        assertEquals(Arrays.asList(NoteType.TAP, NoteType.FLICK),
-                timeline.between(470L, 550L));
-        assertEquals(Collections.singletonList(NoteType.HOLD),
-                timeline.between(550L, 1050L));
-        assertEquals(Collections.emptyList(), timeline.between(1050L, 1050L));
+        HitSoundTimeline.Cue drag = singleCue(timeline, 469L, 470L);
+        assertEquals(1, drag.count(NoteType.DRAG));
+        HitSoundTimeline.Cue tapAndFlick = singleCue(timeline, 470L, 550L);
+        assertEquals(2, tapAndFlick.noteCount());
+        assertEquals(1, tapAndFlick.count(NoteType.TAP));
+        assertEquals(1, tapAndFlick.count(NoteType.FLICK));
+        HitSoundTimeline.Cue hold = singleCue(timeline, 550L, 1050L);
+        assertEquals(1, hold.count(NoteType.HOLD));
+        assertEquals(Collections.emptyList(), timeline.cuesBetween(1050L, 1050L));
+    }
+
+    @Test
+    public void groupsOneTimestampAndRetainsEveryTypeCount() {
+        ChartDocument chart = chart();
+        JudgeLine first = new JudgeLine();
+        first.notes.add(note(NoteType.TAP, 1.0, false));
+        first.notes.add(note(NoteType.TAP, 1.0, false));
+        first.notes.add(note(NoteType.FLICK, 1.0, false));
+        first.notes.add(note(NoteType.HOLD, 1.0, false));
+        chart.judgeLines.add(first);
+        JudgeLine second = new JudgeLine();
+        second.notes.add(note(NoteType.TAP, 1.0, false));
+        chart.judgeLines.add(second);
+
+        HitSoundTimeline timeline = HitSoundTimeline.build(chart, 0, 0);
+
+        assertEquals(5, timeline.size());
+        assertEquals(1, timeline.cueCount());
+        List<HitSoundTimeline.Cue> cues = timeline.cuesBetween(499L, 500L);
+        assertEquals(1, cues.size());
+        HitSoundTimeline.Cue cue = cues.get(0);
+        assertEquals(500L, cue.timeMs());
+        assertEquals(5, cue.noteCount());
+        assertEquals(3, cue.count(NoteType.TAP));
+        assertEquals(1, cue.count(NoteType.HOLD));
+        assertEquals(1, cue.count(NoteType.FLICK));
+        assertEquals(0, cue.count(NoteType.DRAG));
     }
 
     @Test
@@ -46,7 +77,16 @@ public final class HitSoundTimelineTest {
 
         HitSoundTimeline timeline = HitSoundTimeline.build(chart, 0, 0);
 
-        assertEquals(Collections.emptyList(), timeline.between(900L, 400L));
+        assertEquals(Collections.emptyList(), timeline.cuesBetween(900L, 400L));
+    }
+
+    private static HitSoundTimeline.Cue singleCue(HitSoundTimeline timeline,
+                                                   long previousTimeMs,
+                                                   long currentTimeMs) {
+        List<HitSoundTimeline.Cue> cues = timeline.cuesBetween(
+                previousTimeMs, currentTimeMs);
+        assertEquals(1, cues.size());
+        return cues.get(0);
     }
 
     private static ChartDocument chart() {

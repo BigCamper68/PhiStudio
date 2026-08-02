@@ -26,6 +26,7 @@ import android.widget.Toast;
 import com.xpe.mobile.editor.EditorBackgroundDecoder;
 import com.xpe.mobile.editor.EditorView;
 import com.xpe.mobile.audio.EditorAudioController;
+import com.xpe.mobile.audio.HitSoundTimeline;
 import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.config.EditorSettingsStore;
@@ -34,7 +35,6 @@ import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.JudgeLine;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
-import com.xpe.mobile.model.NoteType;
 import com.xpe.mobile.packageio.AndroidPackageIo;
 import com.xpe.mobile.packageio.ChartPackage;
 import com.xpe.mobile.packageio.PackageException;
@@ -846,8 +846,8 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     @Override
-    public void playHitSound(NoteType type) {
-        if (audioController != null) audioController.playHitSound(type);
+    public void playHitSound(HitSoundTimeline.Cue cue) {
+        if (audioController != null) audioController.playHitSound(cue);
     }
 
     @Override

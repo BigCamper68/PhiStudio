@@ -14,7 +14,6 @@ import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
-import com.xpe.mobile.model.NoteType;
 import com.xpe.mobile.preview.ChartEvaluator;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
 import com.xpe.mobile.preview.RenderScene;
@@ -51,7 +50,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         void startAudio(long positionMs, float speed);
         void pauseAudio();
         void seekAudio(long positionMs);
-        void playHitSound(NoteType type);
+        void playHitSound(HitSoundTimeline.Cue cue);
         long audioPositionMs();
         long audioDurationMs();
     }
@@ -218,8 +217,11 @@ abstract class EditorChromeView extends EditorDocumentView {
                 callback == null ? -1L : callback.audioDurationMs(),
                 useRpe170Speed);
         float barHeight = 25f * density;
+        RectF previewArea = new RectF(0f, toolbarHeight(), getWidth(),
+                getHeight() - barHeight);
+        previewRenderer.drawBackdrop(canvas, previewArea, backgroundIllustration);
         PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(
-                0.0, toolbarHeight(), getWidth(), getHeight() - barHeight,
+                previewArea.left, previewArea.top, previewArea.right, previewArea.bottom,
                 settings.playerWidth, settings.playerHeight);
         RectF viewport = new RectF((float) fitted.left, (float) fitted.top,
                 (float) fitted.right, (float) fitted.bottom);
@@ -829,9 +831,9 @@ abstract class EditorChromeView extends EditorDocumentView {
             return;
         }
         if (callback != null) {
-            for (NoteType type : hitSoundTimeline.between(
+            for (HitSoundTimeline.Cue cue : hitSoundTimeline.cuesBetween(
                     lastHitSoundChartTimeMs, currentTimeMs)) {
-                callback.playHitSound(type);
+                callback.playHitSound(cue);
             }
         }
         lastHitSoundChartTimeMs = currentTimeMs;

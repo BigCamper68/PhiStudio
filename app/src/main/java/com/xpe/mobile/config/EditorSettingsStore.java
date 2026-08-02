@@ -29,6 +29,7 @@ public final class EditorSettingsStore {
         result.previewBackgroundAlpha = getDouble(preferences, "previewBackgroundAlpha", defaults.previewBackgroundAlpha);
         result.playerWidth = preferences.getInt(key("playerWidth"), defaults.playerWidth);
         result.playerHeight = preferences.getInt(key("playerHeight"), defaults.playerHeight);
+        migrateLegacyPreviewAspect(result);
         result.autoApplyPropertyEdits = preferences.getBoolean(key("autoApplyPropertyEdits"), defaults.autoApplyPropertyEdits);
         result.autoMoveToClipboard = preferences.getBoolean(key("autoMoveToClipboard"), defaults.autoMoveToClipboard);
         result.showTips = preferences.getBoolean(key("showTips"), defaults.showTips);
@@ -107,6 +108,13 @@ public final class EditorSettingsStore {
 
     private static String key(String name) {
         return PREFIX + name;
+    }
+
+    static void migrateLegacyPreviewAspect(EditorSettings value) {
+        if (value.playerWidth == 1350 && value.playerHeight == 900) {
+            value.playerWidth = 1920;
+            value.playerHeight = 1080;
+        }
     }
 
     private static double getDouble(SharedPreferences preferences, String name, double fallback) {

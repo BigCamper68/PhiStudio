@@ -56,6 +56,7 @@ public final class EditorAudioController implements AutoCloseable {
     private final Map<NoteType, Integer> hitSoundIds = new EnumMap<>(NoteType.class);
     private final Set<Integer> loadedHitSounds =
             Collections.synchronizedSet(new LinkedHashSet<>());
+    private final HitSoundPlayer hitSoundPlayer;
 
     private MediaPlayer mediaPlayer;
     private SoundPool hitSoundPool;
@@ -85,11 +86,22 @@ public final class EditorAudioController implements AutoCloseable {
             return thread;
         });
         initializeHitSounds();
+        HitSoundPlayer player;
+        try {
+            player = new HitSoundPlayer(activity, mainHandler, this::playHitSoundFallback);
+        } catch (IOException | RuntimeException ignored) {
+            // SoundPool below remains available if bundled PCM cannot be opened on an OEM build.
+            player = null;
+        }
+        hitSoundPlayer = player;
     }
 
     public void applySettings(EditorSettings value) {
         settings = value == null ? new EditorSettings() : value.copy();
         applyMusicVolume();
+        if (hitSoundPlayer != null) {
+            hitSoundPlayer.setVolume((float) settings.soundEffectVolume);
+        }
     }
 
     public boolean isReady() {
@@ -109,14 +121,10 @@ public final class EditorAudioController implements AutoCloseable {
         }
     }
 
-    public void playHitSound(NoteType type) {
-        SoundPool pool = hitSoundPool;
-        Integer soundId = hitSoundIds.get(type);
-        if (pool == null || soundId == null || soundId <= 0
-                || !loadedHitSounds.contains(soundId)) return;
-        float volume = (float) Math.max(0.0, Math.min(1.0, settings.soundEffectVolume));
-        if (volume <= 0f) return;
-        pool.play(soundId, volume, volume, 1, 0, 1f);
+    public void playHitSound(HitSoundTimeline.Cue cue) {
+        if (closed || cue == null || cue.noteCount() == 0) return;
+        if (hitSoundPlayer != null) hitSoundPlayer.play(cue);
+        else playHitSoundFallback(cue);
     }
 
     public void start(long positionMs, float speed) {
@@ -328,6 +336,7 @@ public final class EditorAudioController implements AutoCloseable {
         closed = true;
         clearSource();
         decodeExecutor.shutdownNow();
+        if (hitSoundPlayer != null) hitSoundPlayer.close();
         releaseHitSounds();
     }
 
@@ -489,10 +498,40 @@ public final class EditorAudioController implements AutoCloseable {
             }
         });
         hitSoundPool = pool;
-        hitSoundIds.put(NoteType.TAP, pool.load(activity, R.raw.hitsound_click, 1));
-        hitSoundIds.put(NoteType.HOLD, pool.load(activity, R.raw.hitsound_hold, 1));
+        int clickSoundId = pool.load(activity, R.raw.hitsound_click, 1);
+        hitSoundIds.put(NoteType.TAP, clickSoundId);
+        hitSoundIds.put(NoteType.HOLD, clickSoundId);
         hitSoundIds.put(NoteType.FLICK, pool.load(activity, R.raw.hitsound_flick, 1));
         hitSoundIds.put(NoteType.DRAG, pool.load(activity, R.raw.hitsound_drag, 1));
+    }
+
+    private void playHitSoundFallback(HitSoundTimeline.Cue cue) {
+        SoundPool pool = hitSoundPool;
+        if (closed || pool == null || cue == null) return;
+        float volume = (float) Math.max(0.0, Math.min(1.0, settings.soundEffectVolume));
+        if (!Float.isFinite(volume) || volume <= 0f) return;
+
+        // TAP and HOLD use one resource and therefore remain one native command even in the
+        // compatibility path. The PCM player above is the normal path and retains exact gain.
+        playFallbackSample(pool, hitSoundIds.get(NoteType.TAP),
+                saturatingCountSum(cue.count(NoteType.TAP), cue.count(NoteType.HOLD)), volume);
+        playFallbackSample(pool, hitSoundIds.get(NoteType.FLICK),
+                cue.count(NoteType.FLICK), volume);
+        playFallbackSample(pool, hitSoundIds.get(NoteType.DRAG),
+                cue.count(NoteType.DRAG), volume);
+    }
+
+    private void playFallbackSample(SoundPool pool, Integer soundId,
+                                    int count, float volume) {
+        if (count <= 0 || soundId == null || soundId <= 0
+                || !loadedHitSounds.contains(soundId)) return;
+        float combinedVolume = (float) Math.min(1.0, volume * count);
+        pool.play(soundId, combinedVolume, combinedVolume, 1, 0, 1f);
+    }
+
+    private static int saturatingCountSum(int first, int second) {
+        return (int) Math.min(Integer.MAX_VALUE,
+                Math.max(0L, first) + Math.max(0L, second));
     }
 
     private void releaseHitSounds() {

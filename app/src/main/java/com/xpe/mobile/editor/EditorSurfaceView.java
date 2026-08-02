@@ -568,7 +568,7 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected final float timelineY(float editorBottom) {
-        return editorBottom - 72f * density;
+        return EditorTimelineMetrics.baselineY(editorBottom, density);
     }
 
     protected final boolean isInEditor(float y) {

@@ -10,7 +10,7 @@ public final class PreviewViewportCalculator {
         double availableWidth = Math.max(0.0, right - left);
         double availableHeight = Math.max(0.0, bottom - top);
         double ratio = playerWidth > 0 && playerHeight > 0
-                ? playerWidth / (double) playerHeight : 1.5;
+                ? playerWidth / (double) playerHeight : 16.0 / 9.0;
         if (!Double.isFinite(ratio) || ratio <= 0.0
                 || availableWidth <= 0.0 || availableHeight <= 0.0) {
             return new Result(left, top, right, bottom);

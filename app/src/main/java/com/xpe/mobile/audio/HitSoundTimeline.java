@@ -12,14 +12,18 @@ import java.util.List;
 
 /** Immutable, time-sorted hit-sound schedule for one playback run. */
 public final class HitSoundTimeline {
-    private final List<Event> events;
+    private static final int NOTE_TYPE_COUNT = NoteType.values().length;
 
-    private HitSoundTimeline(List<Event> events) {
-        this.events = events;
+    private final List<Cue> cues;
+    private final int noteCount;
+
+    private HitSoundTimeline(List<Cue> cues, int noteCount) {
+        this.cues = cues;
+        this.noteCount = noteCount;
     }
 
     public static HitSoundTimeline empty() {
-        return new HitSoundTimeline(Collections.emptyList());
+        return new HitSoundTimeline(Collections.emptyList(), 0);
     }
 
     public static HitSoundTimeline build(ChartDocument chart,
@@ -44,39 +48,68 @@ public final class HitSoundTimeline {
         events.sort(Comparator.comparingLong((Event event) -> event.timeMs)
                 .thenComparingInt(event -> event.lineIndex)
                 .thenComparingInt(event -> event.noteIndex));
-        return new HitSoundTimeline(Collections.unmodifiableList(events));
+        List<Cue> cues = groupSimultaneousEvents(events);
+        return new HitSoundTimeline(Collections.unmodifiableList(cues), events.size());
     }
 
-    /** Returns every note crossed in {@code (previousTimeMs, currentTimeMs]}. */
-    public List<NoteType> between(long previousTimeMs, long currentTimeMs) {
-        if (events.isEmpty() || currentTimeMs <= previousTimeMs) {
+    /**
+     * Returns one atomic cue for each crossed timestamp in
+     * {@code (previousTimeMs, currentTimeMs]}.
+     *
+     * <p>A cue retains the number of notes of every type. Consumers must submit the whole cue as
+     * one audio operation: sequential native calls can start nominally simultaneous samples on
+     * different mixer frames.
+     */
+    public List<Cue> cuesBetween(long previousTimeMs, long currentTimeMs) {
+        if (cues.isEmpty() || currentTimeMs <= previousTimeMs) {
             return Collections.emptyList();
         }
-        int index = upperBound(previousTimeMs);
-        if (index >= events.size() || events.get(index).timeMs > currentTimeMs) {
+        int index = cueUpperBound(previousTimeMs);
+        if (index >= cues.size() || cues.get(index).timeMs > currentTimeMs) {
             return Collections.emptyList();
         }
-        List<NoteType> result = new ArrayList<>();
-        while (index < events.size() && events.get(index).timeMs <= currentTimeMs) {
-            result.add(events.get(index).type);
+        List<Cue> result = new ArrayList<>();
+        while (index < cues.size() && cues.get(index).timeMs <= currentTimeMs) {
+            result.add(cues.get(index));
             index++;
         }
         return result;
     }
 
     int size() {
-        return events.size();
+        return noteCount;
     }
 
-    private int upperBound(long timeMs) {
+    int cueCount() {
+        return cues.size();
+    }
+
+    private int cueUpperBound(long timeMs) {
         int low = 0;
-        int high = events.size();
+        int high = cues.size();
         while (low < high) {
             int middle = (low + high) >>> 1;
-            if (events.get(middle).timeMs <= timeMs) low = middle + 1;
+            if (cues.get(middle).timeMs <= timeMs) low = middle + 1;
             else high = middle;
         }
         return low;
+    }
+
+    private static List<Cue> groupSimultaneousEvents(List<Event> events) {
+        if (events.isEmpty()) return Collections.emptyList();
+        List<Cue> result = new ArrayList<>();
+        long timeMs = events.get(0).timeMs;
+        int[] counts = new int[NOTE_TYPE_COUNT];
+        for (Event event : events) {
+            if (event.timeMs != timeMs) {
+                result.add(new Cue(timeMs, counts));
+                timeMs = event.timeMs;
+                counts = new int[NOTE_TYPE_COUNT];
+            }
+            counts[event.type.ordinal()]++;
+        }
+        result.add(new Cue(timeMs, counts));
+        return result;
     }
 
     private static long saturatingAdd(long value, int offset) {
@@ -97,5 +130,35 @@ public final class HitSoundTimeline {
             this.noteIndex = noteIndex;
             this.type = type;
         }
+    }
+
+    /** All note hits that share one exact chart timestamp. */
+    public static final class Cue {
+        private final long timeMs;
+        private final int[] counts;
+        private final int noteCount;
+
+        private Cue(long timeMs, int[] counts) {
+            this.timeMs = timeMs;
+            int total = 0;
+            for (int count : counts) total += Math.max(0, count);
+            this.counts = counts.clone();
+            noteCount = total;
+        }
+
+        public long timeMs() {
+            return timeMs;
+        }
+
+        public int count(NoteType type) {
+            if (type == null) return 0;
+            int ordinal = type.ordinal();
+            return ordinal < counts.length ? counts[ordinal] : 0;
+        }
+
+        public int noteCount() {
+            return noteCount;
+        }
+
     }
 }

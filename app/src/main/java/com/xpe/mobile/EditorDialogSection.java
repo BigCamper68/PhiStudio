@@ -205,9 +205,7 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
     }
 
     protected void setCompactButtons(LinearLayout row, Button... buttons) {
-        int windowWidth = Math.round(
-                getResources().getDisplayMetrics().widthPixels * 0.84f);
-        int sidePadding = Math.round(windowWidth * 0.15f);
+        int sidePadding = dp(2);
         row.setPadding(sidePadding, 0, sidePadding, 0);
         for (Button button : buttons) {
             if (button == null) continue;
