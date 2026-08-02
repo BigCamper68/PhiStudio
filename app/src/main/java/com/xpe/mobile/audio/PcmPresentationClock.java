@@ -11,10 +11,14 @@ public final class PcmPresentationClock {
                                        long timestampNanoTime, long nowNanoTime,
                                        int sampleRate, float speed, long maximumFrames) {
         long baseFrames = Integer.toUnsignedLong((int) timestampFramePosition);
-        long elapsedNanoTime = Math.max(0L, nowNanoTime - timestampNanoTime);
-        long progressedFrames = elapsedFrames(
-                elapsedNanoTime, sampleRate, speed, maximumFrames);
-        return clampAdd(baseFrames, progressedFrames, maximumFrames);
+        if (sampleRate <= 0 || !Float.isFinite(speed) || speed <= 0.0f) {
+            return clamp(baseFrames, maximumFrames);
+        }
+        double deltaFrames = (nowNanoTime - timestampNanoTime) / NANOS_PER_SECOND
+                * sampleRate * speed;
+        double currentFrames = baseFrames + deltaFrames;
+        if (!Double.isFinite(currentFrames)) return clamp(baseFrames, maximumFrames);
+        return clamp((long) Math.floor(currentFrames), maximumFrames);
     }
 
     public static long wallClockFrames(long playbackStartNanoTime, long nowNanoTime,
@@ -33,10 +37,8 @@ public final class PcmPresentationClock {
         return Math.min(maximumFrames, (long) Math.floor(frames));
     }
 
-    private static long clampAdd(long first, long second, long maximum) {
+    private static long clamp(long value, long maximum) {
         long safeMaximum = Math.max(0L, maximum);
-        long safeFirst = Math.max(0L, Math.min(first, safeMaximum));
-        long remaining = safeMaximum - safeFirst;
-        return safeFirst + Math.max(0L, Math.min(second, remaining));
+        return Math.max(0L, Math.min(value, safeMaximum));
     }
 }
