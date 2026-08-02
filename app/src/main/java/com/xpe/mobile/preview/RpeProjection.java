@@ -11,15 +11,17 @@ public final class RpeProjection {
     /**
      * Returns one pixels-per-RPE-unit scale for both axes.
      *
-     * <p>The gameplay viewport may be wider than the 3:2 RPE coordinate space. Using
-     * independent X/Y scales distorts circles and changes the visible angle of judgment lines.
+     * <p>RPE horizontal coordinates are defined against a fixed 1350-unit screen width.
+     * The player aspect ratio changes the vertically visible range; it must not expose extra
+     * horizontal chart space. Width-based uniform scaling therefore preserves circles and
+     * angles while keeping the intended left/right screen boundaries at x = +/-675.
      */
     public static double uniformScale(double viewportWidth, double viewportHeight) {
         if (!Double.isFinite(viewportWidth) || !Double.isFinite(viewportHeight)
                 || viewportWidth <= 0.0 || viewportHeight <= 0.0) {
             return 0.0;
         }
-        return Math.min(viewportWidth / WIDTH, viewportHeight / HEIGHT);
+        return viewportWidth / WIDTH;
     }
 
     public static float screenAngle(double rotationDegrees) {
