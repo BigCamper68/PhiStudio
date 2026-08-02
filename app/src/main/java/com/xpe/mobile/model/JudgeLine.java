@@ -9,6 +9,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public final class JudgeLine {
+    private static final int RPE_LAYER_SLOTS = 5;
+    private static final double CONTROL_SENTINEL_X = 9_999_999.0;
+
     public int group;
     public String name = "Line";
     public String texture = "line.png";
@@ -86,8 +89,20 @@ public final class JudgeLine {
         object.put("Texture", texture);
         object.put("bpmfactor", bpmFactor);
         object.put("father", father);
+        object.put("rotateWithFather", rotateWithFather);
         object.put("isCover", cover ? 1 : 0);
         object.put("zOrder", zOrder);
+
+        // Re:PhiEdit's package writer emits these stable line defaults. Supplying them when an
+        // older/minimal RPE chart omitted them prevents importers from constructing partially
+        // initialized line state while leaving any real source values untouched.
+        if (!object.has("anchor")) object.put("anchor", new JSONArray().put(0.5).put(0.5));
+        if (!object.has("isGif")) object.put("isGif", false);
+        ensureIdentityControl(object, "alphaControl", "alpha", 1.0);
+        ensureIdentityControl(object, "posControl", "pos", 1.0);
+        ensureIdentityControl(object, "sizeControl", "size", 1.0);
+        ensureIdentityControl(object, "yControl", "y", 1.0);
+        ensureIdentityControl(object, "skewControl", "skew", 0.0);
 
         if (extended != null && (raw == null && extended.count() > 0
                 || extended.isModified())) {
@@ -107,9 +122,24 @@ public final class JudgeLine {
         object.put("numOfNotes", nonHoldNotes);
 
         JSONArray layersJson = new JSONArray();
-        for (EventLayer layer : eventLayers) layersJson.put(layer.toJsonValue());
+        int layerSlots = Math.max(RPE_LAYER_SLOTS, eventLayers.size());
+        for (int index = 0; index < layerSlots; index++) {
+            layersJson.put(index < eventLayers.size()
+                    ? eventLayers.get(index).toJsonValue() : JSONObject.NULL);
+        }
         object.put("eventLayers", layersJson);
         return object;
+    }
+
+    private static void ensureIdentityControl(JSONObject object, String arrayKey,
+                                              String valueKey, double value)
+            throws JSONException {
+        if (object.has(arrayKey)) return;
+        JSONArray controls = new JSONArray();
+        controls.put(new JSONObject().put("easing", 1).put(valueKey, value).put("x", 0.0));
+        controls.put(new JSONObject().put("easing", 1).put(valueKey, value)
+                .put("x", CONTROL_SENTINEL_X));
+        object.put(arrayKey, controls);
     }
 
     public JudgeLine copyProperties() {
