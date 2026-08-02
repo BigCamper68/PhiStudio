@@ -22,12 +22,21 @@ public final class PhiraManifestCompatTest {
                 chart, "chart.json", "audio.mp3", "illustration.jpg", 50L, false);
 
         assertTrue(result.contains("difficulty: 15"));
-        assertTrue(result.contains("format: rpe"));
+        assertTrue(result.contains("format: null"));
         assertTrue(result.contains("composer: \"Composer\""));
         assertTrue(result.contains("charter: \"Charter\""));
         assertTrue(result.contains("offset: 0.05"));
         assertTrue(result.contains("previewStart: 0"));
+        assertTrue(result.contains("previewEnd: null"));
+        assertTrue(result.contains("useRpe170Speed: null"));
         assertTrue(result.contains("tags: []"));
+    }
+
+    @Test
+    public void enablesModernSpeedOnlyWhenPackageRequestsIt() {
+        String result = PhiraManifestCompat.normalize("", new ChartDocument(),
+                "chart.json", "audio.mp3", "illustration.png", 0L, true);
+        assertTrue(result.contains("useRpe170Speed: true"));
     }
 
     @Test
