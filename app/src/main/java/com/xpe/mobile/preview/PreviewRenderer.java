@@ -22,10 +22,8 @@ import java.util.Map;
 
 /** Native Canvas renderer for a deterministic {@link RenderScene}. */
 public final class PreviewRenderer {
-    private static final double RPE_WIDTH = 1350.0;
-    private static final double RPE_HEIGHT = 900.0;
     private static final double NOTE_WIDTH_RATIO = 989.0 / 8000.0;
-    private static final double NORMAL_LINE_HALF_LENGTH = RPE_WIDTH * 3.0;
+    private static final double NORMAL_LINE_HALF_LENGTH = RpeProjection.WIDTH * 3.0;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -177,7 +175,7 @@ public final class PreviewRenderer {
                             Paint.Align.RIGHT, color, alpha);
                     float levelBaseline = nameBottom - paint.descent();
                     target.drawText(ellipsize(hud.level, viewport.width() * 0.4f),
-                            right, levelBaseline, paint);
+                            right, nameBaseline, paint);
                 });
 
         float barY = viewport.top;
@@ -617,10 +615,7 @@ public final class PreviewRenderer {
     }
 
     private static float lineScreenAngle(Projection projection, double rotationDegrees) {
-        double radians = Math.toRadians(rotationDegrees);
-        double x = Math.cos(radians) * projection.scaleX;
-        double y = -Math.sin(radians) * projection.scaleY;
-        return (float) Math.toDegrees(Math.atan2(y, x));
+        return RpeProjection.screenAngle(rotationDegrees);
     }
 
     private static boolean isNearViewport(RectF viewport, Point point, float margin) {
@@ -635,8 +630,9 @@ public final class PreviewRenderer {
 
         Projection(RectF viewport) {
             this.viewport = viewport;
-            scaleX = viewport.width() / RPE_WIDTH;
-            scaleY = viewport.height() / RPE_HEIGHT;
+            double scale = RpeProjection.uniformScale(viewport.width(), viewport.height());
+            scaleX = scale;
+            scaleY = scale;
         }
 
         Point point(double x, double y) {
