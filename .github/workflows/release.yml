@@ -133,15 +133,43 @@ jobs:
         run: |
           set -euo pipefail
           release_tag="v${RELEASE_VERSION}"
+          notes_file=".github/release-notes/${release_tag}.md"
           if git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
             tag_arguments=(--verify-tag)
           else
             tag_arguments=(--target "$GITHUB_SHA")
+          fi
+          if [[ -f "$notes_file" ]]; then
+            notes_arguments=(--notes-file "$notes_file")
+          else
+            notes_arguments=(--generate-notes)
           fi
           gh release create "$release_tag" \
             "PhiStudio-${RELEASE_VERSION}.apk#Signed Android APK" \
             "PhiStudio-${RELEASE_VERSION}-source.zip#Source code" \
             "SHA256SUMS.txt#SHA-256 checksums" \
             --title "PhiStudio ${RELEASE_VERSION}" \
-            --generate-notes \
+            "${notes_arguments[@]}" \
             "${tag_arguments[@]}"
+
+  sync-release-notes:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+
+      - name: Update existing release description
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          release_tag="v${RELEASE_VERSION}"
+          notes_file=".github/release-notes/${release_tag}.md"
+          test -s "$notes_file"
+          gh release edit "$release_tag" \
+            --title "PhiStudio ${RELEASE_VERSION}" \
+            --notes-file "$notes_file"
