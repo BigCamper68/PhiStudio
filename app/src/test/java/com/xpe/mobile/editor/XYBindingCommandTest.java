@@ -170,10 +170,11 @@ public final class XYBindingCommandTest {
         JSONObject exportedLayer = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0)
                 .getJSONArray("eventLayers").getJSONObject(0);
+        // The original events follow the generated 0→1 neutral compatibility interval.
         assertEquals(77, exportedLayer.getJSONArray("moveXEvents")
-                .getJSONObject(0).getInt("futureX"));
+                .getJSONObject(1).getInt("futureX"));
         assertEquals(88, exportedLayer.getJSONArray("moveYEvents")
-                .getJSONObject(0).getInt("futureY"));
+                .getJSONObject(1).getInt("futureY"));
     }
 
 
