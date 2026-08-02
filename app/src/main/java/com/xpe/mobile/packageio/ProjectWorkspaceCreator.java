@@ -70,8 +70,10 @@ public final class ProjectWorkspaceCreator {
         try {
             ChartDocument chart = createChart(spec, audioPath, illustrationPath);
             writeBytes(new File(workspace, CHART_PATH), serializeChart(chart), totalBytes);
-            writeBytes(new File(workspace, MANIFEST_PATH), manifest(spec.name, audioPath,
-                    illustrationPath).getBytes(StandardCharsets.UTF_8), totalBytes);
+            String manifest = PhiraManifestCompat.normalize("", chart, CHART_PATH,
+                    audioPath, illustrationPath, 0L, false);
+            writeBytes(new File(workspace, MANIFEST_PATH),
+                    manifest.getBytes(StandardCharsets.UTF_8), totalBytes);
             copyAsset(audioInput, new File(workspace, audioPath), totalBytes);
             copyAsset(illustrationInput, new File(workspace, illustrationPath), totalBytes);
             return new PackageWorkspaceLoader(limits).load(
@@ -154,29 +156,10 @@ public final class ProjectWorkspaceCreator {
         }
     }
 
-    private static String manifest(String name, String audioPath, String illustrationPath) {
-        StringBuilder value = new StringBuilder();
-        value.append("name: \"").append(escapeYaml(name)).append("\"\n");
-        value.append("chart: ").append(CHART_PATH).append('\n');
-        if (audioPath != null) value.append("music: ").append(audioPath).append('\n');
-        if (illustrationPath != null) {
-            value.append("illustration: ").append(illustrationPath).append('\n');
-        }
-        value.append("offset: 0\n");
-        return value.toString();
-    }
-
-    private static String escapeYaml(String value) {
-        return value.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\r", " ")
-                .replace("\n", " ");
-    }
-
     private static String safeSourceDisplayName(String name) {
         String normalized = name.replaceAll("[\\p{Cntrl}\\r\\n]", " ").trim();
         if (normalized.isEmpty()) normalized = "New chart";
-        return normalized + ".zip";
+        return normalized + ".pez";
     }
 
     private static String normalizeExtension(String value) {
