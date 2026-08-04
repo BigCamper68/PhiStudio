@@ -32,10 +32,19 @@ public final class PackageExporter {
         entries.sort(Comparator.comparing(ChartPackage.Entry::getPath)
                 .thenComparing(ChartPackage.Entry::isDirectory));
         boolean chartWritten = false;
+        boolean infoTxtWritten = false;
         try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
             zip.setLevel(Deflater.DEFAULT_COMPRESSION);
             for (ChartPackage.Entry packageEntry : entries) {
                 String path = PackageImporter.normalizePath(packageEntry.getPath());
+                if (!packageEntry.isDirectory() && InfoTxtManifestWriter.isInfoTxt(path)) {
+                    if (!infoTxtWritten) {
+                        writeInfoTxt(zip, chartPackage, editedChart);
+                        infoTxtWritten = true;
+                    }
+                    continue;
+                }
+
                 ZipEntry outputEntry = new ZipEntry(packageEntry.isDirectory() ? path + "/" : path);
                 outputEntry.setTime(0L);
                 zip.putNextEntry(outputEntry);
@@ -67,7 +76,17 @@ public final class PackageExporter {
             if (!chartWritten) {
                 throw new IOException("The selected RPE chart path is missing from the package entry list");
             }
+            if (!infoTxtWritten) writeInfoTxt(zip, chartPackage, editedChart);
             zip.finish();
         }
+    }
+
+    private static void writeInfoTxt(ZipOutputStream zip, ChartPackage chartPackage,
+                                     ChartDocument editedChart) throws IOException {
+        ZipEntry entry = new ZipEntry(InfoTxtManifestWriter.FILE_NAME);
+        entry.setTime(0L);
+        zip.putNextEntry(entry);
+        InfoTxtManifestWriter.write(chartPackage, editedChart, zip);
+        zip.closeEntry();
     }
 }

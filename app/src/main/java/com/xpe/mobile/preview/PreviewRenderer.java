@@ -23,7 +23,6 @@ import java.util.Map;
 /** Native Canvas renderer for a deterministic {@link RenderScene}. */
 public final class PreviewRenderer {
     private static final double RPE_WIDTH = 1350.0;
-    private static final double RPE_HEIGHT = 900.0;
     private static final double NOTE_WIDTH_RATIO = 989.0 / 8000.0;
     private static final double NORMAL_LINE_HALF_LENGTH = RPE_WIDTH * 3.0;
 
@@ -635,8 +634,12 @@ public final class PreviewRenderer {
 
         Projection(RectF viewport) {
             this.viewport = viewport;
-            scaleX = viewport.width() / RPE_WIDTH;
-            scaleY = viewport.height() / RPE_HEIGHT;
+            // Phira maps RPE units from the canonical 1350-wide coordinate space and
+            // crops vertically for wider player ratios. Using one pixel scale for both
+            // axes keeps circles circular and preserves authored angles.
+            double scale = viewport.width() / RPE_WIDTH;
+            scaleX = scale;
+            scaleY = scale;
         }
 
         Point point(double x, double y) {

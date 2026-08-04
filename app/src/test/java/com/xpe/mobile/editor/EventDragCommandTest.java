@@ -98,10 +98,11 @@ public final class EventDragCommandTest {
         assertEquals(1, speed.easingType);
         JSONObject line = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0);
+        // The edited events follow the generated neutral interval from beat 0.
         JSONObject exportedMove = line.getJSONArray("eventLayers").getJSONObject(0)
-                .getJSONArray("moveXEvents").getJSONObject(0);
+                .getJSONArray("moveXEvents").getJSONObject(1);
         JSONObject exportedSpeed = line.getJSONArray("eventLayers").getJSONObject(0)
-                .getJSONArray("speedEvents").getJSONObject(0);
+                .getJSONArray("speedEvents").getJSONObject(1);
         assertEquals(77, exportedMove.getInt("futureEventData"));
         assertEquals(88, exportedSpeed.getInt("futureSpeedData"));
         assertEquals(1, exportedMove.getJSONArray("startTime").getInt(0));
