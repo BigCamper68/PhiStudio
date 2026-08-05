@@ -40,6 +40,9 @@ jobs:
             release-stage/apksigner.jar
           cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" \
             release-stage/zipalign
+          libcxx="$(find "$ANDROID_HOME/build-tools/35.0.0" -name 'libc++.so' -print -quit)"
+          test -n "$libcxx"
+          cp "$libcxx" release-stage/libc++.so
           chmod +x release-stage/zipalign
 
       - name: Upload release inputs
