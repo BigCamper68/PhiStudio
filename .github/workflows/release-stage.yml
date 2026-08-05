@@ -3,10 +3,12 @@ name: Publish signed PhiStudio 1.0.3
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - release-secrets/**
 
 concurrency:
   group: publish-signed-phistudio-1.0.3
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -39,34 +41,46 @@ jobs:
             -out "$RUNNER_TEMP/release-key-exchange/public-cert.pem" \
             -days 1 \
             -subj "/CN=PhiStudio One-Time Release Signing/"
+          fingerprint="$(openssl x509 -in "$RUNNER_TEMP/release-key-exchange/public-cert.pem" \
+            -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':')"
+          echo "$fingerprint" > "$RUNNER_TEMP/release-key-exchange/cert-sha256.txt"
 
       - name: Upload one-time public certificate
         uses: actions/upload-artifact@v4
         with:
           name: PhiStudio-1.0.3-release-encryption-cert
-          path: ${{ runner.temp }}/release-key-exchange/public-cert.pem
+          path: |
+            ${{ runner.temp }}/release-key-exchange/public-cert.pem
+            ${{ runner.temp }}/release-key-exchange/cert-sha256.txt
           if-no-files-found: error
           retention-days: 1
 
-      - name: Wait for encrypted signing bundle
+      - name: Wait for matching encrypted signing bundle
         env:
           HEAD_REF: ${{ github.head_ref }}
         shell: bash
         run: |
           set -euo pipefail
+          expected="CERT_SHA256=$(cat "$RUNNER_TEMP/release-key-exchange/cert-sha256.txt")"
           found=false
           for attempt in $(seq 1 120); do
             git fetch --quiet origin "$HEAD_REF"
+            candidate="$RUNNER_TEMP/release-key-exchange/candidate.txt"
             if git show "origin/$HEAD_REF:release-secrets/signing-bundle.cms.b64" \
-                > "$RUNNER_TEMP/release-key-exchange/signing-bundle.cms.b64" 2>/dev/null; then
-              found=true
-              break
+                > "$candidate" 2>/dev/null; then
+              marker="$(head -n 1 "$candidate" || true)"
+              if [[ "$marker" == "$expected" ]]; then
+                tail -n +2 "$candidate" \
+                  > "$RUNNER_TEMP/release-key-exchange/signing-bundle.cms.b64"
+                found=true
+                break
+              fi
             fi
-            echo "Waiting for encrypted signing bundle ($attempt/120)..."
+            echo "Waiting for matching encrypted signing bundle ($attempt/120)..."
             sleep 5
           done
           if [[ "$found" != true ]]; then
-            echo "Encrypted signing bundle was not supplied before timeout." >&2
+            echo "Matching encrypted signing bundle was not supplied before timeout." >&2
             exit 1
           fi
 
