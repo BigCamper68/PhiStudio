@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.xpe.mobile.ShaderEditorViewTest" tests="23" skipped="0" failures="0" errors="0" timestamp="2026-10-10T12:11:54" hostname="localhost" time="7.129">
+  <properties/>
+  <testcase name="fourFooterButtonsFitInOrderAndOpenShaders" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.314"/>
+  <testcase name="statusShowsThreeDecimalsAndUpdatesOnConsecutiveFrames" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.319"/>
+  <testcase name="ordinaryScaleBaselineAndSettingsApplyToShaderTimeline" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.319"/>
+  <testcase name="toolbarAndCompactInspectorFitWithoutReducingControlSizes" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.316"/>
+  <testcase name="shaderNavigationRemainsVisibleWhileKeyboardShrinksTheWindow" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.299"/>
+  <testcase name="bodySelectsWithoutMovingAndHandlesResizeWithOneUndo" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.321"/>
+  <testcase name="leavingDuringUncommittedGestureRollsBackAndBackReturnsToPreviousTab" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.305"/>
+  <testcase name="previewAndGpuSurfaceBothScrubWithoutEditingOrZooming" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.294"/>
+  <testcase name="pinchZoomDoesNotSeekWhenTheLastFingerIsReleased" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.322"/>
+  <testcase name="topSliderSeeksAudioAndResumesAfterDragIncludingPackageOffset" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.301"/>
+  <testcase name="emptyTapClearsSelectionButPanKeepsIt" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.308"/>
+  <testcase name="effectRangeApplyIsUndoableAndInvalidInputCannotChangeIt" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.317"/>
+  <testcase name="parameterValueIsVisibleInCompactPanelAndAnimationIsPreserved" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.34"/>
+  <testcase name="previewIsLeftTimelineIsRightAndParametersAreBelowBoth" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.31"/>
+  <testcase name="switchingPreservesShaderDraftChartPositionAndOtherPanelDrafts" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.308"/>
+  <testcase name="inwardPinchContinuesBelowOldMinimumAndReversesImmediately" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.29"/>
+  <testcase name="horizontalEmptyGridPanClampsAndKeepsVisibleLanesWithoutSeeking" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.317"/>
+  <testcase name="canceledHandleGestureRestoresRange" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.315"/>
+  <testcase name="collapsingBottomPanelExpandsPreviewAndKeepsNavigationReachable" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.288"/>
+  <testcase name="animationUsesAllNamedEasingsAndAppliesValues" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.347"/>
+  <testcase name="emptyTimelineDragSeeksWithoutEditingChartOrShaderAndDoubleTapDragDoesNotZoom" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.292"/>
+  <testcase name="shaderScrubPreservesFractionalMilliseconds" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.278"/>
+  <testcase name="loopStartsAtSelectedEffectWhenPlayheadIsOutsideItsRange" classname="com.xpe.mobile.ShaderEditorViewTest" time="0.303"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

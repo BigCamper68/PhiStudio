@@ -90,5 +90,6 @@ public final class JudgeLineCommand {
         target.bpmFactor = source.bpmFactor;
         target.cover = source.cover;
         target.zOrder = source.zOrder;
+        target.attachUi = source.attachUi;
     }
 }

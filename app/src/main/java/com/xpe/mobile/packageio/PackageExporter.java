@@ -29,6 +29,11 @@ public final class PackageExporter {
         if (output == null) throw new IOException("Unable to create package output");
 
         List<ChartPackage.Entry> entries = new ArrayList<>(chartPackage.getEntries());
+        String dimPath = BackgroundDimManifestWriter.path(chartPackage);
+        String dimText = BackgroundDimManifestWriter.text(chartPackage, editedChart);
+        if (dimText != null && entries.stream().noneMatch(entry -> entry.getPath().equals(dimPath))) {
+            entries.add(new ChartPackage.Entry(dimPath, false, 0));
+        }
         entries.sort(Comparator.comparing(ChartPackage.Entry::getPath)
                 .thenComparing(ChartPackage.Entry::isDirectory));
         boolean chartWritten = false;
@@ -59,6 +64,8 @@ public final class PackageExporter {
                             throw new IOException("Unable to serialize the edited RPE chart", exception);
                         }
                         chartWritten = true;
+                    } else if (path.equals(dimPath) && dimText != null) {
+                        zip.write(dimText.getBytes(StandardCharsets.UTF_8));
                     } else {
                         File source = PackageImporter.resolveInside(chartPackage.getWorkspace(), path);
                         if (!source.isFile()) {

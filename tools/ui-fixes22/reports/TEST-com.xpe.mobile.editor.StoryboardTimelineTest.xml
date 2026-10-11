@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.xpe.mobile.editor.StoryboardTimelineTest" tests="29" skipped="0" failures="0" errors="0" timestamp="2026-10-10T12:12:08" hostname="localhost" time="7.082">
+  <properties/>
+  <testcase name="switchingLinesCancelsSelectionAndCannotDeleteTheOldEvent" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.23"/>
+  <testcase name="deletingAndUndoingPreservesHiddenInclineAndUnknownFields" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.24"/>
+  <testcase name="selectingAndDraggingABodyDoesNotAutoMoveOrOpenProperties" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.239"/>
+  <testcase name="storyboardHeadersHaveOnlyNamesAndNoOpaqueFrameOrCountRow" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.246"/>
+  <testcase name="editorTouchDispatchUsesTheSameStoryboardResizeAndCancelRules" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.243"/>
+  <testcase name="storyboardUsesExactlyTheOrdinaryCurveGeometryAndStrokeIncludingLongEvents" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.262"/>
+  <testcase name="storyboardAndOrdinaryEventNumbersHaveIdenticalFormatSizeAndAnchors" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.246"/>
+  <testcase name="playbackPanPausesTheClockAndResumesAudioAtTheScrolledBeat" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.241"/>
+  <testcase name="downwardCreationAndCancelledCreationMatchOrdinaryEventTouchRules" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.248"/>
+  <testcase name="multiClipboardKeepsRelativeTimesAndRejectsOverlappingPasteAtomically" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.259"/>
+  <testcase name="allSixFamiliesCanBeSelectedCopiedPastedAndUndone" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.246"/>
+  <testcase name="copyingANoteDoesNotLaterPasteAnOlderStoryboardClipboard" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.251"/>
+  <testcase name="horizontalHeaderScrollNeverChangesBeatOrChart" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.241"/>
+  <testcase name="overlappingResizeIsRejectedWithoutPartiallyChangingTheChart" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.254"/>
+  <testcase name="currentBeatLineContinuesAcrossAllGridsWithIdenticalWidthColorAndY" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.238"/>
+  <testcase name="storyboardGridResetsTheThickerStrokeLeftByTheNoteGrid" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.25"/>
+  <testcase name="clearingSelectionByTapDoesNotSeekButNextEmptyTapDoes" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.24"/>
+  <testcase name="boxSelectsStoryboardAcrossFamiliesAndNeverHiddenNormalEvents" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.243"/>
+  <testcase name="boxUsesScrolledLaneGeometryAndIgnoresOffscreenFamilies" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.246"/>
+  <testcase name="cancellingAResizeLeavesNoMutationOrUndoEntry" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.234"/>
+  <testcase name="storyboardAndOrdinaryEventsDrawTheSameBeatGridAndColumnWidth" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.244"/>
+  <testcase name="longPressSelectDoesNotCreateOrOpenAFormAndNormalEventSelectionIsClearedOnTabSwitch" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.226"/>
+  <testcase name="ordinaryEventCursorIsDrawnAboveEventBlocksAndNotHiddenByTheirFill" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.233"/>
+  <testcase name="areaBelowTheCompactNamesIsTimelineNotAnInvisibleOldHeader" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.227"/>
+  <testcase name="singleTapCreatesExactlyTheSelectedGridFractionInEveryFamily" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.273"/>
+  <testcase name="startHandleChangesOnlyStartAndSupportsUndoRedo" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.25"/>
+  <testcase name="eventToolCreatesTheDraggedIntervalDirectlyWithOneUndo" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.24"/>
+  <testcase name="tapsOnlySelectAndPropertiesActionUsesTheActualOwnedEvent" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.251"/>
+  <testcase name="boxTapAddsToSelectionAndRepeatedBoxDoesNotDuplicateEvents" classname="com.xpe.mobile.editor.StoryboardTimelineTest" time="0.24"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -72,21 +72,13 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
         action.run();
     }
 
-    protected void showEditorWindow(AlertDialog dialog, Runnable afterShow) {
+    protected void showEditorWindow(EditorPanelWindow dialog, Runnable afterShow) {
         showEditorWindow(dialog, afterShow, 0.72f, 0.78f);
     }
 
-    protected void showEditorWindow(AlertDialog dialog, Runnable afterShow,
+    protected void showEditorWindow(EditorPanelWindow dialog, Runnable afterShow,
                                   float widthFraction, float heightFraction) {
         dialog.setOnShowListener(ignored -> {
-            Window window = dialog.getWindow();
-            if (window != null) {
-                int width = getResources().getDisplayMetrics().widthPixels;
-                int height = getResources().getDisplayMetrics().heightPixels;
-                window.setLayout((int) (width * widthFraction),
-                        (int) (height * heightFraction));
-                window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-            }
             if (afterShow != null) afterShow.run();
         });
         dialog.show();
@@ -192,6 +184,11 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         return checkBox;
+    }
+
+    protected void reveal(View view) {
+        view.post(() -> view.requestRectangleOnScreen(
+                new android.graphics.Rect(0, 0, view.getWidth(), view.getHeight()), false));
     }
 
     protected Button addActionButton(LinearLayout parent, int textResource) {
@@ -314,6 +311,7 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
         parent.addView(title);
 
         EditText field = new EditText(this);
+        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setText(value);
         field.setSingleLine(true);
         field.setSelectAllOnFocus(true);

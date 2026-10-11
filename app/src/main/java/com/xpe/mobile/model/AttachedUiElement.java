@@ -12,6 +12,10 @@ public enum AttachedUiElement {
     NAME,
     LEVEL;
 
+    public String jsonValue() {
+        return this == COMBO_NUMBER ? "comboNumber" : name().toLowerCase(Locale.ROOT);
+    }
+
     public static AttachedUiElement fromJsonValue(Object value) {
         if (!(value instanceof String)) return null;
         String normalized = ((String) value).trim().toLowerCase(Locale.ROOT)

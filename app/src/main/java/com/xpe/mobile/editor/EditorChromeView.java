@@ -14,9 +14,13 @@ import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
+import com.xpe.mobile.model.StoryboardEventType;
+import com.xpe.mobile.model.ExtendedLineEvents;
 import com.xpe.mobile.preview.ChartEvaluator;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
 import com.xpe.mobile.preview.RenderScene;
+import com.xpe.mobile.preview.ShaderTimeline;
+import com.xpe.mobile.preview.PreviewShaderView;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +48,8 @@ abstract class EditorChromeView extends EditorDocumentView {
         void requestEventClone();
         void requestEditNoteProperties(Note note);
         void requestEditEventProperties(LineEvent event);
+        default void requestStoryboardProperties(StoryboardEventType type,
+                ExtendedLineEvents.TimedEvent event, boolean creating) { }
         void showMessage(String message);
         boolean isAudioReady();
         boolean isAudioPlaying();
@@ -51,6 +57,8 @@ abstract class EditorChromeView extends EditorDocumentView {
         void pauseAudio();
         void seekAudio(long positionMs);
         void playHitSound(HitSoundTimeline.Cue cue);
+        default void configureHitSounds(HitSoundTimeline timeline, long chartOffsetMs, long packageOffsetMs) { }
+        default boolean schedulesHitSounds() { return false; }
         long audioPositionMs();
         long audioDurationMs();
     }
@@ -66,9 +74,100 @@ abstract class EditorChromeView extends EditorDocumentView {
     protected Callback callback;
     private BottomPanel bottomPanel = BottomPanel.CREATE;
     private int bottomActionPage;
+    protected int workbenchTab;
+    protected final StoryboardTimeline storyboardTimeline;
+    private Runnable workbenchListener;
+    private ShaderTimeline previewShaders = ShaderTimeline.EMPTY;
+    private PreviewShaderView shaderView;
 
     protected EditorChromeView(Context context) {
         super(context);
+        storyboardTimeline = new StoryboardTimeline(this);
+    }
+
+    public void setWorkbenchListener(Runnable listener) { workbenchListener = listener; }
+    public void setPreviewShaderView(PreviewShaderView view) {
+        shaderView = view;
+        view.setFrameListener(this::invalidate);
+        view.setErrorListener(message -> {
+            if (callback != null) callback.showMessage(getResources().getString(R.string.preview_shader_error, message));
+        });
+    }
+    public void setPreviewShaders(ShaderTimeline timeline) {
+        previewShaders = timeline == null ? ShaderTimeline.EMPTY : timeline;
+        if (shaderView != null) { shaderView.hidePreview(); shaderView.resetFailure(); }
+        invalidate();
+    }
+    public void updatePreviewShaders(ShaderTimeline timeline) {
+        previewShaders = timeline == null ? ShaderTimeline.EMPTY : timeline;
+        invalidate();
+    }
+    public double shaderEditorSeconds() { return chart == null ? 0 : chart.beatToSeconds(currentBeat); }
+    public void shaderEditorPlay() { if (chart != null) togglePlay(); }
+    public void shaderEditorSeek(double seconds) {
+        if (chart == null || !Double.isFinite(seconds)) return;
+        currentBeat = Math.max(0, chart.secondsToBeat(seconds));
+        playbackScrubbing = false; lastFrameMs = SystemClock.elapsedRealtime();
+        if (playing) prepareHitSoundPlayback(false);
+        if (callback != null && callback.isAudioReady()) {
+            long position = chart.beatToAudioMillis(currentBeat, packageOffsetMs);
+            if (playing) callback.startAudio(position, playbackSpeed); else callback.seekAudio(position);
+        }
+        invalidate();
+    }
+    public void drawShaderEditorPreview(Canvas canvas, RectF area, PreviewShaderView surface,
+                                        double loopStart, double loopEnd) {
+        if (chart == null || area.isEmpty()) return;
+        if (playing) advancePlayback();
+        if (playing && !playbackScrubbing && loopEnd > loopStart && shaderEditorSeconds() >= loopEnd) shaderEditorSeek(loopStart);
+        RenderScene scene = ChartEvaluator.evaluate(chart, currentBeat, settings.highlightSimultaneousNotes,
+                callback == null ? -1L : callback.audioDurationMs(), useRpe170Speed,
+                settings.playerWidth / (double) settings.playerHeight);
+        PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(area.left, area.top,
+                area.right, area.bottom, settings.playerWidth, settings.playerHeight);
+        RectF viewport = new RectF((float) fitted.left, (float) fitted.top, (float) fitted.right, (float) fitted.bottom);
+        if (!surface.submit(previewRenderer, scene, viewport, area, blurredBackgroundIllustration,
+                settings, lineIndex, chart.getBackgroundDim(), previewShaders, shaderEditorSeconds()))
+            previewRenderer.draw(canvas, scene, viewport, area, blurredBackgroundIllustration,
+                    settings, lineIndex, chart.getBackgroundDim());
+    }
+    @Override public void invalidate() {
+        super.invalidate();
+        if (workbenchListener != null) workbenchListener.run();
+    }
+    public int getWorkbenchTab() { return workbenchTab; }
+    public Object getSelectedPropertyTarget() {
+        if (selectedNote != null) return selectedNote;
+        if (selectedEvent != null) return selectedEvent;
+        return workbenchTab == 1 ? storyboardTimeline.selected() : null;
+    }
+    public boolean isWorkbenchPreview() { return previewMode; }
+    public boolean isXYBindingEnabled() { return xyBindingEnabled; }
+    public void setWorkbenchTab(int tab) {
+        cancelActiveGesture();
+        previewMode = false;
+        int next = Math.max(0, Math.min(2, tab));
+        if (next != workbenchTab) {
+            selectedEvent = null;
+            selectedEvents.clear();
+            if (next != 1) storyboardTimeline.clearSelection();
+        }
+        workbenchTab = next;
+        invalidate();
+    }
+    public void arrangeLine(int delta) { if (chart != null) changeLine(delta); }
+    public void arrangeLayer(int delta) { if (chart != null) changeLayer(delta); }
+    public void arrangeBinding() { if (chart != null) toggleXYBinding(); }
+    public void arrangeBeatGrid(int delta) { changeSubdivision(delta); }
+    public void arrangeXGrid(int delta) { changeVerticalGrid(delta); }
+    public String workbenchArrangementSummary() {
+        return "Arrange · L" + lineIndex + " · layer " + eventLayerIndex
+                + " · beat 1/" + subdivision + " · X grid " + verticalGridLines;
+    }
+    public void selectStoryboardEvent(StoryboardEventType type, ExtendedLineEvents.TimedEvent event) {
+        storyboardTimeline.select(type, event);
+        activateEditPanel();
+        invalidate();
     }
 
     public void setCallback(Callback callback) {
@@ -85,14 +184,28 @@ abstract class EditorChromeView extends EditorDocumentView {
         invalidate();
     }
 
+    /** Empty taps clear every editor grid's selection before considering a seek. */
+    public boolean clearTimelineSelectionOnTap() {
+        boolean selected = selectedNote != null || selectedEvent != null
+                || !selectedNotes.isEmpty() || !selectedEvents.isEmpty()
+                || (storyboardTimeline != null && storyboardTimeline.selectionCount() > 0);
+        if (selected) { clearSelection(); invalidate(); }
+        return selected;
+    }
+
+    public boolean isTapToSeekEnabled() { return settings.tapToSeek; }
+
     public EditorSettings getSettings() {
         return settings.copy();
     }
 
     public void setChart(ChartDocument chart) {
+        setPreviewShaders(ShaderTimeline.EMPTY);
         setBackgroundIllustration(null);
         setPreviewLineTextures(null);
         this.chart = chart;
+        if (storyboardTimeline != null) storyboardTimeline.reset();
+        workbenchTab = 0;
         lineIndex = 0;
         eventLayerIndex = 0;
         currentBeat = 0.0;
@@ -142,9 +255,18 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
 
     public void setBackgroundIllustration(Bitmap illustration) {
+        setBackgroundIllustration(illustration, null);
+    }
+
+    public void setBackgroundIllustration(Bitmap illustration, Bitmap blurred) {
         Bitmap previous = backgroundIllustration;
+        Bitmap previousBlur = blurredBackgroundIllustration;
         backgroundIllustration = illustration;
-        if (previous != null && previous != illustration && !previous.isRecycled()) previous.recycle();
+        blurredBackgroundIllustration = blurred;
+        if (previous != null && previous != illustration && previous != blurred
+                && !previous.isRecycled()) previous.recycle();
+        if (previousBlur != null && previousBlur != illustration && previousBlur != blurred
+                && !previousBlur.isRecycled()) previousBlur.recycle();
         invalidate();
     }
 
@@ -200,6 +322,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         super.onDraw(canvas);
         canvas.drawColor(Color.rgb(10, 14, 18));
         if (chart == null) {
+            if (shaderView != null) shaderView.hidePreview();
             paint.setColor(Color.WHITE);
             paint.setTextSize(18f * density);
             canvas.drawText("No chart loaded", 24f * density, 48f * density, paint);
@@ -208,25 +331,30 @@ abstract class EditorChromeView extends EditorDocumentView {
 
         if (playing) advancePlayback();
         if (previewMode) drawPreview(canvas);
-        else drawEditor(canvas);
+        else {
+            if (shaderView != null) shaderView.hidePreview();
+            drawEditor(canvas);
+        }
     }
 
     private void drawPreview(Canvas canvas) {
         RenderScene scene = ChartEvaluator.evaluate(
                 chart, currentBeat, settings.highlightSimultaneousNotes,
                 callback == null ? -1L : callback.audioDurationMs(),
-                useRpe170Speed);
+                useRpe170Speed, settings.playerWidth / (double) settings.playerHeight);
         float barHeight = 25f * density;
         RectF previewArea = new RectF(0f, toolbarHeight(), getWidth(),
                 getHeight() - barHeight);
-        previewRenderer.drawBackdrop(canvas, previewArea, backgroundIllustration);
         PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(
                 previewArea.left, previewArea.top, previewArea.right, previewArea.bottom,
                 settings.playerWidth, settings.playerHeight);
         RectF viewport = new RectF((float) fitted.left, (float) fitted.top,
                 (float) fitted.right, (float) fitted.bottom);
-        previewRenderer.draw(canvas, scene, viewport, backgroundIllustration, settings,
-                lineIndex);
+        boolean submitted = shaderView != null && shaderView.submit(previewRenderer, scene,
+                viewport, previewArea, blurredBackgroundIllustration, settings, lineIndex,
+                chart.getBackgroundDim(), previewShaders, chart.beatToSeconds(currentBeat));
+        if (!submitted) previewRenderer.draw(canvas, scene, viewport, previewArea,
+                blurredBackgroundIllustration, settings, lineIndex, chart.getBackgroundDim());
         drawToolbar(canvas);
 
         paint.setColor(withAlpha(Color.BLACK, 150));
@@ -251,14 +379,26 @@ abstract class EditorChromeView extends EditorDocumentView {
         drawEditorGameplayBackground(canvas, 0f, toolbar, split, bottom);
 
         drawNoteGrid(canvas, 0f, toolbar, split, bottom);
-        drawEventGrid(canvas, split, toolbar, getWidth(), bottom);
         drawNotes(canvas, 0f, toolbar, split, bottom);
-        drawEvents(canvas, split, toolbar, getWidth(), bottom);
+        if (workbenchTab == 1) storyboardTimeline.draw(canvas, split, toolbar, getWidth(), bottom);
+        else if (workbenchTab == 0) {
+            int save = canvas.save();
+            canvas.clipRect(split, toolbar, getWidth(), bottom);
+            drawEventGrid(canvas, split, toolbar, getWidth(), bottom);
+            drawEvents(canvas, split, toolbar, getWidth(), bottom);
+            // Keep the cursor visible over event blocks, as in the Storyboard timeline.
+            drawCurrentBeatLine(canvas, split, getWidth(), bottom);
+            drawEventHeaders(canvas, split, toolbar, getWidth());
+            canvas.restoreToCount(save);
+        }
         drawPlacementPreview(canvas, split, toolbar, bottom);
         drawSelectionRectangle(canvas);
         drawToolbar(canvas);
         drawBottomBar(canvas);
+        int save = canvas.save();
+        canvas.clipRect(0f, toolbar, split, bottom);
         drawStatus(canvas, bottom - 7f * density);
+        canvas.restoreToCount(save);
     }
 
     private void drawEditorGameplayBackground(Canvas canvas, float left, float top,
@@ -266,7 +406,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         RenderScene scene = ChartEvaluator.evaluate(
                 chart, currentBeat, settings.highlightSimultaneousNotes,
                 callback == null ? -1L : callback.audioDurationMs(),
-                useRpe170Speed);
+                useRpe170Speed, settings.playerWidth / (double) settings.playerHeight);
         PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(
                 left, top, right, bottom, settings.playerWidth, settings.playerHeight);
         RectF viewport = new RectF((float) fitted.left, (float) fitted.top,
@@ -299,14 +439,11 @@ abstract class EditorChromeView extends EditorDocumentView {
                 52f * density, buttonHeight, this::undo, history.canUndo(), history.canUndo());
         x = addButton(canvas, getResources().getString(R.string.toolbar_redo), x, y,
                 52f * density, buttonHeight, this::redo, history.canRedo(), history.canRedo());
-        x = addButton(canvas, getResources().getString(R.string.toolbar_menu), x, y,
+        if (previewMode) x = addButton(canvas, getResources().getString(R.string.toolbar_menu), x, y,
                 58f * density, buttonHeight, () -> callback.requestMainMenu());
 
         float seekRight = getWidth() - 10f * density;
-        float preferredSeekWidth = clamp(getWidth() * 0.29f,
-                190f * density, 360f * density);
-        float seekLeft = Math.max(x + 92f * density, seekRight - preferredSeekWidth);
-        if (seekLeft > seekRight - 80f * density) seekLeft = seekRight - 80f * density;
+        float seekLeft = seekRight - playbackSeekTrackWidth(getWidth(), x);
 
         float titleLeft = x + 8f * density;
         float titleRight = seekLeft - 10f * density;
@@ -337,13 +474,52 @@ abstract class EditorChromeView extends EditorDocumentView {
         drawPlaybackSeekBar(canvas, seekLeft, seekRight);
     }
 
+    private float playbackSeekTrackWidth(float width, float actionsRight) {
+        float preferred = clamp(width * .29f, 190f * density, 360f * density);
+        return Math.max(80f * density, Math.min(preferred, width - 10f * density
+                - actionsRight - 92f * density));
+    }
+
+    /** Same six toolbar actions and track geometry as Events and Storyboard. */
+    public final float editorPlaybackSeekWidth(float width) {
+        float actionsRight = (6 + 58 + 54 + 64 + 52 + 52 + 52 + 6 * 4) * density;
+        return playbackSeekTrackWidth(width, actionsRight);
+    }
+
+    /** Reuse the normal audio seek painter and scrub lifecycle in Shaders. */
+    public final void drawShaderPlaybackSeek(Canvas canvas, float left, float right) {
+        drawPlaybackSeekBar(canvas, left, right);
+    }
+    public final void shaderPlaybackSeekTouch(int action, float x, float y) {
+        if (action == android.view.MotionEvent.ACTION_DOWN) beginPlaybackSeek(x, y);
+        else if (action == android.view.MotionEvent.ACTION_MOVE && gestureMode == GestureMode.SEEK_BAR)
+            updatePlaybackSeek(x);
+        else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+            if (action == android.view.MotionEvent.ACTION_UP && gestureMode == GestureMode.SEEK_BAR)
+                updatePlaybackSeek(x);
+            finishPlaybackScrub();
+            gestureMode = GestureMode.NONE;
+        }
+        invalidate();
+    }
+    public final void shaderBeginPan() { beginPanGesture(); }
+    public final void shaderPanTo(double seconds) {
+        currentBeat = Math.max(0, chart.secondsToBeat(seconds));
+        invalidate();
+    }
+    public final void shaderEndPan() {
+        finishPlaybackScrub();
+        gestureMode = GestureMode.NONE;
+        invalidate();
+    }
+
     private void drawPlaybackSeekBar(Canvas canvas, float left, float right) {
         playbackSeekBounds.set(left, 3f * density, right, toolbarHeight() - 3f * density);
         boolean ready = callback != null && callback.isAudioReady() && callback.audioDurationMs() > 0L;
         long duration = ready ? callback.audioDurationMs() : 0L;
         long position = 0L;
         if (ready) {
-            position = playbackScrubbing || gestureMode == GestureMode.SEEK_BAR
+            position = !playing || playbackScrubbing || gestureMode == GestureMode.SEEK_BAR
                     ? chart.beatToAudioMillis(currentBeat, packageOffsetMs)
                     : callback.audioPositionMs();
         }
@@ -378,65 +554,78 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     private void drawBottomBar(Canvas canvas) {
         float top = getHeight() - bottomBarHeight();
+        float right = editorSplitX();
         paint.setColor(TOOLBAR_COLOR);
         canvas.drawRect(0, top, getWidth(), getHeight(), paint);
-
-        float tabY = top + 5f * density;
-        float x = 6f * density;
-        x = drawBottomTab(canvas, R.string.controls_panel_create, BottomPanel.CREATE, x, tabY);
-        x = drawBottomTab(canvas, R.string.controls_panel_edit, BottomPanel.EDIT, x, tabY);
-        x = drawBottomTab(canvas, R.string.controls_panel_arrange, BottomPanel.ARRANGE, x, tabY);
-
-        List<BottomAction> actions = bottomActions();
-        int pageSize = bottomPanel == BottomPanel.CREATE ? 6
-                : bottomPanel == BottomPanel.EDIT ? 7 : 5;
-        int pageCount = Math.max(1, (actions.size() + pageSize - 1) / pageSize);
-        bottomActionPage = Math.max(0, Math.min(pageCount - 1, bottomActionPage));
-
+        int save = canvas.save();
+        canvas.clipRect(0, top, right, getHeight());
+        float x = drawBottomTab(canvas, R.string.controls_panel_create, BottomPanel.CREATE,
+                6f * density, top + 5f * density);
+        x = drawBottomTab(canvas, R.string.controls_panel_edit, BottomPanel.EDIT, x, top + 5f * density);
+        x = drawBottomTab(canvas, R.string.controls_panel_arrange, BottomPanel.ARRANGE, x, top + 5f * density);
         paint.setColor(Color.LTGRAY);
         paint.setTextSize(10f * density);
-        float pageReserve = pageCount > 1 ? 52f * density : 0f;
-        float summaryRight = getWidth() - 10f * density - pageReserve;
         String summary = getResources().getString(R.string.controls_status_summary,
                 currentToolLabel(), lineIndex, eventLayerIndex, subdivision, verticalGridLines);
-        if (summaryRight > x + 8f * density) {
-            canvas.drawText(ellipsize(summary, summaryRight - x - 8f * density),
-                    x + 8f * density, top + 22f * density, paint);
-        }
-        if (pageCount > 1) {
-            paint.setTextAlign(Paint.Align.RIGHT);
-            canvas.drawText(getResources().getString(R.string.controls_page_indicator,
-                            bottomActionPage + 1, pageCount),
-                    getWidth() - 10f * density, top + 22f * density, paint);
-            paint.setTextAlign(Paint.Align.LEFT);
-        }
+        canvas.drawText(ellipsize(summary, Math.max(0, right - x - 12f * density)),
+                x + 4f * density, top + 22f * density, paint);
 
+        List<BottomAction> actions = bottomActions();
+        List<Integer> starts = new ArrayList<>();
+        starts.add(0);
+        float total = 0;
+        boolean explicitPages = false;
+        for (BottomAction action : actions) {
+            total += action.width + 4f * density;
+            explicitPages |= action.startNewPage;
+        }
+        float budget = right - 12f * density
+                - (explicitPages || total > right - 12f * density ? 84f * density : 0);
+        // Fit each explicitly grouped Arrange page before applying overflow pagination.
+        // Keep both X grid controls together on page two at every supported density.
+        float widthScale = 1f;
+        if (bottomPanel == BottomPanel.ARRANGE) {
+            float groupWidth = 0, largestGroup = 0;
+            int groupCount = 0, largestCount = 0;
+            for (BottomAction action : actions) {
+                if (action.startNewPage) {
+                    if (groupWidth > largestGroup) { largestGroup = groupWidth; largestCount = groupCount; }
+                    groupWidth = 0; groupCount = 0;
+                }
+                groupWidth += action.width; groupCount++;
+            }
+            if (groupWidth > largestGroup) { largestGroup = groupWidth; largestCount = groupCount; }
+            widthScale = Math.min(1f, Math.max(0, budget - largestCount * 4f * density) / largestGroup);
+        }
+        float used = 0;
+        for (int index = 0; index < actions.size(); index++) {
+            float size = actions.get(index).width * widthScale + 4f * density;
+            if (used > 0 && (actions.get(index).startNewPage || used + size > budget + .01f)) {
+                starts.add(index); used = 0;
+            }
+            used += size;
+        }
+        int pages = starts.size();
+        bottomActionPage = Math.max(0, Math.min(pages - 1, bottomActionPage));
+        int first = starts.get(bottomActionPage);
+        int last = bottomActionPage + 1 < pages ? starts.get(bottomActionPage + 1) : actions.size();
         float actionY = top + 36f * density;
-        int first = bottomActionPage * pageSize;
-        int last = Math.min(actions.size(), first + pageSize);
         x = 6f * density;
         for (int index = first; index < last; index++) {
             BottomAction action = actions.get(index);
-            x = addButton(canvas, action.label, x, actionY, action.width,
-                    31f * density, action.action, action.active, action.enabled);
+            x = addButton(canvas, action.label, x, actionY,
+                    Math.min(action.width * widthScale, budget - 4f * density), 34f * density,
+                    action.action, action.active, action.enabled);
         }
-        if (pageCount > 1) {
-            float previousX = getWidth() - 86f * density;
-            addButton(canvas, getResources().getString(R.string.controls_page_previous),
-                    previousX, actionY, 36f * density, 31f * density,
+        if (pages > 1) {
+            // Keep arrows after the actions, moving only the unused gap out of the way.
+            float arrowsX = Math.min(x + 4f * density, right - 80f * density);
+            addButton(canvas, "‹", arrowsX, actionY, 34f * density, 34f * density,
                     () -> changeBottomPage(-1), false, bottomActionPage > 0);
-            addButton(canvas, getResources().getString(R.string.controls_page_next),
-                    getWidth() - 46f * density, actionY, 36f * density, 31f * density,
-                    () -> changeBottomPage(1), false, bottomActionPage + 1 < pageCount);
+            addButton(canvas, "›", arrowsX + 38f * density, actionY, 34f * density, 34f * density,
+                    () -> changeBottomPage(1), false, bottomActionPage + 1 < pages);
         }
-
-        paint.setColor(Color.rgb(180, 190, 200));
-        paint.setTextSize(9.5f * density);
-        String context = bottomContextSummary();
-        String hint = settings.showTips ? bottomPanelHint() : "";
-        String footer = hint.isEmpty() ? context : context + " · " + hint;
-        canvas.drawText(ellipsize(footer, getWidth() - 16f * density),
-                8f * density, top + 86f * density, paint);
+        canvas.restoreToCount(save);
     }
 
     private float drawBottomTab(Canvas canvas, int textResource, BottomPanel panel,
@@ -450,6 +639,27 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     private List<BottomAction> bottomActions() {
         List<BottomAction> actions = new ArrayList<>();
+        if (workbenchTab == 1 && bottomPanel == BottomPanel.EDIT
+                && selectedNote == null && selectedEvent == null) {
+            boolean box = rectangleSelectionMode == RectangleSelectionMode.ADD;
+            actions.add(bottomAction(box ? R.string.controls_box_add_on : R.string.controls_box_add_off,
+                    68, this::toggleRectangleSelection, box));
+            if (storyboardTimeline.selectionCount() == 1) {
+                actions.add(bottomTextAction("Properties", 76, storyboardTimeline::edit));
+                actions.add(bottomTextAction("Split", 54, storyboardTimeline::split));
+                actions.add(bottomTextAction("Glue", 54, storyboardTimeline::glue));
+            }
+            if (storyboardTimeline.selectionCount() > 0) {
+                actions.add(bottomTextAction("Delete", 60, storyboardTimeline::delete));
+                actions.add(bottomTextAction("Copy", 54, storyboardTimeline::copy));
+                actions.add(bottomTextAction("Cut", 50, storyboardTimeline::cut));
+            }
+            actions.add(bottomAction(R.string.controls_paste, 58, storyboardTimeline::paste,
+                    false, storyboardTimeline.hasClipboard()));
+            actions.add(bottomAction(R.string.controls_clear, 56, storyboardTimeline::clearSelection,
+                    false, storyboardTimeline.selectionCount() > 0));
+            return actions;
+        }
         switch (bottomPanel) {
             case CREATE:
                 actions.add(bottomAction(R.string.controls_select, 58f,
@@ -482,7 +692,7 @@ abstract class EditorChromeView extends EditorDocumentView {
                         () -> changeLine(1), false,
                         chart != null && lineIndex + 1 < chart.judgeLines.size()));
                 actions.add(bottomAction(R.string.controls_x_grid_decrease, 70f,
-                        () -> changeVerticalGrid(-1)));
+                        () -> changeVerticalGrid(-1)).nextPage());
                 actions.add(bottomAction(R.string.controls_x_grid_increase, 70f,
                         () -> changeVerticalGrid(1)));
                 actions.add(bottomAction(R.string.controls_beat_grid_decrease, 80f,
@@ -641,6 +851,8 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
 
     private String bottomContextSummary() {
+        if (workbenchTab == 1 && storyboardTimeline.selected() != null)
+            return storyboardTimeline.selectionSummary();
         if (selectedNote != null) {
             return getResources().getString(R.string.controls_note_summary,
                     selectedNote.type.toString(), selectedNote.startTime.toString(),
@@ -813,6 +1025,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     private void prepareHitSoundPlayback(boolean includeZeroBoundary) {
         hitSoundTimeline = HitSoundTimeline.build(chart,
                 settings.tapFlickHitsoundOffsetMs, settings.dragHitsoundOffsetMs);
+        if (callback != null) callback.configureHitSounds(hitSoundTimeline, chart.offsetMs, packageOffsetMs);
         long currentTimeMs = chart == null ? 0L : chart.beatToMillis(currentBeat);
         lastHitSoundChartTimeMs = includeZeroBoundary && currentTimeMs == 0L
                 ? -1L : currentTimeMs;
@@ -825,6 +1038,7 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     private void dispatchHitSounds() {
         if (!playing || chart == null) return;
+        if (callback != null && callback.schedulesHitSounds()) return;
         long currentTimeMs = chart.beatToMillis(currentBeat);
         if (currentTimeMs < lastHitSoundChartTimeMs) {
             lastHitSoundChartTimeMs = currentTimeMs;
@@ -928,6 +1142,7 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     @Override
     protected void onDetachedFromWindow() {
+        if (shaderView != null) shaderView.hidePreview();
         setBackgroundIllustration(null);
         setPreviewLineTextures(null);
         super.onDetachedFromWindow();
@@ -961,6 +1176,9 @@ abstract class EditorChromeView extends EditorDocumentView {
         final Runnable action;
         final boolean active;
         final boolean enabled;
+        boolean startNewPage;
+
+        BottomAction nextPage() { startNewPage = true; return this; }
 
         BottomAction(String label, float width, Runnable action, boolean active, boolean enabled) {
             this.label = label;

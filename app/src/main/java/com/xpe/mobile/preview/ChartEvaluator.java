@@ -66,7 +66,18 @@ public final class ChartEvaluator {
                                        boolean highlightSimultaneousNotes,
                                        long trackDurationMs,
                                        boolean useRpe170Speed) {
+        return evaluate(chart, requestedBeat, highlightSimultaneousNotes,
+                trackDurationMs, useRpe170Speed, 1.5);
+    }
+
+    /** Aspect is needed before rotating a child line's normalized translation. */
+    public static RenderScene evaluate(ChartDocument chart, double requestedBeat,
+                                       boolean highlightSimultaneousNotes,
+                                       long trackDurationMs, boolean useRpe170Speed,
+                                       double aspectRatio) {
         if (chart == null) throw new IllegalArgumentException("chart is required");
+        double localYScale = Double.isFinite(aspectRatio) && aspectRatio > 0
+                ? 1.5 / aspectRatio : 1.0;
         double beat = finiteOr(requestedBeat, 0.0);
         beat = Math.max(0.0, beat);
         long chartTimeMs = chart.beatToMillis(beat);
@@ -88,7 +99,7 @@ public final class ChartEvaluator {
                     preparedLine.valueAt(EventType.ALPHA, beat));
         }
         for (int index = 0; index < count; index++) {
-            resolveLine(chart, index, local, resolved, resolveState);
+            resolveLine(chart, index, local, resolved, resolveState, localYScale);
         }
 
         List<RenderScene.RenderLine> lines = new ArrayList<>(count);
@@ -97,6 +108,8 @@ public final class ChartEvaluator {
         for (int index = 0; index < count; index++) {
             JudgeLine source = chart.judgeLines.get(index);
             ResolvedLine transform = resolved[index];
+            if (!Double.isFinite(transform.x) || !Double.isFinite(transform.y)
+                    || !Double.isFinite(transform.rotationDegrees)) continue;
             ExtendedLineEvents extended = source.extended == null
                     ? new ExtendedLineEvents() : source.extended;
             if (source.attachUi != null) {
@@ -106,35 +119,35 @@ public final class ChartEvaluator {
                 double hudScaleX = lineScaleAt(source, extended, true, beat);
                 double hudScaleY = lineScaleAt(source, extended, false, beat);
                 hudTransforms.put(source.attachUi, new RenderScene.HudTransform(
-                        index, transform.x, transform.y, transform.rotationDegrees,
+                        index, transform.x, transform.y, local[index].rotationDegrees,
                         clampAlpha(local[index].rawAlpha), hudColor,
                         hudScaleX, hudScaleY));
                 continue;
             }
             AlphaExtension alphaExtension = AlphaExtension.from(
                     local[index].rawAlpha, source.cover);
-            if (alphaExtension.hideLineAndNotes) continue;
             SpeedProfile speed = prepared.lines[index].speed;
             double currentDistance = speed.distanceAt(beat);
             List<RenderScene.RenderNote> notes = new ArrayList<>();
             List<RenderScene.HitEffect> effects = new ArrayList<>();
-            for (Note note : source.notes) {
-                if (note == null || note.type == null || note.startTime == null) continue;
-                double startBeat = Math.max(0.0, note.startTime.toDouble());
-                long startTimeMs = chart.beatToMillis(startBeat);
+            NoteControlEvents controls = source.noteControls == null
+                    ? new NoteControlEvents() : source.noteControls;
+            for (PreparedNote cached : prepared.lines[index].notes) {
+                Note note = cached.note;
+                double startBeat = cached.startBeat;
+                long startTimeMs = cached.startMs;
                 boolean hold = note.type == NoteType.HOLD;
-                double endBeat = hold && note.endTime != null
-                        ? Math.max(0.0, note.endTime.toDouble()) : startBeat;
-                if (hold && endBeat <= startBeat) continue;
+                double endBeat = cached.endBeat;
+                // Fake notes without cover can remain visible after their timestamp.
+                if ((hold || !note.fake || alphaExtension.cover)
+                        && beat > endBeat && chartTimeMs - cached.endMs >= HIT_EFFECT_DURATION_MS) continue;
 
                 double noteSpeed = finiteOr(note.speed, 1.0);
                 double yOffset = finiteOr(note.yOffset, 0.0);
-                double baseStartDistance = speed.distanceAt(startBeat) - currentDistance;
+                double baseStartDistance = cached.startDistance - currentDistance;
                 double baseEndDistance = hold
-                        ? speed.distanceAt(endBeat) - currentDistance : baseStartDistance;
+                        ? cached.endDistance - currentDistance : baseStartDistance;
                 double controlHeight = baseStartDistance + yOffset;
-                NoteControlEvents controls = source.noteControls == null
-                        ? new NoteControlEvents() : source.noteControls;
                 double positionControl = finiteOr(NoteControlEvents.valueAt(
                         controls.position, controlHeight, 1.0), 1.0);
                 double sizeControl = finiteOr(NoteControlEvents.valueAt(
@@ -152,8 +165,10 @@ public final class ChartEvaluator {
                         + renderedOffset;
                 if (hold && beat >= startBeat) startDistance = renderedOffset;
 
-                appendHitEffects(chart, index, note, controls, startBeat, endBeat,
-                        chartTimeMs, noteSpeed, yOffset, effects);
+                appendHitEffects(chart, prepared, index, cached, controls,
+                        chartTimeMs, noteSpeed, yOffset, effects, localYScale);
+                // Negative line alpha hides geometry, but real notes still hit normally.
+                if (alphaExtension.hideLineAndNotes) continue;
 
                 if (!hold && Math.abs(startDistance) > NOTE_RENDER_DISTANCE_LIMIT
                         || hold && startDistance > NOTE_RENDER_DISTANCE_LIMIT
@@ -171,7 +186,10 @@ public final class ChartEvaluator {
                 if (secondsUntilHit > Math.max(0.0, visibleTime)) continue;
 
                 if (alphaExtension.cover && beat < startBeat
-                        && startDistance < 0.0) continue;
+                        // prpr compares the scroll distance before yOffset, in normalized screen units.
+                        // Its -0.001 tolerance keeps notes on a zero-speed plateau visible
+                        // after cancellation of positive and negative speed integrals.
+                        && baseStartDistance * noteSpeed * yControl <= -0.675 / localYScale) continue;
 
                 boolean multiHit = highlightSimultaneousNotes
                         && simultaneous.getOrDefault(note.startTime, 0) > 1;
@@ -186,6 +204,7 @@ public final class ChartEvaluator {
                         note.hasTint ? note.tintRgb : 0xFFFFFF));
             }
 
+            if (alphaExtension.hideLineAndNotes && effects.isEmpty()) continue;
             int colorRgb = extended.colorEvents.isEmpty() ? -1
                     : ExtendedLineEvents.colorValueAt(
                     extended.colorEvents, beat, 0xFFFFFF);
@@ -202,8 +221,8 @@ public final class ChartEvaluator {
             GifState gif = !defaultTexture && !extended.gifEvents.isEmpty()
                     ? evaluateGifState(chart, extended.gifEvents, beat)
                     : GifState.disabled();
-            List<RenderScene.PaintStroke> paintStrokes = paintMode
-                    ? evaluatePaintStrokes(chart, index, beat) : new ArrayList<>();
+            List<RenderScene.PaintStroke> paintStrokes = paintMode && !alphaExtension.hideLineAndNotes
+                    ? evaluatePaintStrokes(chart, prepared, index, beat, localYScale) : new ArrayList<>();
             lines.add(new RenderScene.RenderLine(index, source.zOrder,
                     transform.x, transform.y, transform.rotationDegrees,
                     clampAlpha(local[index].rawAlpha), colorRgb, scaleX, scaleY, incline,
@@ -232,7 +251,7 @@ public final class ChartEvaluator {
                 : prepared.finalBeat <= 0.0 ? 0.0 : beat / prepared.finalBeat;
         progress = Math.max(0.0, Math.min(1.0, progress));
         return new RenderScene.HudState(chart.name, chart.level, passed,
-                score, progress, transforms);
+                score, progress, transforms, chart.useAttachUiFix);
     }
 
     private static int upperBound(double[] values, double target) {
@@ -247,18 +266,19 @@ public final class ChartEvaluator {
     }
 
     private static void appendHitEffects(
-            ChartDocument chart, int lineIndex, Note note, NoteControlEvents controls,
-            double startBeat, double endBeat, long chartTimeMs,
-            double noteSpeed, double yOffset, List<RenderScene.HitEffect> target) {
+            ChartDocument chart, PreparedChart prepared, int lineIndex, PreparedNote cached,
+            NoteControlEvents controls, long chartTimeMs,
+            double noteSpeed, double yOffset, List<RenderScene.HitEffect> target, double localYScale) {
+        Note note = cached.note;
         if (note.fake) return;
         if (note.type != NoteType.HOLD) {
-            long effectTimeMs = chart.beatToMillis(startBeat);
-            appendHitEffectAt(chart, lineIndex, note, controls, startBeat,
-                    effectTimeMs, chartTimeMs, noteSpeed, yOffset, target);
+            long effectTimeMs = cached.startMs;
+            appendHitEffectAt(chart, prepared, lineIndex, note, controls, cached.startBeat,
+                    effectTimeMs, chartTimeMs, noteSpeed, yOffset, target, localYScale);
             return;
         }
-        long startTimeMs = chart.beatToMillis(startBeat);
-        long endTimeMs = chart.beatToMillis(endBeat);
+        long startTimeMs = cached.startMs;
+        long endTimeMs = cached.endMs;
         long pulseLimitMs = Math.min(chartTimeMs, endTimeMs);
         if (pulseLimitMs < startTimeMs) return;
         long pulseIndex = (pulseLimitMs - startTimeMs) / HOLD_EFFECT_INTERVAL_MS;
@@ -269,18 +289,18 @@ public final class ChartEvaluator {
             if (ageMs >= HIT_EFFECT_DURATION_MS) break;
             if (ageMs >= 0L) {
                 double pulseBeat = chart.millisToBeat(pulseTimeMs);
-                appendHitEffectAt(chart, lineIndex, note, controls, pulseBeat,
-                        pulseTimeMs, chartTimeMs, noteSpeed, yOffset, target);
+                appendHitEffectAt(chart, prepared, lineIndex, note, controls, pulseBeat,
+                        pulseTimeMs, chartTimeMs, noteSpeed, yOffset, target, localYScale);
             }
             pulseTimeMs -= HOLD_EFFECT_INTERVAL_MS;
         }
     }
 
     private static void appendHitEffectAt(
-            ChartDocument chart, int lineIndex, Note note, NoteControlEvents controls,
+            ChartDocument chart, PreparedChart prepared, int lineIndex, Note note, NoteControlEvents controls,
             double effectBeat, long effectTimeMs, long chartTimeMs,
             double noteSpeed, double yOffset,
-            List<RenderScene.HitEffect> target) {
+            List<RenderScene.HitEffect> target, double localYScale) {
         long ageMs = chartTimeMs - effectTimeMs;
         if (ageMs < 0L || ageMs >= HIT_EFFECT_DURATION_MS) return;
         double positionControl = note.type == NoteType.HOLD ? 1.0
@@ -288,17 +308,19 @@ public final class ChartEvaluator {
                 controls.position, yOffset, 1.0), 1.0);
         double localX = finiteOr(note.positionX, 0.0) * positionControl;
         double localY = yOffset * noteSpeed * (note.above == 1 ? 1.0 : -1.0);
-        ResolvedLine transform = resolveSingleLineAt(chart, lineIndex, effectBeat,
-                new boolean[chart.judgeLines.size()]);
+        ResolvedLine transform = resolveSingleLineAt(chart, prepared, lineIndex, effectBeat,
+                new boolean[chart.judgeLines.size()], localYScale);
         double radians = Math.toRadians(transform.rotationDegrees);
         double worldX = transform.x + Math.cos(radians) * localX
                 - Math.sin(radians) * localY;
         double worldY = transform.y + Math.sin(radians) * localX
                 + Math.cos(radians) * localY;
+        if (!Double.isFinite(worldX) || !Double.isFinite(worldY)) return;
         int seed = 31 * (31 * (lineIndex + 1)
                 + (note.startTime == null ? 0 : note.startTime.hashCode()))
                 + Double.hashCode(effectBeat);
-        target.add(new RenderScene.HitEffect(worldX, worldY,
+        target.add(new RenderScene.HitEffect(worldX, worldY, transform.x, transform.y,
+                localX, localY, transform.rotationDegrees,
                 ageMs / (double) HIT_EFFECT_DURATION_MS,
                 note.hasHitEffectTint ? note.hitEffectTintRgb : 0xFEFFA9, seed));
     }
@@ -401,10 +423,13 @@ public final class ChartEvaluator {
     static double layeredValueAt(JudgeLine line, EventType type, double beat) {
         double result = 0.0;
         boolean affected = false;
-        for (EventLayer layer : line.eventLayers) {
+        for (int layerIndex = 0; layerIndex < line.eventLayers.size(); layerIndex++) {
+            EventLayer layer = line.eventLayers.get(layerIndex);
             LineEvent latest = null;
+            LineEvent first = null;
             for (LineEvent event : layer.events(type)) {
                 if (event == null || event.startTime == null) continue;
+                if (first == null || event.startTime.compareTo(first.startTime) < 0) first = event;
                 if (event.startTime.toDouble() <= beat
                         && (latest == null
                         || event.startTime.compareTo(latest.startTime) >= 0)) {
@@ -413,6 +438,10 @@ public final class ChartEvaluator {
             }
             if (latest != null) {
                 result += finiteOr(latest.valueAt(beat), 0.0);
+                affected = true;
+            } else if (layerIndex == 0 && first != null
+                    && (EventLayer.isSpatial(type) || type == EventType.ALPHA)) {
+                result += first.spatialValueBeforeStart(beat);
                 affected = true;
             }
         }
@@ -481,6 +510,7 @@ public final class ChartEvaluator {
     private static final class PreparedLine {
         final Map<EventType, LineEvent[][]> events = new EnumMap<>(EventType.class);
         final SpeedProfile speed;
+        final List<PreparedNote> notes = new ArrayList<>();
 
         PreparedLine(SpeedProfile speed) {
             this.speed = speed;
@@ -490,6 +520,13 @@ public final class ChartEvaluator {
                                   double maximumBeat, boolean useRpe170Speed) {
             PreparedLine result = new PreparedLine(SpeedProfile.build(
                     chart, line, maximumBeat, useRpe170Speed));
+            for (Note note : line.notes) {
+                if (note == null || note.type == null || note.startTime == null) continue;
+                PreparedNote cached = new PreparedNote(chart, result.speed, note);
+                if (note.type != NoteType.HOLD || cached.endBeat > cached.startBeat) {
+                    result.notes.add(cached);
+                }
+            }
             for (EventType type : EventType.values()) {
                 LineEvent[][] layers = new LineEvent[line.eventLayers.size()][];
                 for (int layerIndex = 0; layerIndex < layers.length; layerIndex++) {
@@ -509,7 +546,8 @@ public final class ChartEvaluator {
             boolean affected = false;
             LineEvent[][] layers = events.get(type);
             if (layers == null) return LineEvent.defaultValue(type);
-            for (LineEvent[] layer : layers) {
+            for (int layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+                LineEvent[] layer = layers[layerIndex];
                 int low = 0;
                 int high = layer.length;
                 while (low < high) {
@@ -526,6 +564,10 @@ public final class ChartEvaluator {
                         result += finiteOr(latest.valueAt(beat), 0.0);
                         affected = true;
                     }
+                } else if (layerIndex == 0 && layer.length > 0
+                        && (EventLayer.isSpatial(type) || type == EventType.ALPHA)) {
+                    result += layer[0].spatialValueBeforeStart(beat);
+                    affected = true;
                 }
             }
             return affected ? result : LineEvent.defaultValue(type);
@@ -533,7 +575,7 @@ public final class ChartEvaluator {
     }
 
     private static void resolveLine(ChartDocument chart, int index, LocalLine[] local,
-                                    ResolvedLine[] resolved, int[] state) {
+                                    ResolvedLine[] resolved, int[] state, double localYScale) {
         if (state[index] == 2) return;
         LocalLine own = local[index];
         if (state[index] == 1) {
@@ -548,11 +590,11 @@ public final class ChartEvaluator {
                 || parentIndex == index || state[parentIndex] == 1) {
             resolved[index] = new ResolvedLine(own.x, own.y, own.rotationDegrees);
         } else {
-            resolveLine(chart, parentIndex, local, resolved, state);
+            resolveLine(chart, parentIndex, local, resolved, state, localYScale);
             ResolvedLine parent = resolved[parentIndex];
             double radians = Math.toRadians(parent.rotationDegrees);
-            double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians);
-            double rotatedY = own.x * Math.sin(radians) + own.y * Math.cos(radians);
+            double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians) * localYScale;
+            double rotatedY = own.x * Math.sin(radians) / localYScale + own.y * Math.cos(radians);
             resolved[index] = new ResolvedLine(parent.x + rotatedX, parent.y + rotatedY,
                     own.rotationDegrees + (line.rotateWithFather
                             ? parent.rotationDegrees : 0.0));
@@ -561,7 +603,7 @@ public final class ChartEvaluator {
     }
 
     private static List<RenderScene.PaintStroke> evaluatePaintStrokes(
-            ChartDocument chart, int lineIndex, double beat) {
+            ChartDocument chart, PreparedChart prepared, int lineIndex, double beat, double localYScale) {
         JudgeLine source = chart.judgeLines.get(lineIndex);
         ExtendedLineEvents extended = source.extended;
         List<RenderScene.PaintStroke> result = new ArrayList<>();
@@ -579,14 +621,14 @@ public final class ChartEvaluator {
         long sampleMs = firstMs;
         int samples = 0;
         while (sampleMs <= currentMs && samples < MAX_PAINT_SAMPLES_PER_LINE) {
-            appendPaintSample(chart, lineIndex, sampleMs, result);
+            appendPaintSample(chart, prepared, lineIndex, sampleMs, result, localYScale);
             samples++;
             if (sampleMs > Long.MAX_VALUE - intervalMs) break;
             sampleMs += intervalMs;
         }
         if (spanMs > 0L && sampleMs - intervalMs != currentMs
                 && samples < MAX_PAINT_SAMPLES_PER_LINE) {
-            appendPaintSample(chart, lineIndex, currentMs, result);
+            appendPaintSample(chart, prepared, lineIndex, currentMs, result, localYScale);
         }
         return result;
     }
@@ -613,8 +655,8 @@ public final class ChartEvaluator {
                 chart.beatToMillis(Math.max(0.0, endBeat)));
     }
 
-    private static void appendPaintSample(ChartDocument chart, int lineIndex, long timeMs,
-                                          List<RenderScene.PaintStroke> target) {
+    private static void appendPaintSample(ChartDocument chart, PreparedChart prepared, int lineIndex, long timeMs,
+                                          List<RenderScene.PaintStroke> target, double localYScale) {
         double sampleBeat = chart.millisToBeat(Math.max(0L, timeMs));
         JudgeLine source = chart.judgeLines.get(lineIndex);
         ExtendedLineEvents extended = source.extended;
@@ -626,12 +668,11 @@ public final class ChartEvaluator {
             return;
         }
         ResolvedLine transform = resolveSingleLineAt(
-                chart, lineIndex, sampleBeat, new boolean[chart.judgeLines.size()]);
+                chart, prepared, lineIndex, sampleBeat, new boolean[chart.judgeLines.size()], localYScale);
         int color = extended.colorEvents.isEmpty() ? -1
                 : ExtendedLineEvents.colorValueAt(
                 extended.colorEvents, sampleBeat, 0xFFFFFF);
-        int alpha = clampAlpha(layeredValueAt(
-                source, EventType.ALPHA, sampleBeat) * 2.55);
+        int alpha = clampAlpha(prepared.lines[lineIndex].valueAt(EventType.ALPHA, sampleBeat) * 2.55);
         double scaleX = lineScaleAt(source, extended, true, sampleBeat);
         double scaleY = lineScaleAt(source, extended, false, sampleBeat);
         target.add(new RenderScene.PaintStroke(transform.x, transform.y,
@@ -639,22 +680,22 @@ public final class ChartEvaluator {
                 scaleX, scaleY, color, alpha));
     }
 
-    private static ResolvedLine resolveSingleLineAt(ChartDocument chart, int index,
-                                                    double beat, boolean[] visiting) {
+    private static ResolvedLine resolveSingleLineAt(ChartDocument chart, PreparedChart prepared, int index,
+                                                    double beat, boolean[] visiting, double localYScale) {
         JudgeLine line = chart.judgeLines.get(index);
         ResolvedLine own = new ResolvedLine(
-                layeredValueAt(line, EventType.MOVE_X, beat),
-                layeredValueAt(line, EventType.MOVE_Y, beat),
-                -layeredValueAt(line, EventType.ROTATE, beat));
+                prepared.lines[index].valueAt(EventType.MOVE_X, beat),
+                prepared.lines[index].valueAt(EventType.MOVE_Y, beat),
+                -prepared.lines[index].valueAt(EventType.ROTATE, beat));
         int parentIndex = line.father;
         if (parentIndex < 0 || parentIndex >= chart.judgeLines.size()
                 || parentIndex == index || visiting[index]) return own;
         visiting[index] = true;
-        ResolvedLine parent = resolveSingleLineAt(chart, parentIndex, beat, visiting);
+        ResolvedLine parent = resolveSingleLineAt(chart, prepared, parentIndex, beat, visiting, localYScale);
         visiting[index] = false;
         double radians = Math.toRadians(parent.rotationDegrees);
-        double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians);
-        double rotatedY = own.x * Math.sin(radians) + own.y * Math.cos(radians);
+        double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians) * localYScale;
+        double rotatedY = own.x * Math.sin(radians) / localYScale + own.y * Math.cos(radians);
         return new ResolvedLine(parent.x + rotatedX, parent.y + rotatedY,
                 own.rotationDegrees + (line.rotateWithFather
                         ? parent.rotationDegrees : 0.0));
@@ -667,6 +708,23 @@ public final class ChartEvaluator {
 
     private static double finiteOr(double value, double fallback) {
         return Double.isFinite(value) ? value : fallback;
+    }
+
+    private static final class PreparedNote {
+        final Note note;
+        final double startBeat, endBeat, startDistance, endDistance;
+        final long startMs, endMs;
+
+        PreparedNote(ChartDocument chart, SpeedProfile speed, Note note) {
+            this.note = note;
+            startBeat = Math.max(0, note.startTime.toDouble());
+            endBeat = note.type == NoteType.HOLD && note.endTime != null
+                    ? Math.max(0, note.endTime.toDouble()) : startBeat;
+            startMs = chart.beatToMillis(startBeat);
+            endMs = endBeat == startBeat ? startMs : chart.beatToMillis(endBeat);
+            startDistance = speed.distanceAt(startBeat);
+            endDistance = endBeat == startBeat ? startDistance : speed.distanceAt(endBeat);
+        }
     }
 
     private static final class LocalLine {
@@ -700,9 +758,8 @@ public final class ChartEvaluator {
                 return new AlphaExtension(false, sourceCover,
                         Double.POSITIVE_INFINITY);
             }
-            // RPE charts use Phira's default ChartSettings, where the PEC-only negative-alpha
-            // extension is disabled. Any negative value therefore skips the complete judge line,
-            // including its notes; it is not merely a transparent line texture.
+            // Negative RPE alpha hides the line and note geometry. Judgement effects
+            // and audio remain independent of this visual visibility flag.
             return new AlphaExtension(true, sourceCover, Double.POSITIVE_INFINITY);
         }
     }

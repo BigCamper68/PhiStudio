@@ -15,18 +15,24 @@ public final class EditorSettingsStore {
         result.musicVolume = getDouble(preferences, "musicVolume", defaults.musicVolume);
         result.soundEffectVolume = getDouble(preferences, "soundEffectVolume", defaults.soundEffectVolume);
         result.highlightSimultaneousNotes = preferences.getBoolean(key("highlightSimultaneousNotes"), defaults.highlightSimultaneousNotes);
+        result.showFakeNoteOutline = preferences.getBoolean(key("showFakeNoteOutline"), defaults.showFakeNoteOutline);
         result.noteWidthPixels = getDouble(preferences, "noteWidthPixels", defaults.noteWidthPixels);
-        result.lineDefaultWidth = getDouble(preferences, "lineDefaultWidth", defaults.lineDefaultWidth);
         result.markLineId = preferences.getBoolean(key("markLineId"), defaults.markLineId);
+        result.highlightCurrentLine = preferences.getBoolean(key("highlightCurrentLine"), defaults.highlightCurrentLine);
         result.lineColorRgb = preferences.getInt(key("lineColorRgb"), defaults.lineColorRgb);
         result.backgroundBrightness = preferences.getInt(key("backgroundBrightness"), defaults.backgroundBrightness);
         result.tapFlickHitsoundOffsetMs = preferences.getInt(key("tapFlickHitsoundOffsetMs"), defaults.tapFlickHitsoundOffsetMs);
         result.dragHitsoundOffsetMs = preferences.getInt(key("dragHitsoundOffsetMs"), defaults.dragHitsoundOffsetMs);
         result.autosaveEnabled = preferences.getBoolean(key("autosaveEnabled"), defaults.autosaveEnabled);
         result.autosaveIntervalSeconds = getDouble(preferences, "autosaveIntervalSeconds", defaults.autosaveIntervalSeconds);
+        result.tapToSeek = preferences.getBoolean(key("tapToSeek"), defaults.tapToSeek);
         result.timelineScrollSpeed = getDouble(preferences, "timelineScrollSpeed", defaults.timelineScrollSpeed);
         result.eventScrollSpeed = getDouble(preferences, "eventScrollSpeed", defaults.eventScrollSpeed);
-        result.previewBackgroundAlpha = getDouble(preferences, "previewBackgroundAlpha", defaults.previewBackgroundAlpha);
+        // Upgrade only the old defaults; retain non-default user adjustments.
+        if (preferences.getInt(key("defaultsVersion"), 0) < 1) {
+            if (result.backgroundBrightness == 147) result.backgroundBrightness = defaults.backgroundBrightness;
+            if (result.dragHitsoundOffsetMs == -30) result.dragHitsoundOffsetMs = defaults.dragHitsoundOffsetMs;
+        }
         result.playerWidth = preferences.getInt(key("playerWidth"), defaults.playerWidth);
         result.playerHeight = preferences.getInt(key("playerHeight"), defaults.playerHeight);
         migrateLegacyPreviewAspect(result);
@@ -65,18 +71,24 @@ public final class EditorSettingsStore {
         putDouble(editor, "musicVolume", value.musicVolume);
         putDouble(editor, "soundEffectVolume", value.soundEffectVolume);
         editor.putBoolean(key("highlightSimultaneousNotes"), value.highlightSimultaneousNotes);
+        editor.putBoolean(key("showFakeNoteOutline"), value.showFakeNoteOutline);
         putDouble(editor, "noteWidthPixels", value.noteWidthPixels);
-        putDouble(editor, "lineDefaultWidth", value.lineDefaultWidth);
+        editor.remove(key("lineDefaultWidth"));
         editor.putBoolean(key("markLineId"), value.markLineId);
+        editor.putBoolean(key("highlightCurrentLine"), value.highlightCurrentLine);
         editor.putInt(key("lineColorRgb"), value.lineColorRgb);
         editor.putInt(key("backgroundBrightness"), value.backgroundBrightness);
         editor.putInt(key("tapFlickHitsoundOffsetMs"), value.tapFlickHitsoundOffsetMs);
         editor.putInt(key("dragHitsoundOffsetMs"), value.dragHitsoundOffsetMs);
         editor.putBoolean(key("autosaveEnabled"), value.autosaveEnabled);
         putDouble(editor, "autosaveIntervalSeconds", value.autosaveIntervalSeconds);
+        editor.putBoolean(key("tapToSeek"), value.tapToSeek);
         putDouble(editor, "timelineScrollSpeed", value.timelineScrollSpeed);
         putDouble(editor, "eventScrollSpeed", value.eventScrollSpeed);
-        putDouble(editor, "previewBackgroundAlpha", value.previewBackgroundAlpha);
+        editor.remove(key("previewBackgroundAlpha"));
+        editor.remove(key("useChartBackgroundDim"));
+        editor.remove(key("previewBackgroundDim"));
+        editor.putInt(key("defaultsVersion"), 1);
         editor.putInt(key("playerWidth"), value.playerWidth);
         editor.putInt(key("playerHeight"), value.playerHeight);
         editor.putBoolean(key("autoApplyPropertyEdits"), value.autoApplyPropertyEdits);

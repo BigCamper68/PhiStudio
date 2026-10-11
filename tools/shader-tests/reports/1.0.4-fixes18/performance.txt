@@ -1,0 +1,26 @@
+GPU Adreno (TM) 830
+Resolution 1920x1080; 48 measured frames per chart/time after 12 warmup frames; glFinish included
+BITMAP ★ Ascension To Heaven.zip t=30s effects=1 mean=102.59ms p50=102.89ms p95=111.91ms canvas+evaluate=93.69ms
+HARDWARE ★ Ascension To Heaven.zip t=30s effects=1 mean=10.25ms p50=10.37ms p95=12.72ms canvas+evaluate=3.96ms
+BITMAP ★ Ascension To Heaven.zip t=90s effects=1 mean=38.37ms p50=39.61ms p95=43.80ms canvas+evaluate=32.09ms
+HARDWARE ★ Ascension To Heaven.zip t=90s effects=1 mean=8.17ms p50=8.17ms p95=10.39ms canvas+evaluate=2.85ms
+BITMAP ★ Ascension To Heaven.zip t=180s effects=4 mean=248.76ms p50=245.94ms p95=273.57ms canvas+evaluate=239.22ms
+HARDWARE ★ Ascension To Heaven.zip t=180s effects=4 mean=11.54ms p50=10.85ms p95=15.35ms canvas+evaluate=3.87ms
+BITMAP ★ Ascension To Heaven.zip t=167s effects=5 mean=345.12ms p50=339.63ms p95=373.64ms canvas+evaluate=334.76ms
+HARDWARE ★ Ascension To Heaven.zip t=167s effects=5 mean=8.63ms p50=8.19ms p95=10.58ms canvas+evaluate=2.88ms
+BITMAP ANTINEUTRINO WITCHCRAFT.zip t=30s effects=0 mean=31.70ms p50=32.37ms p95=36.23ms canvas+evaluate=25.91ms
+HARDWARE ANTINEUTRINO WITCHCRAFT.zip t=30s effects=0 mean=8.13ms p50=8.16ms p95=9.79ms canvas+evaluate=3.19ms
+BITMAP ANTINEUTRINO WITCHCRAFT.zip t=90s effects=0 mean=35.45ms p50=35.11ms p95=40.45ms canvas+evaluate=29.40ms
+HARDWARE ANTINEUTRINO WITCHCRAFT.zip t=90s effects=0 mean=7.53ms p50=7.57ms p95=9.63ms canvas+evaluate=2.82ms
+BITMAP ANTINEUTRINO WITCHCRAFT.zip t=180s effects=0 mean=13.95ms p50=13.62ms p95=16.75ms canvas+evaluate=9.04ms
+HARDWARE ANTINEUTRINO WITCHCRAFT.zip t=180s effects=0 mean=6.09ms p50=6.27ms p95=8.21ms canvas+evaluate=1.75ms
+BITMAP ANTINEUTRINO WITCHCRAFT.zip t=98s effects=4 mean=35.78ms p50=35.23ms p95=42.58ms canvas+evaluate=27.72ms
+HARDWARE ANTINEUTRINO WITCHCRAFT.zip t=98s effects=4 mean=8.55ms p50=8.30ms p95=11.55ms canvas+evaluate=2.83ms
+BITMAP Hello (BPM) 2025.zip t=30s effects=0 mean=34.47ms p50=34.02ms p95=37.12ms canvas+evaluate=28.48ms
+HARDWARE Hello (BPM) 2025.zip t=30s effects=0 mean=5.96ms p50=5.95ms p95=7.61ms canvas+evaluate=1.69ms
+BITMAP Hello (BPM) 2025.zip t=90s effects=1 mean=41.86ms p50=41.46ms p95=46.92ms canvas+evaluate=35.76ms
+HARDWARE Hello (BPM) 2025.zip t=90s effects=1 mean=6.00ms p50=6.19ms p95=7.80ms canvas+evaluate=1.64ms
+BITMAP Hello (BPM) 2025.zip t=180s effects=2 mean=27.25ms p50=26.89ms p95=30.45ms canvas+evaluate=21.34ms
+HARDWARE Hello (BPM) 2025.zip t=180s effects=2 mean=5.40ms p50=5.37ms p95=7.56ms canvas+evaluate=1.13ms
+BITMAP Hello (BPM) 2025.zip t=84s effects=4 mean=61.02ms p50=61.09ms p95=66.79ms canvas+evaluate=53.05ms
+HARDWARE Hello (BPM) 2025.zip t=84s effects=4 mean=8.46ms p50=8.35ms p95=10.27ms canvas+evaluate=2.19ms

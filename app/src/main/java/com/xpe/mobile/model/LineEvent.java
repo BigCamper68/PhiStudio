@@ -93,6 +93,16 @@ public final class LineEvent {
         return start + (end - start) * easedProgressAt(t);
     }
 
+    /** Base spatial track before its first event, matching RPE/Phira keyframe pre-roll. */
+    public double spatialValueBeforeStart(double beat) {
+        double duration = endTime.toDouble() - startTime.toDouble();
+        if (duration <= 0.0 || start == end) return start;
+        double t = (beat - startTime.toDouble()) / duration;
+        double progress = bezier ? configuredProgressAt(t)
+                : Easing.extrapolateWindowed(easingType, t, easingLeft, easingRight);
+        return start + (end - start) * progress;
+    }
+
     /**
      * Evaluates an imported speed event using the RPE 1.7 renderer rules. Editing continues
      * to expose speed events as linear; the source-only easing metadata is read from raw JSON.

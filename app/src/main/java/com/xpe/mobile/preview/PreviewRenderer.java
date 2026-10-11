@@ -1,17 +1,16 @@
 package com.xpe.mobile.preview;
 
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
 
 import com.xpe.mobile.config.EditorSettings;
-import com.xpe.mobile.editor.CenterCropCalculator;
 import com.xpe.mobile.editor.NoteTextureSet;
 import com.xpe.mobile.model.AttachedUiElement;
 import com.xpe.mobile.model.NoteType;
@@ -22,25 +21,27 @@ import java.util.Map;
 
 /** Native Canvas renderer for a deterministic {@link RenderScene}. */
 public final class PreviewRenderer {
-    private static final double RPE_WIDTH = 1350.0;
     private static final double NOTE_WIDTH_RATIO = 989.0 / 8000.0;
-    private static final double NORMAL_LINE_HALF_LENGTH = RPE_WIDTH * 3.0;
+    private static final NoteType[] NOTE_DRAW_ORDER = {
+            NoteType.HOLD, NoteType.DRAG, NoteType.TAP, NoteType.FLICK
+    };
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint texturePaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private final Path paintPath = new Path();
     private final NoteTextureSet textures;
     private final float density;
     private final String autoplayLabel;
+    private final PhiraTextPainter textPainter;
     private Map<String, PreviewTextureDecoder.Texture> lineTextures = Collections.emptyMap();
 
-    public PreviewRenderer(NoteTextureSet textures, float density, String autoplayLabel) {
+    public PreviewRenderer(NoteTextureSet textures, float density, String autoplayLabel, AssetManager assets) {
         if (textures == null) throw new IllegalArgumentException("textures are required");
         this.textures = textures;
         this.density = Math.max(0.5f, density);
         this.autoplayLabel = autoplayLabel == null ? "" : autoplayLabel;
+        this.textPainter = new PhiraTextPainter(assets);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeCap(Paint.Cap.BUTT);
     }
@@ -49,20 +50,31 @@ public final class PreviewRenderer {
         lineTextures = textures == null ? Collections.emptyMap() : textures;
     }
 
-    /** Draws Phira's full-screen illustration layer behind a fitted gameplay viewport. */
-    public void drawBackdrop(Canvas canvas, RectF bounds, Bitmap illustration) {
+    /** Draws the cached blurred image once over the complete preview area. */
+    public void drawBackdrop(Canvas canvas, RectF bounds, Bitmap blurredBackground) {
         if (canvas == null || bounds == null || bounds.isEmpty()) return;
-        // Phira draws the illustration first and then applies a 30% black veil.
-        drawBackground(canvas, bounds, illustration, Math.round(255f * 0.7f));
+        drawBackground(canvas, bounds, blurredBackground);
     }
 
     public void draw(Canvas canvas, RenderScene scene, RectF viewport,
-                     Bitmap illustration, EditorSettings settings, int activeLineIndex) {
+                     Bitmap blurredBackground, EditorSettings settings, int activeLineIndex) {
+        draw(canvas, scene, viewport, viewport, blurredBackground, settings,
+                activeLineIndex, PhiraBackgroundMetrics.DEFAULT_CHART_DIM);
+    }
+
+    public void draw(Canvas canvas, RenderScene scene, RectF viewport, RectF backgroundArea,
+                     Bitmap blurredBackground, EditorSettings settings, int activeLineIndex,
+                     double chartBackgroundDim) {
         if (canvas == null || scene == null || viewport == null || viewport.isEmpty()) return;
         paint.setFakeBoldText(false);
         EditorSettings renderSettings = settings == null ? new EditorSettings() : settings;
-        drawBackground(canvas, viewport, illustration,
-                effectiveBackgroundAlpha(renderSettings));
+        drawBackdrop(canvas, backgroundArea, blurredBackground);
+        // Phira dims only the gameplay viewport after its full-area 30% veil.
+        // Keep the same image crop across the viewport and surrounding margins.
+        double dim = PhiraBackgroundMetrics.gameplayDim(chartBackgroundDim);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(argb((int) Math.round(255 * dim), 0));
+        canvas.drawRect(viewport, paint);
         drawScene(canvas, scene, viewport, renderSettings, activeLineIndex, true);
     }
 
@@ -76,198 +88,208 @@ public final class PreviewRenderer {
                 activeLineIndex, false);
     }
 
+    /** Local prpr effects go after lines/notes, before hit particles and HUD. */
+    public void drawShaderLayers(Canvas gameplay, Canvas overlay, RenderScene scene, RectF viewport,
+                                 RectF backgroundArea, Bitmap background, EditorSettings settings,
+                                 int activeLineIndex, double chartBackgroundDim) {
+        paint.setFakeBoldText(false);
+        drawBackdrop(gameplay, backgroundArea, background);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(argb((int) Math.round(255 * PhiraBackgroundMetrics.gameplayDim(chartBackgroundDim)), 0));
+        gameplay.drawRect(viewport, paint);
+        drawScene(gameplay, scene, viewport, settings, activeLineIndex, false, false);
+        int save = overlay.save();
+        overlay.clipRect(viewport);
+        Projection projection = new Projection(viewport);
+        drawHitEffects(overlay, projection, scene);
+        drawHud(overlay, projection, scene.hud);
+        overlay.restoreToCount(save);
+    }
+
     private void drawScene(Canvas canvas, RenderScene scene, RectF viewport,
                            EditorSettings settings, int activeLineIndex,
                            boolean includeHud) {
+        drawScene(canvas, scene, viewport, settings, activeLineIndex, includeHud, true);
+    }
+
+    private void drawScene(Canvas canvas, RenderScene scene, RectF viewport,
+                           EditorSettings settings, int activeLineIndex,
+                           boolean includeHud, boolean includeParticles) {
         int save = canvas.save();
         canvas.clipRect(viewport);
         Projection projection = new Projection(viewport);
+        // zOrder controls judge-line visuals. Like Phira's note buffer, notes
+        // are composited globally by type, above every line's artwork.
         for (RenderScene.RenderLine line : scene.lines) {
-            drawLine(canvas, projection, line, settings, activeLineIndex,
+            drawLineVisual(canvas, projection, line, settings, activeLineIndex,
                     scene.chartTimeMs);
         }
+        for (NoteType type : NOTE_DRAW_ORDER) {
+            for (RenderScene.RenderLine line : scene.lines) {
+                for (RenderScene.RenderNote note : line.notes) {
+                    if (note.type == type) {
+                        drawNote(canvas, projection, line, note, settings.showFakeNoteOutline);
+                    }
+                }
+            }
+        }
+        // Hit effects belong to the whole scene, including effects emitted by
+        // hidden lines. Later line textures and notes must not cover them.
+        if (includeParticles) drawHitEffects(canvas, projection, scene);
         if (settings.markLineId) {
             for (RenderScene.RenderLine line : scene.lines) {
-                drawLineId(canvas, projection, line);
+                if (line.alpha > 0 || !line.notes.isEmpty()) {
+                    drawLineId(canvas, projection, line);
+                }
             }
         }
         if (includeHud) drawHud(canvas, projection, scene.hud);
         canvas.restoreToCount(save);
     }
 
-    private static int effectiveBackgroundAlpha(EditorSettings settings) {
-        double previewAlpha = Math.max(0.0, Math.min(1.0,
-                settings.previewBackgroundAlpha));
-        int brightness = Math.max(0, Math.min(255, settings.backgroundBrightness));
-        return (int) Math.round(brightness * previewAlpha);
+    private void drawHitEffects(Canvas canvas, Projection projection, RenderScene scene) {
+        for (RenderScene.RenderLine line : scene.lines) {
+            for (RenderScene.HitEffect effect : line.hitEffects) drawHitEffect(canvas, projection, effect);
+        }
     }
 
     private void drawHud(Canvas canvas, Projection projection, RenderScene.HudState hud) {
         if (hud == null) return;
         RectF viewport = projection.viewport;
-        PhiraRenderMetrics.Hud metrics = PhiraRenderMetrics.hud(
-                viewport.width(), viewport.height());
-        float left = viewport.left + metrics.marginX;
-        float right = viewport.right - metrics.marginX;
+        PhiraRenderMetrics.Hud metrics = PhiraRenderMetrics.hud(viewport.width(), viewport.height());
+        boolean fix = hud.useAttachUiFix;
+        float left = viewport.left + metrics.marginX, right = viewport.right - metrics.marginX;
 
-        float pauseX = viewport.left + metrics.pauseCenterX;
-        float pauseY = viewport.top + metrics.pauseTop;
+        // Preserve prpr's compositing order even when attachUI elements overlap.
+        PhiraFontMetrics.Layout score = textPainter.layout(String.format(Locale.US, "%07d", hud.score),
+                metrics.scoreTextSize, true, Float.POSITIVE_INFINITY);
+        drawHudText(canvas, projection, hud, AttachedUiElement.SCORE,
+                PhiraHudLayout.score(score, right, viewport.top + metrics.scoreTop, fix), true);
+
+        float pauseLeft = viewport.left + metrics.pauseFirstLeft;
+        float pauseTop = viewport.top + metrics.pauseTop;
+        float pauseCenterX = viewport.left + metrics.pauseCenterX;
+        float pauseCenterY = pauseTop + metrics.pauseBarHeight / 2;
         withHudTransform(canvas, projection, hud, AttachedUiElement.PAUSE,
-                pauseX, pauseY + metrics.pauseBarHeight / 2f,
+                pauseLeft, pauseTop, fix ? pauseLeft : pauseCenterX, fix ? pauseTop : pauseCenterY,
                 (target, color, alpha) -> {
                     paint.setStyle(Paint.Style.FILL);
                     paint.setColor(argb(alpha, color));
-                    float firstLeft = viewport.left + metrics.pauseFirstLeft;
-                    float secondLeft = viewport.left + metrics.pauseSecondLeft;
-                    target.drawRect(firstLeft, pauseY,
-                            firstLeft + metrics.pauseBarWidth,
-                            pauseY + metrics.pauseBarHeight, paint);
-                    target.drawRect(secondLeft, pauseY,
-                            secondLeft + metrics.pauseBarWidth,
-                            pauseY + metrics.pauseBarHeight, paint);
-                });
-
-        float scoreX = right;
-        float scoreTop = viewport.top + metrics.scoreTop;
-        withHudTransform(canvas, projection, hud, AttachedUiElement.SCORE,
-                scoreX, scoreTop, (target, color, alpha) -> {
-                    prepareHudText(metrics.scoreTextSize,
-                            Paint.Align.RIGHT, color, alpha);
-                    float scoreBaseline = scoreTop - paint.ascent();
-                    target.drawText(String.format(Locale.US, "%07d", hud.score),
-                            scoreX, scoreBaseline, paint);
+                    target.drawRect(pauseLeft, pauseTop, pauseLeft + metrics.pauseBarWidth,
+                            pauseTop + metrics.pauseBarHeight, paint);
+                    float second = viewport.left + metrics.pauseSecondLeft;
+                    target.drawRect(second, pauseTop, second + metrics.pauseBarWidth,
+                            pauseTop + metrics.pauseBarHeight, paint);
                 });
 
         if (hud.combo >= 3) {
-            float comboNumberX = viewport.centerX();
-            float comboTop = viewport.top + metrics.comboTop;
-            withHudTransform(canvas, projection, hud, AttachedUiElement.COMBO_NUMBER,
-                    comboNumberX, comboTop, (target, color, alpha) -> {
-                        prepareHudText(metrics.comboTextSize,
-                                Paint.Align.CENTER, color, alpha);
-                        float comboBaseline = comboTop - paint.ascent();
-                        target.drawText(Integer.toString(hud.combo),
-                                comboNumberX, comboBaseline, paint);
-                    });
-            prepareHudText(metrics.comboTextSize, Paint.Align.CENTER, 0xFFFFFF, 255);
-            float comboLabelTop = comboTop - paint.ascent() + metrics.comboLabelGap;
-            withHudTransform(canvas, projection, hud, AttachedUiElement.COMBO,
-                    comboNumberX, comboLabelTop, (target, color, alpha) -> {
-                        prepareHudText(metrics.comboLabelTextSize,
-                                Paint.Align.CENTER, color, alpha);
-                        float labelBaseline = comboLabelTop - paint.ascent();
-                        target.drawText(autoplayLabel,
-                                comboNumberX, labelBaseline, paint);
-                    });
+            PhiraFontMetrics.Layout number = textPainter.layout(Integer.toString(hud.combo),
+                    metrics.comboTextSize, true, Float.POSITIVE_INFINITY);
+            float defaultNumberAscent = textPainter.layout(Integer.toString(hud.combo),
+                    metrics.comboTextSize, false, Float.POSITIVE_INFINITY).ascent;
+            PhiraHudLayout.Box numberBox = PhiraHudLayout.comboNumber(number,
+                    viewport.centerX(), viewport.top + metrics.comboTop, defaultNumberAscent, fix);
+            drawHudText(canvas, projection, hud, AttachedUiElement.COMBO_NUMBER, numberBox, true);
+            PhiraFontMetrics.Layout label = textPainter.layout(autoplayLabel, metrics.comboLabelTextSize,
+                    true, Float.POSITIVE_INFINITY);
+            // The fixed mode measures COMBO with the normal UI font even during autoplay.
+            float defaultLabelAscent = textPainter.layout("COMBO", metrics.comboLabelTextSize,
+                    false, Float.POSITIVE_INFINITY).ascent;
+            drawHudText(canvas, projection, hud, AttachedUiElement.COMBO,
+                    PhiraHudLayout.comboLabel(label, numberBox, metrics.comboLabelGap,
+                            number.ascent, defaultLabelAscent, fix), true);
         }
 
-        float nameBottom = viewport.top + metrics.bottomTextBottom;
-        withHudTransform(canvas, projection, hud, AttachedUiElement.NAME,
-                left, nameBottom, (target, color, alpha) -> {
-                    prepareHudText(metrics.bottomTextSize,
-                            Paint.Align.LEFT, color, alpha);
-                    float nameBaseline = nameBottom - paint.descent();
-                    target.drawText(ellipsize(hud.name, viewport.width() * 0.4f),
-                            left, nameBaseline, paint);
-                });
-        withHudTransform(canvas, projection, hud, AttachedUiElement.LEVEL,
-                right, nameBottom, (target, color, alpha) -> {
-                    prepareHudText(metrics.bottomTextSize,
-                            Paint.Align.RIGHT, color, alpha);
-                    float levelBaseline = nameBottom - paint.descent();
-                    target.drawText(ellipsize(hud.level, viewport.width() * 0.4f),
-                            right, levelBaseline, paint);
-                });
+        float bottom = viewport.top + metrics.bottomTextBottom;
+        PhiraFontMetrics.Layout fullName = textPainter.layout(hud.name, metrics.bottomTextSize,
+                false, Float.POSITIVE_INFINITY);
+        PhiraFontMetrics.Layout name = textPainter.layout(hud.name, metrics.bottomTextSize,
+                false, viewport.width() * .4f);
+        drawHudText(canvas, projection, hud, AttachedUiElement.NAME,
+                PhiraHudLayout.bottom(name, fullName, left, bottom, false, fix), false);
+        // prpr limits only the song title; difficulty is not ellipsized.
+        PhiraFontMetrics.Layout level = textPainter.layout(hud.level, metrics.bottomTextSize,
+                false, Float.POSITIVE_INFINITY);
+        drawHudText(canvas, projection, hud, AttachedUiElement.LEVEL,
+                PhiraHudLayout.bottom(level, level, right, bottom, true, fix), false);
 
-        float barY = viewport.top;
+        float barY = viewport.top, barCenterY = barY + metrics.progressHeight / 2;
         withHudTransform(canvas, projection, hud, AttachedUiElement.BAR,
-                viewport.left, barY + metrics.progressHeight / 2f,
+                viewport.left, barCenterY, viewport.left, barCenterY,
                 (target, color, alpha) -> {
-                    float completed = (float) Math.max(0.0, Math.min(1.0, hud.progress));
+                    float completed = (float) Math.max(0, Math.min(1, hud.progress));
                     float markerX = viewport.left + viewport.width() * completed;
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(argb(Math.round(alpha * 0.6f), 0xFFFFFF));
-                    target.drawRect(viewport.left, barY,
-                            markerX, barY + metrics.progressHeight, paint);
-                    paint.setColor(argb(alpha, 0xFFFFFF));
+                    // prpr deliberately ignores the attached line color for the progress bar.
+                    paint.setColor(argb(Math.round(alpha * .6f), 0xffffff));
+                    target.drawRect(viewport.left, barY, markerX, barY + metrics.progressHeight, paint);
+                    paint.setColor(argb(alpha, 0xffffff));
                     target.drawRect(markerX - metrics.progressMarkerHalfWidth, barY,
-                            markerX + metrics.progressMarkerHalfWidth,
-                            barY + metrics.progressHeight, paint);
+                            markerX + metrics.progressMarkerHalfWidth, barY + metrics.progressHeight, paint);
                 });
+    }
+
+    private void drawHudText(Canvas canvas, Projection projection, RenderScene.HudState hud,
+                             AttachedUiElement element, PhiraHudLayout.Box box, boolean numeric) {
+        withHudTransform(canvas, projection, hud, element,
+                box.rotationX, box.rotationY, box.scaleX, box.scaleY,
+                (target, color, alpha) -> textPainter.draw(target, box.text, numeric,
+                        box.x, box.y, box.anchorX, box.anchorY, color, alpha));
     }
 
     private void withHudTransform(Canvas canvas, Projection projection,
                                   RenderScene.HudState hud, AttachedUiElement element,
-                                  float pivotX, float pivotY, HudContent content) {
+                                  float rotationX, float rotationY, float scaleX, float scaleY,
+                                  HudContent content) {
         RenderScene.HudTransform transform = hud.transform(element);
-        int color = transform == null || transform.colorRgb < 0
-                ? 0xFFFFFF : transform.colorRgb;
+        int color = transform == null || transform.colorRgb < 0 ? 0xffffff : transform.colorRgb;
         int alpha = transform == null ? 255 : transform.alpha;
         if (alpha <= 0) return;
         if (transform != null && !PhiraRenderMetrics.hasVisibleLineScale(
-                finite(transform.scaleX, 1.0), finite(transform.scaleY, 1.0))) {
-            return;
-        }
+                finite(transform.scaleX, 1), finite(transform.scaleY, 1))) return;
         int save = canvas.save();
         if (transform != null) {
             Point translated = projection.point(transform.x, transform.y);
             canvas.translate(translated.x - projection.viewport.centerX(),
                     translated.y - projection.viewport.centerY());
-            canvas.rotate(lineScreenAngle(projection, transform.rotationDegrees),
-                    pivotX, pivotY);
-            canvas.scale((float) finite(transform.scaleX, 1.0),
-                    (float) finite(transform.scaleY, 1.0), pivotX, pivotY);
+            canvas.rotate(lineScreenAngle(transform.rotationDegrees), rotationX, rotationY);
+            canvas.scale((float) finite(transform.scaleX, 1),
+                    (float) finite(transform.scaleY, 1), scaleX, scaleY);
         }
         content.draw(canvas, color, alpha);
         canvas.restoreToCount(save);
-    }
-
-    private void prepareHudText(float size, Paint.Align align, int rgb, int alpha) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setTextSize(size);
-        paint.setTextAlign(align);
-        paint.setFakeBoldText(false);
-        paint.setColor(argb(alpha, rgb));
-    }
-
-    private String ellipsize(String value, float maximumWidth) {
-        String text = value == null ? "" : value;
-        if (paint.measureText(text) <= maximumWidth) return text;
-        String suffix = "…";
-        int end = text.length();
-        while (end > 0 && paint.measureText(text, 0, end)
-                + paint.measureText(suffix) > maximumWidth) {
-            end--;
-        }
-        return end == 0 ? suffix : text.substring(0, end) + suffix;
     }
 
     private interface HudContent {
         void draw(Canvas canvas, int colorRgb, int alpha);
     }
 
-    private void drawBackground(Canvas canvas, RectF viewport, Bitmap illustration, int brightness) {
+    private void drawBackground(Canvas canvas, RectF bounds, Bitmap background) {
+        int save = canvas.save();
+        canvas.clipRect(bounds);
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.BLACK);
-        canvas.drawRect(viewport, paint);
-        if (illustration == null || illustration.isRecycled()) return;
-        CenterCropCalculator.Crop crop = CenterCropCalculator.calculate(
-                illustration.getWidth(), illustration.getHeight(),
-                viewport.width(), viewport.height());
-        Rect source = new Rect(crop.left, crop.top, crop.right, crop.bottom);
-        backgroundPaint.setAlpha(Math.max(0, Math.min(255, brightness)));
-        canvas.drawBitmap(illustration, source, viewport, backgroundPaint);
+        canvas.drawRect(bounds, paint);
+        if (background != null && !background.isRecycled()) {
+            PhiraBackgroundMetrics.Placement placement = PhiraBackgroundMetrics.place(
+                    background.getWidth(), background.getHeight(),
+                    bounds.left, bounds.top, bounds.right, bounds.bottom);
+            backgroundPaint.setAlpha(255);
+            canvas.drawBitmap(background, null, new RectF((float) placement.left,
+                    (float) placement.top, (float) placement.right, (float) placement.bottom), backgroundPaint);
+        }
+        paint.setColor(argb((int) Math.round(255 * PhiraBackgroundMetrics.BACKDROP_DIM), 0));
+        canvas.drawRect(bounds, paint);
+        canvas.restoreToCount(save);
     }
 
-    private void drawLine(Canvas canvas, Projection projection, RenderScene.RenderLine line,
-                          EditorSettings settings, int activeLineIndex, long chartTimeMs) {
+    private void drawLineVisual(Canvas canvas, Projection projection, RenderScene.RenderLine line,
+                                EditorSettings settings, int activeLineIndex, long chartTimeMs) {
         Point center = projection.point(line.x, line.y);
-        double radians = Math.toRadians(line.rotationDegrees);
-
         PreviewTextureDecoder.Texture customTexture = customLineTexture(line.textureName);
-        boolean active = line.sourceIndex == activeLineIndex;
-        int rgb = active ? settings.lineColorRgb
-                : line.colorRgb >= 0 ? line.colorRgb : 0xFFFFFF;
+        boolean active = settings.highlightCurrentLine && line.sourceIndex == activeLineIndex;
+        int rgb = PhiraJudgeLineStyle.color(line.colorRgb, line.alpha,
+                false, active, settings.lineColorRgb) & 0xFFFFFF;
         boolean visibleLineVisual = line.alpha > 0
                 && PhiraRenderMetrics.hasVisibleLineScale(
                 finite(line.scaleX, 1.0), finite(line.scaleY, 1.0));
@@ -278,41 +300,26 @@ public final class PreviewRenderer {
             } else if (customTexture != null) {
                 drawCustomLineTexture(canvas, projection, line, center,
                         customTexture, rgb, chartTimeMs);
-            } else {
-                double scaledHalfLength = NORMAL_LINE_HALF_LENGTH
-                        * finite(line.scaleX, 1.0);
-                Point start = projection.point(
-                        line.x - Math.cos(radians) * scaledHalfLength,
-                        line.y - Math.sin(radians) * scaledHalfLength);
-                Point end = projection.point(
-                        line.x + Math.cos(radians) * scaledHalfLength,
-                        line.y + Math.sin(radians) * scaledHalfLength);
-                strokePaint.setColor(argb(line.alpha, rgb));
-                double scaledThickness = Math.abs(finite(line.scaleY, 1.0));
-                if (Math.abs(scaledThickness - 1.0) > 1.0e-4) {
-                    scaledThickness *= 0.76;
-                }
-                strokePaint.setStrokeWidth((float) (settings.lineDefaultWidth * density
-                        * scaledThickness));
-                canvas.drawLine(start.x, start.y, end.x, end.y, strokePaint);
+            } else if (line.textureName == null || line.textureName.trim().isEmpty()
+                    || "line.png".equalsIgnoreCase(line.textureName.trim())) {
+                float halfLength = PhiraJudgeLineStyle.normalHalfLength(
+                        projection.viewport.width(), finite(line.scaleX, 1.0));
+                float thickness = PhiraJudgeLineStyle.normalThickness(
+                        projection.viewport.width(), finite(line.scaleY, 1.0));
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(PhiraJudgeLineStyle.color(line.colorRgb, line.alpha,
+                        true, active, settings.lineColorRgb));
+                int save = canvas.save();
+                canvas.translate(center.x, center.y);
+                canvas.rotate(lineScreenAngle(line.rotationDegrees));
+                // prpr draw_line is a flat-ended quad, with local Scale X/Y.
+                // Filling the quad also avoids Canvas's zero-width hairline rule.
+                canvas.drawRect(-halfLength, -thickness / 2f,
+                        halfLength, thickness / 2f, paint);
+                canvas.restoreToCount(save);
             }
         }
 
-        for (RenderScene.RenderNote note : line.notes) {
-            if (note.isHold()) drawNote(canvas, projection, line, note);
-        }
-        for (RenderScene.RenderNote note : line.notes) {
-            if (note.type == NoteType.DRAG) drawNote(canvas, projection, line, note);
-        }
-        for (RenderScene.RenderNote note : line.notes) {
-            if (note.type == NoteType.TAP) drawNote(canvas, projection, line, note);
-        }
-        for (RenderScene.RenderNote note : line.notes) {
-            if (note.type == NoteType.FLICK) drawNote(canvas, projection, line, note);
-        }
-        for (RenderScene.HitEffect effect : line.hitEffects) {
-            drawHitEffect(canvas, projection, effect);
-        }
     }
 
     private void drawLineId(Canvas canvas, Projection projection,
@@ -326,7 +333,7 @@ public final class PreviewRenderer {
     }
 
     private void drawNote(Canvas canvas, Projection projection, RenderScene.RenderLine line,
-                          RenderScene.RenderNote note) {
+                          RenderScene.RenderNote note, boolean showFakeNoteOutline) {
         int alpha = note.alpha;
         if (alpha <= 0) return;
         Point start = notePoint(projection, line, note.x, note.startDistance,
@@ -335,22 +342,22 @@ public final class PreviewRenderer {
                 * textures.widthScale(note.multiHit);
         float width = Math.abs(naturalWidth * (float) note.size);
         if (width < 0.5f) return;
-        float angle = lineScreenAngle(projection, line.rotationDegrees)
+        float angle = lineScreenAngle(line.rotationDegrees)
                 + (note.above ? 0f : 180f);
 
         if (note.isHold()) {
-            Point end = notePoint(projection, line, note.x, note.endDistance,
-                    note.above, true);
-            float dx = end.x - start.x;
-            float dy = end.y - start.y;
-            float length = (float) Math.hypot(dx, dy);
-            if (length < 0.5f) return;
+            // Floor distance is signed. A negative-speed section may put the tail
+            // behind the active head: Phira omits that body, rather than flipping it.
+            float length = (float) ((note.endDistance - note.startDistance)
+                    * projection.scaleY);
             int save = canvas.save();
             canvas.translate(start.x, start.y);
-            canvas.rotate((float) Math.toDegrees(Math.atan2(dx, -dy)));
+            canvas.rotate(angle);
             drawHoldTexture(canvas, 0f, 0f, -length, width, naturalWidth,
                     note.multiHit, note.holdHeadVisible, alpha, note.colorRgb);
-            if (note.fake) drawFakeMarker(canvas, 0f, -length / 2f, width, length, alpha);
+            if (note.fake && showFakeNoteOutline && length > 0f) {
+                drawFakeMarker(canvas, 0f, -length / 2f, width, length, alpha);
+            }
             canvas.restoreToCount(save);
             return;
         }
@@ -367,7 +374,7 @@ public final class PreviewRenderer {
         RectF destination = new RectF(-width / 2f, -height / 2f, width / 2f, height / 2f);
         canvas.drawBitmap(bitmap, null, destination, texturePaint);
         texturePaint.setColorFilter(null);
-        if (note.fake) drawFakeMarker(canvas, 0f, 0f, width, height, alpha);
+        if (note.fake && showFakeNoteOutline) drawFakeMarker(canvas, 0f, 0f, width, height, alpha);
         canvas.restoreToCount(save);
     }
 
@@ -381,16 +388,18 @@ public final class PreviewRenderer {
         int bodyBottom = Math.max(tailPixels + 1, bitmap.getHeight() - headPixels);
         float left = x - width / 2f;
         float right = x + width / 2f;
-        float top = Math.min(startY, endY);
-        float bottom = Math.max(startY, endY);
+        float top = endY;
+        float bottom = startY;
         float tailHeight = naturalWidth * tailPixels / bitmap.getWidth();
         float headHeight = naturalWidth * headPixels / bitmap.getWidth();
 
         texturePaint.setAlpha(alpha);
         texturePaint.setColorFilter(tint(colorRgb));
-        canvas.drawBitmap(bitmap,
-                new Rect(0, tailPixels, bitmap.getWidth(), bodyBottom),
-                new RectF(left, top, right, bottom), texturePaint);
+        if (bottom > top) {
+            canvas.drawBitmap(bitmap,
+                    new Rect(0, tailPixels, bitmap.getWidth(), bodyBottom),
+                    new RectF(left, top, right, bottom), texturePaint);
+        }
         canvas.drawBitmap(bitmap,
                 new Rect(0, 0, bitmap.getWidth(), tailPixels),
                 new RectF(left, top, right, top + tailHeight), texturePaint);
@@ -414,7 +423,8 @@ public final class PreviewRenderer {
 
     private void drawHitEffect(Canvas canvas, Projection projection,
                                RenderScene.HitEffect effect) {
-        Point point = projection.point(effect.worldX, effect.worldY);
+        Point point = projection.notePoint(effect.lineX, effect.lineY,
+                effect.localX, effect.localY, effect.rotationDegrees);
         float progress = (float) Math.max(0.0, Math.min(1.0, effect.progress));
         int alpha = (int) ((1f - progress) * 255f);
         float radius = projection.viewport.width() * (256f * 6f / 8000f) / 2f;
@@ -475,16 +485,12 @@ public final class PreviewRenderer {
 
     private static Point notePoint(Projection projection, RenderScene.RenderLine line,
                                    double x, double distance, boolean above, boolean hold) {
-        double radians = Math.toRadians(line.rotationDegrees);
         double side = above ? 1.0 : -1.0;
         double inclineScale = hold ? 1.0 : 1.0
                 - Math.sin(Math.toRadians(line.inclineDegrees)) * distance / 360.0;
         double transformedX = x * inclineScale;
-        double worldX = line.x + Math.cos(radians) * transformedX
-                - Math.sin(radians) * distance * side;
-        double worldY = line.y + Math.sin(radians) * transformedX
-                + Math.cos(radians) * distance * side;
-        return projection.point(worldX, worldY);
+        return projection.notePoint(line.x, line.y, transformedX,
+                distance * side, line.rotationDegrees);
     }
 
     private void drawPaintStrokes(Canvas canvas, Projection projection,
@@ -494,36 +500,21 @@ public final class PreviewRenderer {
             if (!PhiraRenderMetrics.hasVisibleLineScale(
                     stroke.scaleX, stroke.scaleY)) continue;
             Point point = projection.point(stroke.x, stroke.y);
-            float radius = (float) (stroke.radius * Math.max(
-                    Math.abs(stroke.scaleX) * projection.scaleX,
-                    Math.abs(stroke.scaleY) * projection.scaleY));
-            if (!isNearViewport(projection.viewport, point, radius)) continue;
-            int rgb = active ? settings.lineColorRgb
-                    : stroke.colorRgb >= 0 ? stroke.colorRgb : 0xFFFFFF;
+            // Position follows the chart coordinate area; the brush itself keeps its shape.
+            float radiusX = (float) (stroke.radius * Math.abs(stroke.scaleX)
+                    * projection.objectScale);
+            float radiusY = (float) (stroke.radius * Math.abs(stroke.scaleY)
+                    * projection.objectScale);
+            if (!isNearViewport(projection.viewport, point, Math.max(radiusX, radiusY))) continue;
+            int rgb = PhiraJudgeLineStyle.color(stroke.colorRgb, stroke.alpha,
+                    false, active, settings.lineColorRgb) & 0xFFFFFF;
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(argb(stroke.alpha, rgb));
-            if (Math.abs(projection.scaleX - projection.scaleY) < 1.0e-6
-                    && Math.abs(Math.abs(stroke.scaleX)
-                    - Math.abs(stroke.scaleY)) < 1.0e-6) {
-                canvas.drawCircle(point.x, point.y, Math.max(0.5f, radius), paint);
-                continue;
-            }
-            paintPath.reset();
-            double rotation = Math.toRadians(stroke.rotationDegrees);
-            for (int index = 0; index <= 32; index++) {
-                double angle = Math.PI * 2.0 * index / 32.0;
-                double localX = Math.cos(angle) * stroke.radius * stroke.scaleX;
-                double localY = Math.sin(angle) * stroke.radius * stroke.scaleY;
-                double worldX = stroke.x + Math.cos(rotation) * localX
-                        - Math.sin(rotation) * localY;
-                double worldY = stroke.y + Math.sin(rotation) * localX
-                        + Math.cos(rotation) * localY;
-                Point sample = projection.point(worldX, worldY);
-                if (index == 0) paintPath.moveTo(sample.x, sample.y);
-                else paintPath.lineTo(sample.x, sample.y);
-            }
-            paintPath.close();
-            canvas.drawPath(paintPath, paint);
+            int save = canvas.save();
+            canvas.translate(point.x, point.y);
+            canvas.rotate(lineScreenAngle(stroke.rotationDegrees));
+            canvas.drawOval(-radiusX, -radiusY, radiusX, radiusY, paint);
+            canvas.restoreToCount(save);
         }
     }
 
@@ -532,22 +523,13 @@ public final class PreviewRenderer {
         if (line.text.isEmpty() || line.alpha <= 0) return;
         int save = canvas.save();
         canvas.translate(center.x, center.y);
-        canvas.rotate(lineScreenAngle(projection, line.rotationDegrees));
+        canvas.rotate(lineScreenAngle(line.rotationDegrees));
         float scaleX = (float) finite(line.scaleX, 1.0);
         float scaleY = (float) finite(line.scaleY, 1.0);
         canvas.scale(scaleX, scaleY);
-        paint.setColor(argb(line.alpha, rgb));
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setFakeBoldText(false);
-        paint.setTextSize(PhiraRenderMetrics.textSize(
-                projection.viewport.width(), 1.0f));
-        String[] rows = line.text.split("\\n", -1);
-        float lineHeight = paint.getFontSpacing();
-        float firstBaseline = -(rows.length - 1) * lineHeight / 2f
-                - (paint.ascent() + paint.descent()) / 2f;
-        for (int index = 0; index < rows.length; index++) {
-            canvas.drawText(rows[index], 0f, firstBaseline + index * lineHeight, paint);
-        }
+        PhiraFontMetrics.Layout layout = textPainter.storyboard(line.text,
+                PhiraRenderMetrics.textSize(projection.viewport.width(), 1f));
+        textPainter.draw(canvas, layout, false, 0f, 0f, .5f, .5f, rgb, line.alpha);
         canvas.restoreToCount(save);
     }
 
@@ -556,14 +538,14 @@ public final class PreviewRenderer {
                                        PreviewTextureDecoder.Texture texture, int rgb,
                                        long chartTimeMs) {
         if (line.alpha <= 0 || !texture.isUsable()) return;
-        float width = (float) (texture.width * projection.scaleX
+        float width = (float) (texture.width * projection.objectScale
                 * Math.abs(finite(line.scaleX, 1.0)));
-        float height = (float) (texture.height * projection.scaleY
+        float height = (float) (texture.height * projection.objectScale
                 * Math.abs(finite(line.scaleY, 1.0)));
         if (width < 0.5f || height < 0.5f) return;
         int save = canvas.save();
         canvas.translate(center.x, center.y);
-        canvas.rotate(lineScreenAngle(projection, line.rotationDegrees));
+        canvas.rotate(lineScreenAngle(line.rotationDegrees));
         canvas.scale(line.scaleX < 0.0 ? -1f : 1f, line.scaleY < 0.0 ? -1f : 1f);
         texturePaint.setAlpha(line.alpha);
         texturePaint.setColorFilter(tint(rgb));
@@ -615,11 +597,9 @@ public final class PreviewRenderer {
         return Double.isFinite(value) ? value : fallback;
     }
 
-    private static float lineScreenAngle(Projection projection, double rotationDegrees) {
-        double radians = Math.toRadians(rotationDegrees);
-        double x = Math.cos(radians) * projection.scaleX;
-        double y = -Math.sin(radians) * projection.scaleY;
-        return (float) Math.toDegrees(Math.atan2(y, x));
+    private static float lineScreenAngle(double rotationDegrees) {
+        // Rotations belong to local geometry, not the normalized chart-position axes.
+        return (float) -rotationDegrees;
     }
 
     private static boolean isNearViewport(RectF viewport, Point point, float margin) {
@@ -631,15 +611,28 @@ public final class PreviewRenderer {
         final RectF viewport;
         final double scaleX;
         final double scaleY;
+        final double objectScale;
 
         Projection(RectF viewport) {
             this.viewport = viewport;
-            // Phira maps RPE units from the canonical 1350-wide coordinate space and
-            // crops vertically for wider player ratios. Using one pixel scale for both
-            // axes keeps circles circular and preserves authored angles.
-            double scale = viewport.width() / RPE_WIDTH;
-            scaleX = scale;
-            scaleY = scale;
+            // The editor always shows the complete RPE coordinate area: X ±675, Y ±450.
+            scaleX = PreviewCoordinates.scaleX(viewport.width());
+            scaleY = PreviewCoordinates.scaleY(viewport.height());
+            // Texture pixels and brush radii use ONE scale on both axes. Authored
+            // Scale X/Y events may still stretch them intentionally.
+            objectScale = scaleX;
+        }
+
+        Point localPoint(double lineX, double lineY, double offsetX, double offsetY) {
+            Point origin = point(lineX, lineY);
+            return new Point(origin.x + (float) (offsetX * objectScale),
+                    origin.y - (float) (offsetY * objectScale));
+        }
+
+        Point notePoint(double lineX, double lineY, double x, double y, double rotation) {
+            Point origin = point(lineX, lineY);
+            return new Point(origin.x + (float) PreviewCoordinates.localX(x, y, rotation, scaleX, scaleY),
+                    origin.y - (float) PreviewCoordinates.localY(x, y, rotation, scaleX, scaleY));
         }
 
         Point point(double x, double y) {

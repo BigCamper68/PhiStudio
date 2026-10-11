@@ -13,8 +13,16 @@ public final class EditorSettingsTest {
         assertTrue(settings.isValid());
         assertEquals(1920, settings.playerWidth);
         assertEquals(1080, settings.playerHeight);
+        assertTrue(settings.highlightCurrentLine);
+        assertTrue(settings.showFakeNoteOutline);
         EditorSettings copy = settings.copy();
         copy.musicVolume = 0.25;
+        copy.showFakeNoteOutline = false;
+        copy.highlightCurrentLine = false;
+        assertTrue(settings.highlightCurrentLine);
+        assertFalse(copy.copy().highlightCurrentLine);
+        assertTrue(settings.showFakeNoteOutline);
+        assertFalse(copy.copy().showFakeNoteOutline);
         copy.splitSnapToGrid = false;
         assertEquals(1.0, settings.musicVolume, 0.0);
         assertEquals(0.25, copy.musicVolume, 0.0);

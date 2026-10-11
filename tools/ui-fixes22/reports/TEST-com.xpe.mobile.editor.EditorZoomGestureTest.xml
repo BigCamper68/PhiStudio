@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.xpe.mobile.editor.EditorZoomGestureTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-10T12:12:07" hostname="localhost" time="1.452">
+  <properties/>
+  <testcase name="fastDoubleTapThenOneFingerDragCannotZoomAnyGrid" classname="com.xpe.mobile.editor.EditorZoomGestureTest" time="0.708"/>
+  <testcase name="androidQuickScaleIsExplicitlyDisabled" classname="com.xpe.mobile.editor.EditorZoomGestureTest" time="0.253"/>
+  <testcase name="eventGroupClearsWithoutSeekingAndUnselectedTapStillSeeks" classname="com.xpe.mobile.editor.EditorZoomGestureTest" time="0.242"/>
+  <testcase name="actualTwoFingerPinchStillChangesTheGridScale" classname="com.xpe.mobile.editor.EditorZoomGestureTest" time="0.249"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

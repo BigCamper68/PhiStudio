@@ -7,18 +7,20 @@ import android.graphics.Color;
 import android.graphics.Movie;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
 
 /** Bounded decoder for custom judge-line textures stored in an imported project. */
 public final class PreviewTextureDecoder {
-    private static final int MAX_TEXTURES = 32;
     private static final long MAX_FILE_BYTES = 32L * 1024L * 1024L;
     private static final long MAX_TEXTURE_PIXELS = 4_000_000L;
     private static final long MAX_TOTAL_PIXELS = 12_000_000L;
+    private static final int MAX_BITMAP_SIDE = 4096;
 
     private PreviewTextureDecoder() {
     }
@@ -32,10 +34,11 @@ public final class PreviewTextureDecoder {
             if (normalized == null || normalized.isEmpty()
                     || "line.png".equalsIgnoreCase(normalized)) continue;
             normalizedNames.add(normalized);
-            if (normalizedNames.size() >= MAX_TEXTURES) break;
         }
 
-        long totalPixels = 0L;
+        // Inspect every resource first. Allocate the budget across the whole chart rather
+        // than dropping late textures (Algebra), or large textures (Introduction's hd2).
+        List<Candidate> candidates = new ArrayList<>();
         for (String name : normalizedNames) {
             File file = PreviewTexturePath.resolveInside(workspace, name);
             if (file == null || !file.isFile() || file.length() <= 0L
@@ -46,12 +49,42 @@ public final class PreviewTextureDecoder {
                 BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
                 if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
                 long pixels = (long) bounds.outWidth * bounds.outHeight;
-                if (pixels <= 0L || pixels > MAX_TEXTURE_PIXELS
-                        || totalPixels + pixels > MAX_TOTAL_PIXELS) continue;
+                if (pixels <= 0L) continue;
+                Candidate candidate = new Candidate(name, file, bounds.outWidth, bounds.outHeight);
+                // Movie cannot sample its internal GIF frames. Keep its existing bound.
+                if (candidate.animated && pixels > MAX_TEXTURE_PIXELS) continue;
+                while (!candidate.animated && (candidate.pixels() > MAX_TEXTURE_PIXELS
+                        || candidate.decodedWidth() > MAX_BITMAP_SIDE
+                        || candidate.decodedHeight() > MAX_BITMAP_SIDE)) candidate.sample *= 2;
+                candidates.add(candidate);
+            } catch (RuntimeException | OutOfMemoryError ignored) {
+                // A malformed resource must not make the chart unusable.
+            }
+        }
+        long plannedPixels = 0L;
+        for (Candidate candidate : candidates) plannedPixels += candidate.pixels();
+        while (plannedPixels > MAX_TOTAL_PIXELS) {
+            Candidate largest = null;
+            for (Candidate candidate : candidates) {
+                if (!candidate.animated && candidate.pixels() > 1L
+                        && (largest == null || candidate.pixels() > largest.pixels())) {
+                    largest = candidate;
+                }
+            }
+            if (largest == null) break;
+            plannedPixels -= largest.pixels();
+            largest.sample *= 2;
+            plannedPixels += largest.pixels();
+        }
 
-                BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-                if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".gif")) {
+        long totalPixels = 0L;
+        for (Candidate candidate : candidates) {
+            String name = candidate.name;
+            File file = candidate.file;
+            long pixels = candidate.pixels();
+            if (totalPixels + pixels > MAX_TOTAL_PIXELS) continue;
+            try {
+                if (candidate.animated) {
                     Movie movie = Movie.decodeFile(file.getAbsolutePath());
                     if (movie != null && movie.width() > 0 && movie.height() > 0) {
                         result.put(name, Texture.animated(movie));
@@ -59,15 +92,45 @@ public final class PreviewTextureDecoder {
                         continue;
                     }
                 }
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                options.inScaled = false;
+                options.inSampleSize = candidate.sample;
                 Bitmap bitmap = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
                 if (bitmap == null) continue;
-                result.put(name, Texture.still(bitmap));
+                pixels = (long) bitmap.getWidth() * bitmap.getHeight();
+                if (totalPixels + pixels > MAX_TOTAL_PIXELS) {
+                    bitmap.recycle();
+                    continue;
+                }
+                result.put(name, Texture.still(bitmap, candidate.width, candidate.height));
                 totalPixels += pixels;
             } catch (RuntimeException | OutOfMemoryError ignored) {
                 // A malformed or oversized resource must not make the chart unusable.
             }
         }
         return result;
+    }
+
+    private static final class Candidate {
+        final String name;
+        final File file;
+        final int width;
+        final int height;
+        final boolean animated;
+        int sample = 1;
+
+        Candidate(String name, File file, int width, int height) {
+            this.name = name;
+            this.file = file;
+            this.width = width;
+            this.height = height;
+            animated = name.toLowerCase(java.util.Locale.ROOT).endsWith(".gif");
+        }
+
+        int decodedWidth() { return (int) ((width + (long) sample - 1) / sample); }
+        int decodedHeight() { return (int) ((height + (long) sample - 1) / sample); }
+        long pixels() { return (long) decodedWidth() * decodedHeight(); }
     }
 
     public static void recycleAll(Map<String, Texture> textures) {
@@ -97,6 +160,11 @@ public final class PreviewTextureDecoder {
 
         static Texture still(Bitmap bitmap) {
             return new Texture(bitmap, null, bitmap.getWidth(), bitmap.getHeight());
+        }
+
+        static Texture still(Bitmap bitmap, int sourceWidth, int sourceHeight) {
+            // Sampling changes memory usage, never the chart's authored geometry.
+            return new Texture(bitmap, null, sourceWidth, sourceHeight);
         }
 
         static Texture animated(Movie movie) {

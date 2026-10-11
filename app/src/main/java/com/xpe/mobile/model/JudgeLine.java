@@ -88,6 +88,13 @@ public final class JudgeLine {
         object.put("father", father);
         object.put("isCover", cover ? 1 : 0);
         object.put("zOrder", zOrder);
+        // Preserve untouched future values/spellings, but serialize edited HUD bindings.
+        AttachedUiElement originalUi = raw == null ? null
+                : AttachedUiElement.fromJsonValue(raw.opt("attachUI"));
+        if (attachUi != originalUi) {
+            if (attachUi == null) object.remove("attachUI");
+            else object.put("attachUI", attachUi.jsonValue());
+        }
 
         if (extended != null && (raw == null && extended.count() > 0
                 || extended.isModified())) {

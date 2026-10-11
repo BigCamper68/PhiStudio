@@ -12,7 +12,10 @@ public final class Easing {
 
     /** Evaluates one full RPE easing curve. Unknown identifiers fall back to Linear. */
     public static double apply(int type, double input) {
-        double t = clamp(input);
+        return applyUnclamped(type, clamp(input));
+    }
+
+    private static double applyUnclamped(int type, double t) {
         switch (type) {
             case 2: return Math.sin(t * Math.PI / 2.0); // Out Sine
             case 3: return 1.0 - Math.cos(t * Math.PI / 2.0); // In Sine
@@ -108,6 +111,20 @@ public final class Easing {
         double value = apply(type,
                 normalizedLeft + (normalizedRight - normalizedLeft) * t);
         return normalizeWindow(t, start, end, value);
+    }
+
+    /** Phira evaluates the first spatial keyframe even before its timestamp. */
+    public static double extrapolateWindowed(int type, double input, double left, double right) {
+        double normalizedLeft = validLeft(left, right);
+        double normalizedRight = validRight(left, right);
+        double start = apply(type, normalizedLeft);
+        double end = apply(type, normalizedRight);
+        if (Math.abs(end - start) < EPSILON) return input;
+        double value = applyUnclamped(type,
+                normalizedLeft + (normalizedRight - normalizedLeft) * input);
+        // Circ curves can be undefined before the event. Preserve NaN so preview
+        // can omit undefined geometry, instead of placing its notes at the origin.
+        return (value - start) / (end - start);
     }
 
     /**

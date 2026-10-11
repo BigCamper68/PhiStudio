@@ -37,6 +37,14 @@ public final class ComplexMovePreviewView extends View {
         float bottom = getHeight() - inset;
         if (right <= left || bottom <= top) return;
 
+        // Equal coordinate units must occupy equal pixel distances on both axes.
+        PreviewViewportCalculator.Result plot = PreviewViewportCalculator.fit(
+                left, top, right, bottom, 1350, 900);
+        left = (float) plot.left;
+        top = (float) plot.top;
+        right = (float) plot.right;
+        bottom = (float) plot.bottom;
+
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(1f * density);
         paint.setColor(Color.rgb(52, 69, 75));

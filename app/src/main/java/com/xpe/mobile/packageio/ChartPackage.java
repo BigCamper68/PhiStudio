@@ -1,6 +1,7 @@
 package com.xpe.mobile.packageio;
 
 import com.xpe.mobile.model.ChartDocument;
+import com.xpe.mobile.preview.PhiraBackgroundMetrics;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ public final class ChartPackage {
     private final boolean useRpe170Speed;
     private final ChartDocument chart;
     private final List<Entry> entries;
+    private final List<Entry> addedResources = new ArrayList<>();
     private final List<PackageManifest> manifests;
 
     ChartPackage(File workspace, String sourceDisplayName, String projectName,
@@ -73,6 +75,18 @@ public final class ChartPackage {
         }
         this.entries = Collections.unmodifiableList(packageEntries);
         this.manifests = Collections.unmodifiableList(new ArrayList<>(manifests));
+        if (chart.backgroundDim == null) chart.backgroundDim = manifestBackgroundDim();
+        // Phira reads this flag from ChartInfo (YAML), never from RPE META.
+        chart.useAttachUiFix = false;
+        for (PackageManifest manifest : manifests) {
+            if (manifest.getKind() != PackageManifest.Kind.YAML) continue;
+            String flag = manifest.get("useAttachUiFix");
+            if (flag == null) continue;
+            int comment = flag.indexOf('#');
+            if (comment >= 0) flag = flag.substring(0, comment);
+            chart.useAttachUiFix = Boolean.parseBoolean(flag.trim());
+            break;
+        }
     }
 
     public File getWorkspace() {
@@ -119,8 +133,33 @@ public final class ChartPackage {
         return chart;
     }
 
-    public List<Entry> getEntries() {
-        return entries;
+    public double getBackgroundDim() {
+        return chart.getBackgroundDim();
+    }
+
+    private double manifestBackgroundDim() {
+        for (PackageManifest manifest : manifests) {
+            if (manifest.getKind() == PackageManifest.Kind.YAML) {
+                String value = manifest.get("backgroundDim");
+                if (value != null) return PhiraBackgroundMetrics.chartDim(value);
+            }
+        }
+        return PhiraBackgroundMetrics.DEFAULT_CHART_DIM;
+    }
+
+    public synchronized List<Entry> getEntries() {
+        List<Entry> result = new ArrayList<>(entries);
+        result.addAll(addedResources);
+        return Collections.unmodifiableList(result);
+    }
+
+    /** New shader resources must participate in export before the project is reopened. */
+    public synchronized void registerShaderResource(String path) throws java.io.IOException {
+        if (!path.equals("extra.json") && !path.startsWith("shaders/")) throw new java.io.IOException("Invalid shader resource path");
+        File file = PackageImporter.resolveInside(workspace, path);
+        if (!file.isFile()) throw new java.io.IOException("Missing shader resource");
+        for (Entry item : getEntries()) if (item.getPath().equals(path)) return;
+        addedResources.add(new Entry(path, false, file.length()));
     }
 
     public List<PackageManifest> getManifests() {

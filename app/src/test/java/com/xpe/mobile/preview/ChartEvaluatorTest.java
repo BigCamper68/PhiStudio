@@ -22,8 +22,116 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 public final class ChartEvaluatorTest {
+    @Test public void hudRotationUsesOwnObjectButPositionInheritsParent() {
+        ChartDocument chart = chart();
+        chart.useAttachUiFix = true;
+        JudgeLine parent = new JudgeLine();
+        setConstant(parent, EventType.ROTATE, 45);
+        JudgeLine child = new JudgeLine();
+        child.father = 0;
+        child.rotateWithFather = true;
+        child.attachUi = AttachedUiElement.SCORE;
+        setConstant(child, EventType.ROTATE, 15);
+        setConstant(child, EventType.MOVE_X, 100);
+        chart.judgeLines.add(parent); chart.judgeLines.add(child);
+        RenderScene.HudState hud = ChartEvaluator.evaluate(chart, 0, false).hud;
+        assertTrue(hud.useAttachUiFix);
+        assertEquals(-15, hud.transform(AttachedUiElement.SCORE).rotationDegrees, 0);
+        assertEquals(100 / Math.sqrt(2), hud.transform(AttachedUiElement.SCORE).x, .001);
+        assertTrue(Math.abs(hud.transform(AttachedUiElement.SCORE).y) > 0);
+    }
+    @Test public void parentRotationUsesNormalizedAxesAndHitOriginFollowsIt() {
+        ChartDocument chart = chart();
+        JudgeLine parent = new JudgeLine();
+        setConstant(parent, EventType.MOVE_X, 100);
+        setConstant(parent, EventType.MOVE_Y, 200);
+        setConstant(parent, EventType.ROTATE, -45);
+        JudgeLine child = new JudgeLine();
+        child.father = 0;
+        setConstant(child, EventType.MOVE_X, 180);
+        setConstant(child, EventType.MOVE_Y, 90);
+        Note note = note(NoteType.TAP, 0);
+        note.yOffset = 50;
+        child.notes.add(note);
+        chart.judgeLines.add(parent);
+        chart.judgeLines.add(child);
+        for (double aspect : new double[]{16.0/9, 1.5, 21.0/9, 9.0/16, 1.5}) {
+            double width = 1920, height = width/aspect;
+            RenderScene.RenderLine line = ChartEvaluator.evaluate(chart,0,false,-1,false,aspect).lines.get(1);
+            double r = Math.toRadians(45);
+            double expectedX = 100*width/1350
+                    + Math.cos(r)*180*width/1350 - Math.sin(r)*90*height/900;
+            double expectedY = 200*height/900
+                    + Math.sin(r)*180*width/1350 + Math.cos(r)*90*height/900;
+            assertEquals(expectedX,line.x*width/1350,1e-8);
+            assertEquals(expectedY,line.y*height/900,1e-8);
+            assertEquals(line.x,line.hitEffects.get(0).lineX,1e-8);
+            assertEquals(line.y,line.hitEffects.get(0).lineY,1e-8);
+            assertEquals(50,line.hitEffects.get(0).localY,1e-8);
+        }
+    }
+
+    @Test public void preparedNoteTimingRefreshesAfterEditAndUndo() {
+        ChartDocument chart = chart();
+        JudgeLine line = new JudgeLine();
+        Note note = note(NoteType.TAP, 2);
+        line.notes.add(note);
+        chart.judgeLines.add(line);
+        double original = ChartEvaluator.evaluate(chart, 0, false).lines.get(0).notes.get(0).startDistance;
+        note.startTime = beat(4);
+        chart.markEdited();
+        double moved = ChartEvaluator.evaluate(chart, 0, false).lines.get(0).notes.get(0).startDistance;
+        assertEquals(original * 2, moved, EPSILON);
+        note.startTime = beat(2);
+        chart.markEdited();
+        assertEquals(original, ChartEvaluator.evaluate(chart, 0, false).lines.get(0).notes.get(0).startDistance, EPSILON);
+    }
+
+    @Test public void expiredFakeWithoutCoverStillRendersAfterEffectWindow() {
+        ChartDocument chart = chart();
+        JudgeLine line = new JudgeLine();
+        line.cover = false;
+        Note note = note(NoteType.TAP, 2);
+        note.fake = true;
+        line.notes.add(note);
+        chart.judgeLines.add(line);
+        assertEquals(1, ChartEvaluator.evaluate(chart, 4, false).lines.get(0).notes.size());
+    }
+
     private static final double EPSILON = 0.002;
     private static final double SPEED_DISTANCE_RATIO = (100.0 / 0.83175) / 120.0;
+
+    @Test
+    public void delayedBaseSpatialEventsUseFirstKeyframeAndAdditiveLayersStayNeutral() throws Exception {
+        ChartDocument chart = chart();
+        JudgeLine line = new JudgeLine();
+        for (EventType type : new EventType[]{EventType.MOVE_X, EventType.MOVE_Y, EventType.ROTATE}) {
+            line.layer(0).events(type).clear();
+            setEvent(line.layer(0), type, 500.0, 800.0, 2, 4);
+            setEvent(line.layer(1), type, 20.0, 30.0, 3, 4);
+        }
+        chart.judgeLines.add(line);
+        RenderScene.RenderLine initial = ChartEvaluator.evaluate(chart, 0.0, false).lines.get(0);
+        assertEquals(200.0, initial.x, EPSILON);
+        assertEquals(200.0, initial.y, EPSILON);
+        assertEquals(-200.0, initial.rotationDegrees, EPSILON);
+        assertEquals(200.0, ChartEvaluator.layeredValueAt(line, EventType.MOVE_X, 0), EPSILON);
+        ChartDocument reopened = ChartDocument.fromJson(chart.toJsonString());
+        assertEquals(initial.x, ChartEvaluator.evaluate(reopened, 0.0, false).lines.get(0).x, EPSILON);
+        assertEquals(670.0, ChartEvaluator.evaluate(chart, 3.0, false).lines.get(0).x, EPSILON);
+    }
+
+    @Test
+    public void undefinedCircularPreRollDoesNotTurnIntoOriginGeometry() {
+        ChartDocument chart = chart();
+        JudgeLine line = new JudgeLine();
+        line.layer(0).events(EventType.MOVE_Y).clear();
+        setEvent(line.layer(0), EventType.MOVE_Y, 450.0, -625.0, 2, 4);
+        line.layer(0).events(EventType.MOVE_Y).get(0).easingType = 18;
+        chart.judgeLines.add(line);
+        assertTrue(ChartEvaluator.evaluate(chart, 1.0, false).lines.isEmpty());
+        assertEquals(450.0, ChartEvaluator.evaluate(chart, 2.0, false).lines.get(0).y, EPSILON);
+    }
 
     @Test
     public void evaluatesLayeredTransformsAndEasing() {
@@ -214,7 +322,7 @@ public final class ChartEvaluatorTest {
     }
 
     @Test
-    public void coverHidesWholeFutureHoldButDoesNotClipAnActiveHold() {
+    public void coverIgnoresYOffsetAndDoesNotClipAnActiveHold() {
         ChartDocument chart = chart();
         JudgeLine line = new JudgeLine();
         Note hold = note(NoteType.HOLD, 1);
@@ -223,8 +331,12 @@ public final class ChartEvaluatorTest {
         line.notes.add(hold);
         chart.judgeLines.add(line);
 
-        assertTrue(ChartEvaluator.evaluate(chart, 0.0, false)
-                .lines.get(0).notes.isEmpty());
+        // prpr core/note.rs tests cover_base before adding the object's yOffset.
+        RenderScene.RenderNote future = ChartEvaluator.evaluate(chart, 0.0, false)
+                .lines.get(0).notes.get(0);
+        assertEquals(-1000.0 + 600.0 * SPEED_DISTANCE_RATIO,
+                future.startDistance, EPSILON);
+        assertTrue(future.holdHeadVisible);
 
         RenderScene.RenderNote active = ChartEvaluator.evaluate(chart, 1.5, false)
                 .lines.get(0).notes.get(0);
@@ -484,6 +596,36 @@ public final class ChartEvaluatorTest {
             setConstant(transparent, EventType.ALPHA, negativeAlpha);
             assertTrue("negative ALPHA " + negativeAlpha,
                     ChartEvaluator.evaluate(chart, 0.0, false).lines.isEmpty());
+        }
+    }
+
+    @Test
+    public void negativeAlphaKeepsRealHitEffectsAndHoldPulsesButNotFakeEffects() {
+        for (double alpha : new double[]{-1.0, -255.0, -510.0, -28050.0}) {
+            for (NoteType type : NoteType.values()) {
+                ChartDocument chart = chart();
+                JudgeLine line = new JudgeLine();
+                setConstant(line, EventType.ALPHA, alpha);
+                Note real = note(type, 1);
+                real.endTime = beat(3);
+                line.notes.add(real);
+                Note fake = real.copy();
+                fake.fake = true;
+                line.notes.add(fake);
+                chart.judgeLines.add(line);
+
+                RenderScene scene = ChartEvaluator.evaluate(chart, 1.0, false);
+                assertEquals(1, scene.lines.size());
+                assertEquals(0, scene.lines.get(0).alpha);
+                assertTrue(scene.lines.get(0).notes.isEmpty());
+                assertEquals(1, scene.lines.get(0).hitEffects.size());
+                if (type == NoteType.HOLD) {
+                    RenderScene later = ChartEvaluator.evaluate(chart, 2.0, false);
+                    assertTrue(later.lines.get(0).notes.isEmpty());
+                    assertFalse(later.lines.get(0).hitEffects.isEmpty());
+                }
+                assertTrue(ChartEvaluator.evaluate(chart, 5.0, false).lines.isEmpty());
+            }
         }
     }
 

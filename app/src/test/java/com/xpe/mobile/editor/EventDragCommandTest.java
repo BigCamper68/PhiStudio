@@ -98,9 +98,11 @@ public final class EventDragCommandTest {
         assertEquals(1, speed.easingType);
         JSONObject line = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0);
-        // The edited events follow the generated neutral interval from beat 0.
+        // Base spatial events preserve their pre-roll; speed keeps its default prefix.
+        assertEquals(1, line.getJSONArray("eventLayers").getJSONObject(0)
+                .getJSONArray("moveXEvents").length());
         JSONObject exportedMove = line.getJSONArray("eventLayers").getJSONObject(0)
-                .getJSONArray("moveXEvents").getJSONObject(1);
+                .getJSONArray("moveXEvents").getJSONObject(0);
         JSONObject exportedSpeed = line.getJSONArray("eventLayers").getJSONObject(0)
                 .getJSONArray("speedEvents").getJSONObject(1);
         assertEquals(77, exportedMove.getInt("futureEventData"));

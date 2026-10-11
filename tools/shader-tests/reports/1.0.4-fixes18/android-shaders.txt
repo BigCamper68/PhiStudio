@@ -1,0 +1,21 @@
+GPU: Adreno (TM) 830
+GLES: OpenGL ES 3.2 V@0800.40 (GIT@0fd63a2c96, I5538b87673, 1746190042) (Date:05/02/25)
+PASS bitmap orientation and identity
+PASS local/global ordering and margins
+PASS chained effects and exclusive end
+PASS 50 live parameter snapshots reuse the same GL program, update pixels and release obsolete shaders
+PASS uniform isolation, float/vec2/color and defaults
+PASS custom uniforms have no renderer-specific reserved names
+PASS centered viewport UVScale
+PASS all 10 original prpr preset shaders compile and render
+PASS ★ Ascension To Heaven.zip effects=302 shaders compile; 10 playback/seek frames
+PASS ANTINEUTRINO WITCHCRAFT.zip effects=27 shaders compile; 10 playback/seek frames
+PASS Hello (BPM) 2025.zip effects=490 shaders compile; 10 playback/seek frames
+ERROR: 0:4: 'premature EOF' : Syntax error:  syntax error
+INTERNAL ERROR: no main() function!
+ERROR: 1 compilation errors.  No code generated.
+
+PASS invalid shader isolation and package switching
+PASS hardware Canvas/external OES orientation, alpha and local/global order
+PASS repeated hardware frames, premultiplied alpha, HUD clearing and GLSL discard
+ALL DEVICE SHADER TESTS PASSED

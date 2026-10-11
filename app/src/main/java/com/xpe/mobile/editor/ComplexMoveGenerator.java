@@ -35,7 +35,7 @@ public final class ComplexMoveGenerator {
 
         public TimeEasing(int type, double left, double right) {
             if (type < Easing.MIN_TYPE || type > Easing.MAX_TYPE) {
-                throw new IllegalArgumentException("easing type must be 1 to 28");
+                throw new IllegalArgumentException("easing type must be " + Easing.MIN_TYPE + " to " + Easing.MAX_TYPE);
             }
             if (!Double.isFinite(left) || !Double.isFinite(right)
                     || left < 0.0 || right > 1.0 || left > right) {

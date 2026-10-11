@@ -40,6 +40,19 @@ import java.util.Set;
  * independently.
  */
 abstract class EditorSurfaceView extends View {
+    private ChartDocument multiHintChart;
+    private long multiHintRevision = -1L;
+    private Set<Note> multiHintNotes = Collections.emptySet();
+
+    private Set<Note> multiHintNotes() {
+        if (!settings.highlightSimultaneousNotes) return Collections.emptySet();
+        if (multiHintChart != chart || multiHintRevision != chart.revision()) {
+            multiHintNotes = NoteMultiHintResolver.resolve(chart);
+            multiHintChart = chart;
+            multiHintRevision = chart.revision();
+        }
+        return multiHintNotes;
+    }
     protected enum Tool {
         SELECT,
         TAP,
@@ -127,6 +140,7 @@ abstract class EditorSurfaceView extends View {
     protected long lastHitSoundChartTimeMs;
     protected float density;
     protected EditorSettings settings = new EditorSettings();
+    protected Bitmap blurredBackgroundIllustration;
 
     protected GestureMode gestureMode = GestureMode.NONE;
     protected float gestureStartX;
@@ -167,7 +181,7 @@ abstract class EditorSurfaceView extends View {
         pixelsPerBeat = 96f * density;
         noteTextures = new NoteTextureSet(getResources());
         previewRenderer = new PreviewRenderer(noteTextures, density,
-                getResources().getString(R.string.preview_hud_autoplay));
+                getResources().getString(R.string.preview_hud_autoplay), context.getAssets());
         easingEntries = getResources().getStringArray(R.array.event_easing_entries);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(2f * density);
@@ -191,10 +205,16 @@ abstract class EditorSurfaceView extends View {
         canvas.restoreToCount(save);
     }
 
+    protected final void prepareTimelineGridPaint() {
+        // The shared paint may still have the thicker judgment-line stroke from the last grid.
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeWidth(density);
+    }
+
     protected final void drawNoteGrid(
             Canvas canvas, float left, float top, float right, float bottom) {
         float centerY = timelineY(bottom);
-        paint.setStrokeWidth(1f * density);
+        prepareTimelineGridPaint();
         TimelineGridRange.Range range = TimelineGridRange.visible(
                 currentBeat, centerY, top, bottom, pixelsPerBeat, subdivision);
         for (int step = range.firstStep; step <= range.lastStep; step++) {
@@ -204,14 +224,11 @@ abstract class EditorSurfaceView extends View {
             boolean major = Math.floorMod(step, subdivision) == 0;
             paint.setColor(major ? GRID_MAJOR : GRID_MINOR);
             canvas.drawLine(left, y, right, y, paint);
-            if (major) {
-                paint.setTextSize(11f * density);
-                paint.setColor(Color.LTGRAY);
-                canvas.drawText(Integer.toString((int) Math.floor(beat)),
-                        5f * density, y - 3f * density, paint);
-            }
+
         }
 
+        drawTimelineBeatNumbers(canvas, left, top, left + 38f * density, bottom,
+                currentBeat, pixelsPerBeat, false);
         for (int index = 0; index < verticalGridLines; index++) {
             float x = VerticalGrid.screenX(index, verticalGridLines, left, right);
             paint.setColor(index == verticalGridLines / 2
@@ -219,83 +236,161 @@ abstract class EditorSurfaceView extends View {
             canvas.drawLine(x, top, x, bottom, paint);
         }
 
-        paint.setStrokeWidth((float) Math.max(1.0, settings.lineDefaultWidth) * density);
+        drawCurrentBeatLine(canvas, left, right, bottom);
+    }
+
+    protected final void drawCurrentBeatLine(Canvas canvas, float left, float right, float bottom) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeWidth(2.4f * density);
         paint.setColor(Color.rgb((settings.lineColorRgb >> 16) & 0xff,
                 (settings.lineColorRgb >> 8) & 0xff, settings.lineColorRgb & 0xff));
-        canvas.drawLine(left, centerY, right, centerY, paint);
+        float y = timelineY(bottom);
+        canvas.drawLine(left, y, right, y, paint);
+    }
+
+    /** Common event-grid painter for Events and Shaders, in the caller's local coordinates. */
+    public final void drawTimelineRows(Canvas canvas, float left, float top, float right,
+                                      float bottom, double position, float scale, int divisions) {
+        float baseline = timelineY(bottom);
+        prepareTimelineGridPaint();
+        TimelineGridRange.Range range = TimelineGridRange.visible(
+                position, baseline, top, bottom, scale, divisions);
+        for (int step = range.firstStep; step <= range.lastStep; step++) {
+            float y = baseline - (float) (step / (double) divisions - position) * scale;
+            if (y < top || y > bottom) continue;
+            paint.setColor(Math.floorMod(step, divisions) == 0 ? GRID_MAJOR : GRID_MINOR);
+            canvas.drawLine(left, y, right, y, paint);
+        }
+    }
+    /** Include text that intersects an edge even while its grid line is outside it. */
+    public final void drawTimelineBeatNumbers(Canvas canvas, float left, float top, float right,
+                                             float bottom, double position, float scale,
+                                             boolean rightAligned) {
+        int save = canvas.save();
+        canvas.clipRect(left, top, right, bottom);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTextSize(11f * density);
+        paint.setTextAlign(rightAligned ? Paint.Align.RIGHT : Paint.Align.LEFT);
+        paint.setColor(Color.LTGRAY);
+        float offset = 3f * density;
+        float ascent = paint.ascent(), descent = paint.descent();
+        float baseline = timelineY(bottom);
+        TimelineGridRange.Range labels = TimelineGridRange.visible(position, baseline,
+                top + offset - descent, bottom + offset - ascent, scale, 1);
+        for (int tick = labels.firstStep; tick <= labels.lastStep; tick++) {
+            float textY = baseline - (float) (tick - position) * scale - offset;
+            if (textY + descent >= top && textY + ascent <= bottom)
+                canvas.drawText(Integer.toString(tick), rightAligned ? right - 4f * density
+                        : left + 5f * density, textY, paint);
+        }
+        paint.setTextAlign(Paint.Align.LEFT);
+        canvas.restoreToCount(save);
+    }
+
+    public final void drawTimelineBaseline(Canvas canvas, float right, float bottom) {
+        drawCurrentBeatLine(canvas, 0, right, bottom);
+    }
+    public final void drawTimelineBlock(Canvas canvas, RectF rect, int color) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(color);
+        canvas.drawRoundRect(rect, 4f * density, 4f * density, paint);
+    }
+    public final void drawTimelineSelection(Canvas canvas, RectF rect, float startY, float endY) {
+        drawSelection(canvas, rect);
+        drawEventHandles(canvas, rect.centerX(), startY, endY, false);
+    }
+    public final float timelineScale() { return pixelsPerBeat; }
+    public final double timelineScrollMultiplier() { return settings.timelineScrollSpeed; }
+    public final double eventScrollMultiplier() { return settings.eventScrollSpeed; }
+    public final boolean timelineCurvesVisible() { return settings.drawEventCurves; }
+    public final void scaleTimeline(float factor) {
+        pixelsPerBeat = clamp(pixelsPerBeat * factor, 38f * density, 280f * density);
+        invalidate();
+    }
+
+    public final void scaleShaderTimeline(float factor) {
+        if (!Float.isFinite(factor) || factor <= 0) return;
+        pixelsPerBeat = clamp(pixelsPerBeat * factor, 8f * density, 280f * density);
+        invalidate();
     }
 
     protected final void drawEventGrid(
             Canvas canvas, float left, float top, float right, float bottom) {
-        float centerY = timelineY(bottom);
-        paint.setStrokeWidth(1f * density);
-        TimelineGridRange.Range range = TimelineGridRange.visible(
-                currentBeat, centerY, top, bottom, pixelsPerBeat, subdivision);
-        for (int step = range.firstStep; step <= range.lastStep; step++) {
-            double beat = step / (double) subdivision;
-            float y = beatToY(beat, centerY);
-            if (y < top || y > bottom) continue;
-            boolean major = Math.floorMod(step, subdivision) == 0;
-            paint.setColor(major ? GRID_MAJOR : GRID_MINOR);
-            canvas.drawLine(left, y, right, y, paint);
-        }
+        drawTimelineRows(canvas, left, top, right, bottom, currentBeat, pixelsPerBeat, subdivision);
 
         EventType[] types = EventType.values();
         float width = (right - left) / types.length;
+        for (int index = 0; index <= types.length; index++) {
+            paint.setColor(Color.rgb(58, 67, 76));
+            canvas.drawLine(left + index * width, top, left + index * width, bottom, paint);
+        }
+        drawCurrentBeatLine(canvas, left, right, bottom);
+    }
+
+    protected final void drawEventHeaders(Canvas canvas, float left, float top, float right) {
+        int save = canvas.save();
+        canvas.clipRect(left, top, right, top + 22f * density);
+        EventType[] types = EventType.values();
+        float width = (right - left) / types.length;
+        paint.setStyle(Paint.Style.FILL);
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setTextSize(10.5f * density);
         for (int index = 0; index < types.length; index++) {
-            float x = left + index * width;
-            paint.setColor(Color.rgb(58, 67, 76));
-            canvas.drawLine(x, top, x, bottom, paint);
             paint.setColor(types[index] == selectedEventType && tool == Tool.EVENT
                     ? ACCENT : Color.LTGRAY);
-            canvas.drawText(types[index].label,
-                    x + width / 2f, top + 17f * density, paint);
+            canvas.drawText(types[index].label, left + (index + .5f) * width,
+                    top + 17f * density, paint);
         }
-        paint.setColor(Color.rgb(58, 67, 76));
-        canvas.drawLine(right, top, right, bottom, paint);
         paint.setTextAlign(Paint.Align.LEFT);
+        canvas.restoreToCount(save);
     }
 
     protected final void drawNotes(
             Canvas canvas, float left, float top, float right, float bottom) {
         float centerY = timelineY(bottom);
-        Set<Note> multiHitNotes = settings.highlightSimultaneousNotes
-                ? NoteMultiHintResolver.resolve(chart) : new LinkedHashSet<>();
+        Set<Note> multiHitNotes = multiHintNotes();
         for (Note note : currentLine().notes) {
             boolean useMultiHit = multiHitNotes.contains(note);
             BeatTime visibleStart = visibleNoteStart(note);
             BeatTime visibleEnd = visibleNoteEnd(note);
             float startY = beatToY(visibleStart.toDouble(), centerY);
             float x = chartXToScreen(visibleNoteX(note), left, right);
-            float baseWidth = Math.max(20f * density,
-                    (float) settings.noteWidthPixels * density * (float) note.size);
-            float textureWidth = baseWidth * noteTextures.widthScale(useMultiHit);
+            float naturalWidth = (float) settings.noteWidthPixels * density
+                    * noteTextures.widthScale(useMultiHit);
+            float textureWidth = EditorNoteMetrics.width(naturalWidth, note.size);
             RectF bounds;
 
             if (note.type == NoteType.HOLD) {
                 float endY = beatToY(visibleEnd.toDouble(), centerY);
                 bounds = holdBounds(x, startY, endY, textureWidth);
                 if (bounds.bottom < top || bounds.top > bottom) continue;
-                drawHoldTexture(canvas, x, startY, endY, textureWidth, useMultiHit,
-                        clampAlpha(note.alpha));
+                drawHoldTexture(canvas, x, startY, endY, textureWidth, naturalWidth, useMultiHit, 255);
             } else {
                 Bitmap bitmap = noteTextures.bitmap(note.type, useMultiHit);
-                float textureHeight = textureWidth * bitmap.getHeight() / bitmap.getWidth();
+                float textureHeight = EditorNoteMetrics.height(naturalWidth,
+                        bitmap.getWidth(), bitmap.getHeight());
                 bounds = new RectF(x - textureWidth / 2f, startY - textureHeight / 2f,
                         x + textureWidth / 2f, startY + textureHeight / 2f);
                 if (bounds.bottom < top || bounds.top > bottom) continue;
-                drawBitmap(canvas, bitmap, bounds, clampAlpha(note.alpha));
+                drawBitmap(canvas, bitmap, bounds, 255);
             }
 
-            if (note.fake) {
+            boolean selected = note == selectedNote || selectedNotes.contains(note);
+            boolean fakeOutline = note.fake && settings.showFakeNoteOutline;
+            RectF outline = bounds;
+            if ((selected || fakeOutline) && note.type != NoteType.HOLD) {
+                Bitmap tap = noteTextures.bitmap(NoteType.TAP, useMultiHit);
+                float tapHeight = EditorNoteMetrics.height(naturalWidth, tap.getWidth(), tap.getHeight());
+                outline = new RectF(x - textureWidth / 2f, startY - tapHeight / 2f,
+                        x + textureWidth / 2f, startY + tapHeight / 2f);
+            }
+            if (fakeOutline) {
                 strokePaint.setColor(Color.WHITE);
                 strokePaint.setStrokeWidth(1.5f * density);
-                canvas.drawRoundRect(bounds, 5f * density, 5f * density, strokePaint);
+                canvas.drawRoundRect(outline, 5f * density, 5f * density, strokePaint);
             }
-            if (note == selectedNote || selectedNotes.contains(note)) {
-                drawSelection(canvas, bounds);
+            if (selected) {
+                drawSelection(canvas, outline);
                 if (note == selectedNote && selectionCount() == 1
                         && note.type == NoteType.HOLD) {
                     drawHoldHandles(canvas, x, startY,
@@ -318,7 +413,7 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected final void drawHoldTexture(Canvas canvas, float x, float startY, float endY,
-                                         float width, boolean useMultiHit, int alpha) {
+                                         float width, float naturalWidth, boolean useMultiHit, int alpha) {
         Bitmap bitmap = noteTextures.bitmap(NoteType.HOLD, useMultiHit);
         if (startY < endY) {
             RectF destination = holdBounds(x, startY, endY, width);
@@ -331,8 +426,8 @@ abstract class EditorSurfaceView extends View {
         int bodyBottom = Math.max(tailPixels + 1, bitmap.getHeight() - headPixels);
         float left = x - width / 2f;
         float right = x + width / 2f;
-        float tailHeight = width * tailPixels / bitmap.getWidth();
-        float headHeight = width * headPixels / bitmap.getWidth();
+        float tailHeight = EditorNoteMetrics.height(naturalWidth, bitmap.getWidth(), tailPixels);
+        float headHeight = EditorNoteMetrics.height(naturalWidth, bitmap.getWidth(), headPixels);
 
         noteTexturePaint.setAlpha(alpha);
         canvas.drawBitmap(bitmap,
@@ -376,9 +471,8 @@ abstract class EditorSurfaceView extends View {
                 boolean invalidDrag = draggedPreview
                         && (dragValidation != EventDragValidator.Error.NONE
                         || xyDragValidation != XYBindingValidator.Error.NONE);
-                paint.setColor(invalidDrag
+                drawTimelineBlock(canvas, rect, invalidDrag
                         ? INVALID_PREVIEW : eventColor(type, event.linkGroup != 0));
-                canvas.drawRoundRect(rect, 4f * density, 4f * density, paint);
                 if (settings.drawEventCurves) {
                     drawEventEasingCurve(canvas, event, rect, invalidDrag);
                 }
@@ -403,6 +497,11 @@ abstract class EditorSurfaceView extends View {
 
     protected final void drawEventEasingCurve(
             Canvas canvas, LineEvent event, RectF rect, boolean invalid) {
+        drawTimelineEasingCurve(canvas, rect, invalid, event == selectedEvent, event::easedProgressAt);
+    }
+
+    public final void drawTimelineEasingCurve(Canvas canvas, RectF rect, boolean invalid,
+                                                boolean selected, java.util.function.DoubleUnaryOperator easing) {
         float insetX = Math.min(5f * density, rect.width() * 0.14f);
         float insetY = Math.min(4f * density, rect.height() * 0.12f);
         float curveLeft = rect.left + insetX;
@@ -416,7 +515,7 @@ abstract class EditorSurfaceView extends View {
         eventCurvePath.reset();
         for (int index = 0; index <= samples; index++) {
             double t = index / (double) samples;
-            double evaluated = event.easedProgressAt(t);
+            double evaluated = easing.applyAsDouble(t);
             float progress = Double.isFinite(evaluated)
                     ? clamp((float) evaluated, -2f, 3f) : (float) t;
             float x = curveLeft + progress * (curveRight - curveLeft);
@@ -428,7 +527,7 @@ abstract class EditorSurfaceView extends View {
         int save = canvas.save();
         canvas.clipRect(rect);
         strokePaint.setColor(invalid ? Color.WHITE : EVENT_EASING_CURVE);
-        strokePaint.setStrokeWidth((event == selectedEvent ? 2.6f : 2.1f) * density);
+        strokePaint.setStrokeWidth((selected ? 2.6f : 2.1f) * density);
         strokePaint.setStrokeCap(Paint.Cap.ROUND);
         strokePaint.setStrokeJoin(Paint.Join.ROUND);
         canvas.drawPath(eventCurvePath, strokePaint);
@@ -506,7 +605,7 @@ abstract class EditorSurfaceView extends View {
             float x = chartXToScreen(screenToChartX(gestureStartX, 0f, split), 0f, split);
             float startY = beatToY(previewStartBeat, centerY);
             float endY = beatToY(previewEndBeat, centerY);
-            drawHoldTexture(canvas, x, startY, endY, 58f * density, false, 150);
+            drawHoldTexture(canvas, x, startY, endY, 58f * density, 58f * density, false, 150);
         } else if (gestureMode == GestureMode.EVENT_PREVIEW && previewEventType != null) {
             EventType[] types = EventType.values();
             int index = previewEventType.ordinal();
@@ -556,7 +655,7 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected final float editorSplitX() {
-        return getWidth() * 0.70f;
+        return WorkbenchLayout.split(getWidth(), density);
     }
 
     protected final float toolbarHeight() {
@@ -564,7 +663,7 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected final float bottomBarHeight() {
-        return 96f * density;
+        return WorkbenchLayout.footer(density);
     }
 
     protected final float timelineY(float editorBottom) {

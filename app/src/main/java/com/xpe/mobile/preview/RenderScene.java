@@ -115,13 +115,32 @@ public final class RenderScene {
     public static final class HitEffect {
         public final double worldX;
         public final double worldY;
+        /** Judge-line origin at the hit time, retained while the effect fades. */
+        public final double lineX;
+        public final double lineY;
+        public final double localX;
+        public final double localY;
+        public final double rotationDegrees;
         public final double progress;
         public final int colorRgb;
         public final int seed;
 
-        HitEffect(double worldX, double worldY, double progress, int colorRgb, int seed) {
+        HitEffect(double worldX, double worldY, double lineX, double lineY,
+                  double progress, int colorRgb, int seed) {
+            this(worldX, worldY, lineX, lineY, worldX - lineX, worldY - lineY,
+                    0, progress, colorRgb, seed);
+        }
+
+        HitEffect(double worldX, double worldY, double lineX, double lineY,
+                  double localX, double localY, double rotationDegrees,
+                  double progress, int colorRgb, int seed) {
             this.worldX = worldX;
             this.worldY = worldY;
+            this.lineX = lineX;
+            this.lineY = lineY;
+            this.localX = localX;
+            this.localY = localY;
+            this.rotationDegrees = rotationDegrees;
             this.progress = progress;
             this.colorRgb = colorRgb;
             this.seed = seed;
@@ -152,6 +171,7 @@ public final class RenderScene {
     }
 
     public static final class HudState {
+        public final boolean useAttachUiFix;
         public final String name;
         public final String level;
         public final int combo;
@@ -161,6 +181,12 @@ public final class RenderScene {
 
         HudState(String name, String level, int combo, int score, double progress,
                  Map<AttachedUiElement, HudTransform> transforms) {
+            this(name, level, combo, score, progress, transforms, false);
+        }
+
+        HudState(String name, String level, int combo, int score, double progress,
+                 Map<AttachedUiElement, HudTransform> transforms, boolean useAttachUiFix) {
+            this.useAttachUiFix = useAttachUiFix;
             this.name = name == null ? "" : name;
             this.level = level == null ? "" : level;
             this.combo = combo;

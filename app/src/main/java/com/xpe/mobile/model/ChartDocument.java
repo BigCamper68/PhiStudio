@@ -20,6 +20,11 @@ public final class ChartDocument {
     public String id = "";
     public String song = "";
     public String background = "";
+    public static final double DEFAULT_BACKGROUND_DIM = 0.6;
+    /** Nullable until package import resolves info.yml; stored per chart, never globally. */
+    public Double backgroundDim;
+    /** Runtime Phira compatibility flag loaded from info.yml, not an RPE META field. */
+    public boolean useAttachUiFix;
     public int offsetMs;
     public int rpeVersion = 123;
     public final List<BpmChange> bpmChanges = new ArrayList<>();
@@ -41,7 +46,7 @@ public final class ChartDocument {
         if (meta != null) {
             chart.rawMeta = RawJson.unknownFields(meta,
                     "RPEVersion", "background", "charter", "composer", "id",
-                    "level", "name", "offset", "song");
+                    "level", "name", "offset", "song", "backgroundDim");
             chart.name = meta.optString("name", "Untitled");
             chart.composer = meta.optString("composer", "");
             chart.charter = meta.optString("charter", "");
@@ -49,6 +54,8 @@ public final class ChartDocument {
             chart.id = meta.optString("id", "");
             chart.song = meta.optString("song", "");
             chart.background = meta.optString("background", "");
+            double dim = meta.optDouble("backgroundDim", Double.NaN);
+            if (Double.isFinite(dim) && dim >= 0 && dim <= 1) chart.backgroundDim = dim;
             chart.offsetMs = meta.optInt("offset", 0);
             chart.rpeVersion = meta.optInt("RPEVersion", 123);
         }
@@ -110,6 +117,7 @@ public final class ChartDocument {
         JSONObject meta = RawJson.shallowCopy(rawMeta);
         meta.put("RPEVersion", rpeVersion);
         meta.put("background", background);
+        meta.put("backgroundDim", getBackgroundDim());
         meta.put("charter", charter);
         meta.put("composer", composer);
         meta.put("id", id);
@@ -148,6 +156,11 @@ public final class ChartDocument {
         output.write('}');
     }
 
+    public double getBackgroundDim() {
+        return backgroundDim != null && Double.isFinite(backgroundDim)
+                && backgroundDim >= 0 && backgroundDim <= 1 ? backgroundDim : DEFAULT_BACKGROUND_DIM;
+    }
+
     public long revision() {
         return revision;
     }
@@ -170,8 +183,17 @@ public final class ChartDocument {
 
     /** Converts chart beat to elapsed chart milliseconds, excluding META offset. */
     public long beatToMillis(double targetBeat) {
+        return Math.max(0L, Math.round(beatToExactMillis(targetBeat)));
+    }
+
+    /** Chart time without millisecond quantization, for prpr shader ranges and uniforms. */
+    public double beatToSeconds(double targetBeat) {
+        return beatToExactMillis(targetBeat) / 1000.0;
+    }
+
+    private double beatToExactMillis(double targetBeat) {
         double beat = Math.max(0.0, targetBeat);
-        if (beat == 0.0) return 0L;
+        if (beat == 0.0) return 0.0;
 
         double milliseconds = 0.0;
         double cursorBeat = 0.0;
@@ -188,12 +210,21 @@ public final class ChartDocument {
             currentBpm = validBpmOrFallback(change.bpm, currentBpm);
         }
         milliseconds += (beat - cursorBeat) * 60000.0 / currentBpm;
-        return Math.max(0L, Math.round(milliseconds));
+        return Math.max(0.0, milliseconds);
     }
 
     /** Converts elapsed chart milliseconds, excluding META offset, into a beat. */
     public double millisToBeat(long targetMillis) {
-        double remaining = Math.max(0L, targetMillis);
+        return elapsedMillisToBeat(Math.max(0L, targetMillis));
+    }
+
+    /** Fractional chart time for editing; audio timestamps remain integer milliseconds. */
+    public double secondsToBeat(double seconds) {
+        return elapsedMillisToBeat(Double.isFinite(seconds) ? Math.max(0, seconds) * 1000 : 0);
+    }
+
+    private double elapsedMillisToBeat(double milliseconds) {
+        double remaining = milliseconds;
         double cursorBeat = 0.0;
         double currentBpm = bpmAt(0.0);
         for (BpmChange change : bpmChanges) {

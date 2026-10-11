@@ -70,36 +70,43 @@ public final class ProjectBrowserDialog {
         if (activeDialog != null) activeDialog.dismiss();
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(12), dp(16), dp(12));
+        root.setPadding(dp(16), 0, dp(16), dp(12));
         root.setBackgroundColor(BACKGROUND);
 
         LinearLayout header = new LinearLayout(activity);
         header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setBaselineAligned(false);
         header.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(header, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(68)));
 
         TextView title = text(activity.getString(R.string.project_library_title), 24f, Color.WHITE);
+        title.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(title, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button createButton = button(R.string.project_library_create);
-        header.addView(createButton);
+        header.addView(createButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)));
         Button importButton = button(R.string.project_library_import);
         LinearLayout.LayoutParams importParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        importParams.height = dp(44);
+        importParams.gravity = Gravity.CENTER_VERTICAL;
         importParams.setMarginStart(dp(8));
         header.addView(importButton, importParams);
         Button closeButton = button(startup
                 ? R.string.project_library_continue : R.string.project_library_close);
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        closeParams.height = dp(44);
+        closeParams.gravity = Gravity.CENTER_VERTICAL;
         closeParams.setMarginStart(dp(8));
         header.addView(closeButton, closeParams);
 
         ScrollView scroll = new ScrollView(activity);
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, dp(10), 0, dp(8));
+        content.setPadding(0, 0, 0, dp(8));
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -188,23 +195,28 @@ public final class ProjectBrowserDialog {
         detailView.setPadding(0, dp(3), 0, dp(7));
         card.addView(detailView);
 
-        LinearLayout firstRow = actionRow();
-        addAction(firstRow, R.string.project_action_open,
+        GridLayout actions = new GridLayout(activity);
+        actions.setColumnCount(2);
+        actions.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        addAction(actions, R.string.project_action_open,
                 view -> dispatch(() -> callback.onOpen(project)));
-        addAction(firstRow, R.string.project_action_export,
+        addAction(actions, R.string.project_action_export,
                 view -> dispatch(() -> callback.onExport(project)));
-        card.addView(firstRow);
-        LinearLayout secondRow = actionRow();
-        addAction(secondRow, R.string.project_action_rename,
+        addAction(actions, R.string.project_action_rename,
                 view -> dispatch(() -> callback.onRename(project)));
-        addAction(secondRow, R.string.project_action_duplicate,
+        addAction(actions, R.string.project_action_duplicate,
                 view -> dispatch(() -> callback.onDuplicate(project)));
-        card.addView(secondRow);
+        card.addView(actions, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         Button remove = button(R.string.project_action_remove);
         remove.setTextColor(Color.rgb(255, 170, 170));
         remove.setOnClickListener(view -> dispatch(() -> callback.onRemove(project)));
-        card.addView(remove, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        // Match the outer 2 dp margins of the two-column action grid above.
+        removeParams.height = dp(44);
+        removeParams.setMargins(dp(2), dp(2), dp(2), dp(2));
+        card.addView(remove, removeParams);
         return card;
     }
 
@@ -249,19 +261,19 @@ public final class ProjectBrowserDialog {
         return params;
     }
 
-    private LinearLayout actionRow() {
-        LinearLayout row = new LinearLayout(activity);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        return row;
-    }
-
-    private void addAction(LinearLayout row, int textResource, View.OnClickListener listener) {
+    private void addAction(GridLayout grid, int textResource, View.OnClickListener listener) {
         Button button = button(textResource);
         button.setOnClickListener(listener);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setGravity(Gravity.CENTER);
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                GridLayout.spec(grid.getChildCount() / 2, GridLayout.FILL),
+                GridLayout.spec(grid.getChildCount() % 2, GridLayout.FILL, 1f));
+        params.width = 0;
+        params.height = dp(44);
         params.setMargins(dp(2), dp(2), dp(2), dp(2));
-        row.addView(button, params);
+        grid.addView(button, params);
     }
 
     private Button button(int textResource) {
@@ -269,6 +281,16 @@ public final class ProjectBrowserDialog {
         button.setText(textResource);
         button.setAllCaps(false);
         button.setMinHeight(dp(44));
+        button.setMinimumHeight(dp(44));
+        button.setGravity(Gravity.CENTER);
+        button.setIncludeFontPadding(false);
+        button.setPadding(dp(10), 0, dp(10), 0);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(43, 52, 63));
+        background.setCornerRadius(0);
+        button.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x337fffff), background, null));
+        button.setTextColor(Color.WHITE);
         return button;
     }
 

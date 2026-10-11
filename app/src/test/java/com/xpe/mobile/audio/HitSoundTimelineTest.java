@@ -41,6 +41,25 @@ public final class HitSoundTimelineTest {
     }
 
     @Test
+    public void negativeLineAlphaDoesNotMuteRealNotes() {
+        ChartDocument chart = chart();
+        JudgeLine line = new JudgeLine();
+        com.xpe.mobile.model.LineEvent alpha = line.layer(0)
+                .events(com.xpe.mobile.model.EventType.ALPHA).get(0);
+        alpha.start = alpha.end = -255.0;
+        for (NoteType type : NoteType.values()) {
+            line.notes.add(note(type, 1.0, false));
+            line.notes.add(note(type, 1.0, true));
+        }
+        chart.judgeLines.add(line);
+        HitSoundTimeline timeline = HitSoundTimeline.build(chart, 0, 0);
+        assertEquals(NoteType.values().length, timeline.size());
+        for (NoteType type : NoteType.values()) {
+            assertEquals(1, singleCue(timeline, 499L, 500L).count(type));
+        }
+    }
+
+    @Test
     public void groupsOneTimestampAndRetainsEveryTypeCount() {
         ChartDocument chart = chart();
         JudgeLine first = new JudgeLine();

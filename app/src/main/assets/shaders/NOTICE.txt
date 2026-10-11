@@ -1,0 +1,7 @@
+Original shader presets from TeamFlos/phira (prpr), commit
+1559e58bdfc5b0e57f3e864d307d33e666d1e8f6.
+Source: https://github.com/TeamFlos/phira/tree/1559e58bdfc5b0e57f3e864d307d33e666d1e8f6/prpr/src/core/shaders
+These GLSL files are distributed under Phira's GNU GPL v3 license;
+the complete license is included as LICENSE-phira.txt.
+Original shader author/source links are preserved in each shader.
+The surrounding independent PhiStudio Java code retains its existing license.

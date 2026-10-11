@@ -15,17 +15,22 @@ import java.io.InterruptedIOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 
-public final class Mp3PcmDecoder {
+public final class AudioPcmDecoder {
     private static final long CODEC_TIMEOUT_US = 10_000L;
     private static final int GAPLESS_SCAN_LIMIT_BYTES = 2 * 1024 * 1024;
     private static final String ENCODER_DELAY_KEY = "encoder-delay";
     private static final String ENCODER_PADDING_KEY = "encoder-padding";
 
-    private Mp3PcmDecoder() {
+    private AudioPcmDecoder() {
     }
 
     public static PcmAudioAsset decode(Context context, Uri source, File output)
             throws IOException {
+        return decode(context, source, output, Long.MAX_VALUE, Long.MAX_VALUE);
+    }
+
+    static PcmAudioAsset decode(Context context, Uri source, File output,
+                               long maxBytes, long maxDurationMs) throws IOException {
         if (context == null || source == null || output == null) {
             throw new IllegalArgumentException("Context, source and output are required");
         }
@@ -41,15 +46,24 @@ public final class Mp3PcmDecoder {
         try {
             extractor.setDataSource(context, source, null);
             int trackIndex = findAudioTrack(extractor);
-            if (trackIndex < 0) throw new IOException("MP3 contains no audio track");
+            if (trackIndex < 0) throw new IOException("Audio contains no audio track");
             MediaFormat sourceFormat = extractor.getTrackFormat(trackIndex);
             String mime = sourceFormat.getString(MediaFormat.KEY_MIME);
             if (mime == null || !mime.startsWith("audio/")) {
-                throw new IOException("Unsupported MP3 track format");
+                throw new IOException("Unsupported audio track format");
             }
-            Mp3GaplessInfo parsedGapless = readGaplessInfo(context, source);
-            int encoderDelayFrames = optionalInteger(sourceFormat, ENCODER_DELAY_KEY);
-            int encoderPaddingFrames = optionalInteger(sourceFormat, ENCODER_PADDING_KEY);
+            if ("audio/raw".equals(mime)) {
+                // PCM WAV tracks have no compressed bitstream and may have no MediaCodec decoder.
+                extractor.selectTrack(trackIndex);
+                OutputSpec spec = outputSpec(sourceFormat, null);
+                long frames = copyRawTrack(extractor, sourceFormat, spec, output, maxBytes, maxDurationMs);
+                completed = true;
+                return new PcmAudioAsset(output, spec.sampleRate, spec.channelCount, frames);
+            }
+            boolean mp3 = "audio/mpeg".equalsIgnoreCase(mime);
+            Mp3GaplessInfo parsedGapless = mp3 ? readGaplessInfo(context, source) : Mp3GaplessInfo.NONE;
+            int encoderDelayFrames = mp3 ? optionalInteger(sourceFormat, ENCODER_DELAY_KEY) : 0;
+            int encoderPaddingFrames = mp3 ? optionalInteger(sourceFormat, ENCODER_PADDING_KEY) : 0;
             if (encoderDelayFrames == 0) {
                 encoderDelayFrames = parsedGapless.encoderDelayFrames;
             }
@@ -73,14 +87,14 @@ public final class Mp3PcmDecoder {
             try (FileOutputStream pcm = new FileOutputStream(output, false)) {
                 while (!outputEnded) {
                     if (Thread.currentThread().isInterrupted()) {
-                        throw new InterruptedIOException("MP3 decoding cancelled");
+                        throw new InterruptedIOException("Audio decoding cancelled");
                     }
 
                     if (!inputEnded) {
                         int inputIndex = codec.dequeueInputBuffer(CODEC_TIMEOUT_US);
                         if (inputIndex >= 0) {
                             ByteBuffer input = codec.getInputBuffer(inputIndex);
-                            if (input == null) throw new IOException("MP3 decoder input unavailable");
+                            if (input == null) throw new IOException("Audio decoder input unavailable");
                             input.clear();
                             int sampleSize = extractor.readSampleData(input, 0);
                             if (sampleSize < 0) {
@@ -109,11 +123,11 @@ public final class Mp3PcmDecoder {
                                 }
                                 ByteBuffer decoded = codec.getOutputBuffer(outputIndex);
                                 if (decoded == null) {
-                                    throw new IOException("MP3 decoder output unavailable");
+                                    throw new IOException("Audio decoder output unavailable");
                                 }
                                 int frameSize = outputSpec.bytesPerFrame();
                                 if (info.size % frameSize != 0) {
-                                    throw new IOException("MP3 decoder returned partial PCM frame");
+                                    throw new IOException("Audio decoder returned partial PCM frame");
                                 }
                                 long bufferFrames = info.size / frameSize;
                                 long skippedFrames = Math.min(framesToSkip, bufferFrames);
@@ -121,6 +135,8 @@ public final class Mp3PcmDecoder {
                                 int skippedBytes = Math.toIntExact(skippedFrames * frameSize);
                                 int bytesToWrite = info.size - skippedBytes;
                                 if (bytesToWrite > 0) {
+                                    long nextFrames = writtenFrames + bytesToWrite / frameSize;
+                                    checkLimits(nextFrames, outputSpec.sampleRate, frameSize, maxBytes, maxDurationMs);
                                     ByteBuffer slice = decoded.duplicate();
                                     slice.position(info.offset + skippedBytes);
                                     slice.limit(info.offset + info.size);
@@ -137,7 +153,7 @@ public final class Mp3PcmDecoder {
             }
 
             if (outputSpec == null || writtenFrames <= 0L) {
-                throw new IOException("MP3 decoder produced no PCM audio");
+                throw new IOException("Audio decoder produced no PCM audio");
             }
             long padding = Math.min(writtenFrames, Math.max(0, encoderPaddingFrames));
             if (padding > 0L) {
@@ -150,7 +166,7 @@ public final class Mp3PcmDecoder {
             return new PcmAudioAsset(output, outputSpec.sampleRate,
                     outputSpec.channelCount, writtenFrames);
         } catch (RuntimeException exception) {
-            throw new IOException("MP3 decoder failed", exception);
+            throw new IOException("Audio decoder failed", exception);
         } finally {
             if (codec != null) {
                 if (codecStarted) {
@@ -174,6 +190,39 @@ public final class Mp3PcmDecoder {
             if (mime != null && mime.startsWith("audio/")) return index;
         }
         return -1;
+    }
+
+    static void checkLimits(long frames, int rate, int frameBytes, long maxBytes, long maxDurationMs)
+            throws IOException {
+        if (frames > maxBytes / frameBytes || frames * 1000.0 / rate > maxDurationMs) {
+            throw new IOException("Hit sound exceeds the decoded size/duration limit");
+        }
+    }
+
+    private static long copyRawTrack(MediaExtractor extractor, MediaFormat format, OutputSpec spec,
+                                     File output, long maxBytes, long maxDurationMs) throws IOException {
+        int capacity = Math.max(64 * 1024, optionalInteger(format, MediaFormat.KEY_MAX_INPUT_SIZE));
+        if (capacity > maxBytes || capacity > 2 * 1024 * 1024) {
+            throw new IOException("PCM input block exceeds size limit");
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(capacity);
+        long frames = 0;
+        try (FileOutputStream pcm = new FileOutputStream(output)) {
+            while (true) {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Audio decoding cancelled");
+                buffer.clear();
+                int count = extractor.readSampleData(buffer, 0);
+                if (count < 0) break;
+                if (count % spec.bytesPerFrame() != 0) throw new IOException("Incomplete raw PCM frame");
+                frames += count / spec.bytesPerFrame();
+                checkLimits(frames, spec.sampleRate, spec.bytesPerFrame(), maxBytes, maxDurationMs);
+                buffer.position(0); buffer.limit(count);
+                writeBuffer(pcm, buffer);
+                extractor.advance();
+            }
+        }
+        if (frames == 0) throw new IOException("Empty PCM track");
+        return frames;
     }
 
     private static int optionalInteger(MediaFormat format, String key) {
@@ -210,12 +259,12 @@ public final class Mp3PcmDecoder {
                 ? format.getInteger(MediaFormat.KEY_PCM_ENCODING)
                 : AudioFormat.ENCODING_PCM_16BIT;
         if (encoding != AudioFormat.ENCODING_PCM_16BIT) {
-            throw new IOException("MP3 decoder did not provide 16-bit PCM");
+            throw new IOException("Audio decoder did not provide 16-bit PCM");
         }
         OutputSpec current = new OutputSpec(sampleRate, channelCount);
         if (previous != null && (previous.sampleRate != current.sampleRate
                 || previous.channelCount != current.channelCount)) {
-            throw new IOException("MP3 PCM format changed during decoding");
+            throw new IOException("Audio PCM format changed during decoding");
         }
         return current;
     }
@@ -236,7 +285,7 @@ public final class Mp3PcmDecoder {
 
         OutputSpec(int sampleRate, int channelCount) throws IOException {
             if (sampleRate <= 0 || channelCount < 1 || channelCount > 2) {
-                throw new IOException("Unsupported decoded MP3 PCM format");
+                throw new IOException("Unsupported decoded audio PCM format");
             }
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;

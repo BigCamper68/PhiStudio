@@ -31,6 +31,7 @@ import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.Easing;
 import com.xpe.mobile.model.EventType;
 import com.xpe.mobile.model.JudgeLine;
+import com.xpe.mobile.model.AttachedUiElement;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
 import com.xpe.mobile.model.NoteType;
@@ -41,6 +42,7 @@ import java.util.Locale;
 
 final class EditorDialogController extends EditorDialogSection {
     interface Host {
+        WorkbenchView workbench();
         EditorSettings editorSettings();
 
         void applyEditorSettings(EditorSettings settings);
@@ -50,6 +52,8 @@ final class EditorDialogController extends EditorDialogSection {
         long audioDurationMs();
 
         void onLineAppearanceChanged();
+        List<String> hitSoundChoices();
+        boolean isHitSoundAvailable(String reference);
 
         void showMessage(String message);
     }
@@ -61,6 +65,21 @@ final class EditorDialogController extends EditorDialogSection {
         super(activity, editorView, host);
         storyboardDialogs = new StoryboardDialogSection(activity, editorView, host);
         operationDialogs = new EditorOperationDialogSection(activity, editorView, host);
+        host.workbench().setSelectionPropertiesOpener(target -> {
+            if (target instanceof Note) showNoteProperties((Note) target);
+            else if (target instanceof LineEvent) showEventProperties((LineEvent) target);
+            else if (target instanceof com.xpe.mobile.model.ExtendedLineEvents.TimedEvent) {
+                for (com.xpe.mobile.model.StoryboardEventType type
+                        : com.xpe.mobile.model.StoryboardEventType.editableTypes()) {
+                    com.xpe.mobile.model.ExtendedLineEvents.TimedEvent event =
+                            (com.xpe.mobile.model.ExtendedLineEvents.TimedEvent) target;
+                    if (editorView.getCurrentJudgeLine().extended.contains(type, event)) {
+                        showStoryboardProperties(type, event, false);
+                        break;
+                    }
+                }
+            }
+        });
     }
 
     public void showMetadata() {
@@ -91,12 +110,18 @@ final class EditorDialogController extends EditorDialogSection {
         content.addView(offsetHint);
         double currentBpm = chart.bpmChanges.isEmpty() ? 120.0 : chart.bpmChanges.get(0).bpm;
         EditText bpm = addField(content, "Base BPM", String.format(Locale.US, "%.6f", currentBpm), true);
+        EditText backgroundDim = addField(content, getString(R.string.field_background_dim),
+                formatNumber(chart.getBackgroundDim()), true);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle("Chart metadata")
+                .retainOnLineChange()
                 .setView(scrollView)
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", (ignoredDialog, which) -> {
+                .setPositiveButton("Save", null)
+                .create();
+        showEditorWindow(dialog, () -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(view -> {
                     try {
                         String parsedName = nonEmpty(name.getText().toString(), "Untitled");
                         String parsedComposer = composer.getText().toString().trim();
@@ -105,6 +130,10 @@ final class EditorDialogController extends EditorDialogSection {
                         String parsedId = id.getText().toString().trim();
                         int parsedOffset = Integer.parseInt(offset.getText().toString().trim());
                         double parsedBpm = Double.parseDouble(bpm.getText().toString().trim());
+                        double parsedDim = parseDouble(backgroundDim);
+                        if (!Double.isFinite(parsedDim) || parsedDim < 0 || parsedDim > 1) {
+                            throw new NumberFormatException("Background dim must be between 0 and 1");
+                        }
                         if (!Double.isFinite(parsedBpm) || parsedBpm <= 0.0) {
                             throw new NumberFormatException("BPM must be positive and finite");
                         }
@@ -125,14 +154,14 @@ final class EditorDialogController extends EditorDialogSection {
                         chart.level = parsedLevel;
                         chart.id = parsedId;
                         chart.offsetMs = parsedOffset;
+                        chart.backgroundDim = parsedDim;
                         editorView.chartMetadataChanged();
+                        dialog.dismiss();
                         showMessage("Metadata saved");
                     } catch (NumberFormatException exception) {
-                        showMessage("Invalid offset or BPM");
+                        showMessage("Invalid offset, BPM, or background dim (0 to 1)");
                     }
-                })
-                .create();
-        showEditorWindow(dialog, null);
+                }));
     }
 
     public void showBpmList() {
@@ -148,28 +177,25 @@ final class EditorDialogController extends EditorDialogSection {
         root.setPadding(pad, pad, pad, pad);
 
         LinearLayout columns = new LinearLayout(this);
-        columns.setOrientation(LinearLayout.HORIZONTAL);
+        columns.setOrientation(LinearLayout.VERTICAL);
         root.addView(columns, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        ScrollView listScroll = new ScrollView(this);
+        ScrollView listScroll = new EditorListScrollView(this);
         listScroll.setFillViewport(true);
+        listScroll.setNestedScrollingEnabled(true);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         listScroll.addView(list, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
-        columns.addView(listScroll, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.05f));
+        columns.addView(listScroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(192)));
 
-        ScrollView formScroll = new ScrollView(this);
-        formScroll.setFillViewport(true);
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(14), 0, 0, dp(8));
-        formScroll.addView(form, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
-        columns.addView(formScroll, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.0f));
+        form.setPadding(0, dp(6), 0, dp(8));
+        columns.addView(form, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView selectionTitle = new TextView(this);
         selectionTitle.setTextSize(18f);
@@ -190,13 +216,11 @@ final class EditorDialogController extends EditorDialogSection {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        actions.setPadding(0, dp(8), 0, 0);
-        root.addView(actions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         Button newButton = addActionButton(actions, R.string.bpm_list_new);
         Button applyButton = addActionButton(actions, R.string.bpm_list_apply);
         Button deleteButton = addActionButton(actions, R.string.bpm_list_delete);
         Button closeButton = addActionButton(actions, R.string.bpm_list_close);
+        setListButtons(actions, newButton, applyButton, deleteButton, closeButton);
 
         BpmChange[] selected = new BpmChange[]{chart.bpmChanges.get(0)};
         boolean[] creating = new boolean[]{false};
@@ -207,7 +231,7 @@ final class EditorDialogController extends EditorDialogSection {
             for (int index = 0; index < chart.bpmChanges.size(); index++) {
                 BpmChange change = chart.bpmChanges.get(index);
                 boolean selectedRow = !creating[0] && change == selected[0];
-                Button row = new Button(this);
+                Button row = WorkbenchView.button(this, "");
                 String suffix = index == 0 ? getString(R.string.bpm_list_base_suffix) : "";
                 String rowText = getString(R.string.bpm_list_row, index + 1,
                         change.startTime.toString(), compactBpm(change.bpm), suffix);
@@ -215,19 +239,18 @@ final class EditorDialogController extends EditorDialogSection {
                         ? getString(R.string.bpm_list_selected_prefix, rowText)
                         : rowText);
                 row.setAllCaps(false);
-                row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-                row.setMinHeight(dp(48));
+                row.setGravity(Gravity.CENTER);
                 row.setAlpha(selectedRow ? 1.0f : 0.78f);
                 row.setEnabled(true);
                 row.setOnClickListener(view -> {
                     selected[0] = change;
                     creating[0] = false;
                     refresh[0].run();
-                    formScroll.smoothScrollTo(0, 0);
+                    reveal(selectionTitle);
                 });
                 list.addView(row, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                        dp(48)));
             }
 
             if (creating[0]) {
@@ -260,7 +283,7 @@ final class EditorDialogController extends EditorDialogSection {
                     last.startTime.toDouble() + 1.0, 1).toString());
             bpmValue.setText(formatNumber(last.bpm));
             refresh[0].run();
-            formScroll.smoothScrollTo(0, 0);
+            reveal(selectionTitle);
             startTime.requestFocus();
         });
         applyButton.setOnClickListener(view -> {
@@ -299,9 +322,11 @@ final class EditorDialogController extends EditorDialogSection {
         });
 
         refresh[0].run();
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.bpm_list_title)
+                .retainOnLineChange()
                 .setView(root)
+                .setActionsView(actions)
                 .create();
         closeButton.setOnClickListener(view -> dialog.dismiss());
         showEditorWindow(dialog, null);
@@ -309,6 +334,11 @@ final class EditorDialogController extends EditorDialogSection {
 
     public void showStoryboardEditor() {
         storyboardDialogs.showStoryboardEditor();
+    }
+
+    public void showStoryboardProperties(com.xpe.mobile.model.StoryboardEventType type,
+            com.xpe.mobile.model.ExtendedLineEvents.TimedEvent source, boolean creating) {
+        storyboardDialogs.showStoryboardEventForm(type, source, creating, editorView::invalidate);
     }
 
     public void showSettings() {
@@ -325,14 +355,16 @@ final class EditorDialogController extends EditorDialogSection {
                 formatNumber(draft.soundEffectVolume), true);
         CheckBox highlight = addCheckBox(content, R.string.settings_highlight_simultaneous,
                 draft.highlightSimultaneousNotes);
+        CheckBox fakeOutline = addCheckBox(content, R.string.settings_fake_note_outline,
+                draft.showFakeNoteOutline);
         EditText noteWidth = addField(content, getString(R.string.settings_note_width),
                 formatNumber(draft.noteWidthPixels), true);
-        EditText lineWidth = addField(content, getString(R.string.settings_line_width),
-                formatNumber(draft.lineDefaultWidth), true);
         CheckBox markLineId = addCheckBox(content, R.string.settings_mark_line_id,
                 draft.markLineId);
-        EditText lineColor = addField(content, getString(R.string.settings_line_color),
-                String.format(Locale.US, "#%06X", draft.lineColorRgb), false);
+        CheckBox highlightCurrentLine = addCheckBox(content, R.string.settings_highlight_current_line,
+                draft.highlightCurrentLine);
+        ColorPickerButton lineColor = ColorPickerButton.addTo(content,
+                getString(R.string.settings_line_color), draft.lineColorRgb, false);
         EditText backgroundBrightness = addField(content,
                 getString(R.string.settings_background_brightness),
                 Integer.toString(draft.backgroundBrightness), true);
@@ -347,14 +379,12 @@ final class EditorDialogController extends EditorDialogSection {
         EditText autosaveInterval = addField(content,
                 getString(R.string.settings_autosave_interval),
                 formatNumber(draft.autosaveIntervalSeconds), true);
+        CheckBox tapToSeek = addCheckBox(content, R.string.settings_tap_to_seek, draft.tapToSeek);
         EditText timelineScroll = addField(content,
                 getString(R.string.settings_timeline_scroll_speed),
                 formatNumber(draft.timelineScrollSpeed), true);
         EditText eventScroll = addField(content, getString(R.string.settings_event_scroll_speed),
                 formatNumber(draft.eventScrollSpeed), true);
-        EditText previewAlpha = addField(content,
-                getString(R.string.settings_preview_background_alpha),
-                formatNumber(draft.previewBackgroundAlpha), true);
         EditText playerWidth = addField(content, getString(R.string.settings_player_width),
                 Integer.toString(draft.playerWidth), true);
         EditText playerHeight = addField(content, getString(R.string.settings_player_height),
@@ -414,8 +444,9 @@ final class EditorDialogController extends EditorDialogSection {
                 getString(R.string.settings_correction_combination),
                 formatNumber(draft.correctionCombinationSeconds), true);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.settings_title)
+                .retainOnLineChange()
                 .setView(scroll)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_apply, null)
@@ -426,18 +457,19 @@ final class EditorDialogController extends EditorDialogSection {
                         draft.musicVolume = parseDouble(musicVolume);
                         draft.soundEffectVolume = parseDouble(soundEffectVolume);
                         draft.highlightSimultaneousNotes = highlight.isChecked();
+                        draft.showFakeNoteOutline = fakeOutline.isChecked();
                         draft.noteWidthPixels = parseDouble(noteWidth);
-                        draft.lineDefaultWidth = parseDouble(lineWidth);
                         draft.markLineId = markLineId.isChecked();
-                        draft.lineColorRgb = parseRgb(lineColor.getText().toString());
+                        draft.highlightCurrentLine = highlightCurrentLine.isChecked();
+                        draft.lineColorRgb = lineColor.getColor() & 0xffffff;
                         draft.backgroundBrightness = parseInteger(backgroundBrightness);
                         draft.tapFlickHitsoundOffsetMs = parseInteger(tapOffset);
                         draft.dragHitsoundOffsetMs = parseInteger(dragOffset);
                         draft.autosaveEnabled = autosave.isChecked();
                         draft.autosaveIntervalSeconds = parseDouble(autosaveInterval);
+                        draft.tapToSeek = tapToSeek.isChecked();
                         draft.timelineScrollSpeed = parseDouble(timelineScroll);
                         draft.eventScrollSpeed = parseDouble(eventScroll);
-                        draft.previewBackgroundAlpha = parseDouble(previewAlpha);
                         draft.playerWidth = parseInteger(playerWidth);
                         draft.playerHeight = parseInteger(playerHeight);
                         draft.autoApplyPropertyEdits = autoApply.isChecked();
@@ -520,12 +552,14 @@ final class EditorDialogController extends EditorDialogSection {
             labels.add(diagnosticLabel(diagnostic));
         }
         ListView list = new ListView(this);
+        list.setNestedScrollingEnabled(true);
         list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels));
         root.addView(list, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(240)));
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.diagnostics_title)
+                .retainOnLineChange()
                 .setView(root)
                 .setNegativeButton(R.string.bpm_list_close, null)
                 .create();
@@ -533,6 +567,7 @@ final class EditorDialogController extends EditorDialogSection {
             ChartDiagnostic diagnostic = diagnostics.get(position);
             if (editorView.navigateToDiagnostic(diagnostic)) {
                 dialog.dismiss();
+                host.workbench().switchTab(0);
                 showMessage(getString(R.string.diagnostics_navigated));
             }
         });
@@ -605,22 +640,23 @@ final class EditorDialogController extends EditorDialogSection {
 
         int pad = dp(12);
         LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, pad, pad, pad);
 
-        ScrollView listScroll = new ScrollView(this);
+        ScrollView listScroll = new EditorListScrollView(this);
         listScroll.setFillViewport(true);
+        listScroll.setNestedScrollingEnabled(true);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         listScroll.addView(list);
-        root.addView(listScroll, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.08f));
+        root.addView(listScroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(192)));
 
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
-        details.setPadding(dp(14), 0, 0, 0);
-        root.addView(details, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.0f));
+        details.setPadding(0, dp(6), 0, 0);
+        root.addView(details, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView selectedTitle = new TextView(this);
         selectedTitle.setTextSize(18f);
@@ -641,16 +677,9 @@ final class EditorDialogController extends EditorDialogSection {
         firstActions.setOrientation(LinearLayout.HORIZONTAL);
         Button add = addActionButton(firstActions, R.string.line_manager_add);
         Button properties = addActionButton(firstActions, R.string.properties_button);
-        details.addView(firstActions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        LinearLayout secondActions = new LinearLayout(this);
-        secondActions.setOrientation(LinearLayout.HORIZONTAL);
-        Button delete = addActionButton(secondActions, R.string.line_manager_delete);
-        Button close = addActionButton(secondActions, R.string.bpm_list_close);
-        details.addView(secondActions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
+        Button delete = addActionButton(firstActions, R.string.line_manager_delete);
+        Button close = addActionButton(firstActions, R.string.bpm_list_close);
+        setListButtons(firstActions, add, properties, delete, close);
 
         int[] selectedIndex = new int[]{editorView.getLineIndex()};
         Runnable[] refresh = new Runnable[1];
@@ -661,10 +690,9 @@ final class EditorDialogController extends EditorDialogSection {
             for (int index = 0; index < chart.judgeLines.size(); index++) {
                 JudgeLine line = chart.judgeLines.get(index);
                 boolean active = index == selectedIndex[0];
-                Button row = new Button(this);
+                Button row = WorkbenchView.button(this, "");
                 row.setAllCaps(false);
-                row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-                row.setMinHeight(dp(48));
+                row.setGravity(Gravity.CENTER);
                 row.setAlpha(active ? 1.0f : 0.78f);
                 row.setText(getString(R.string.line_manager_row, index, line.name,
                         active ? getString(R.string.line_manager_active_suffix) : ""));
@@ -676,7 +704,7 @@ final class EditorDialogController extends EditorDialogSection {
                 });
                 list.addView(row, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                        dp(48)));
             }
             JudgeLine selected = chart.judgeLines.get(selectedIndex[0]);
             selectedTitle.setText(getString(R.string.line_manager_row, selectedIndex[0],
@@ -690,9 +718,11 @@ final class EditorDialogController extends EditorDialogSection {
             delete.setEnabled(selectedIndex[0] != 0);
         };
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.line_manager_title)
+                .retainOnLineChange()
                 .setView(root)
+                .setActionsView(firstActions)
                 .create();
         add.setOnClickListener(view -> {
             editorView.addJudgeLine();
@@ -701,8 +731,7 @@ final class EditorDialogController extends EditorDialogSection {
         });
         properties.setOnClickListener(view -> {
             JudgeLine target = chart.judgeLines.get(selectedIndex[0]);
-            dialog.dismiss();
-            showLineProperties(target);
+            showLineProperties(target, refresh[0]);
         });
         delete.setOnClickListener(view -> new AlertDialog.Builder(this)
                 .setTitle(R.string.line_delete_title)
@@ -724,7 +753,7 @@ final class EditorDialogController extends EditorDialogSection {
         showEditorWindow(dialog, null);
     }
 
-    private void showLineProperties(JudgeLine line) {
+    private void showLineProperties(JudgeLine line, Runnable afterSave) {
         ScrollView scrollView = new ScrollView(this);
         LinearLayout content = createDialogContent(scrollView);
         EditText name = addField(content, getString(R.string.field_line_name), line.name, false);
@@ -733,8 +762,13 @@ final class EditorDialogController extends EditorDialogSection {
         EditText bpmFactor = addField(content, getString(R.string.field_line_bpm_factor), formatNumber(line.bpmFactor), true);
         EditText zOrder = addField(content, getString(R.string.field_line_z_order), Integer.toString(line.zOrder), true);
         CheckBox cover = addCheckBox(content, R.string.field_line_cover, line.cover);
+        Spinner attachedUi = addSpinner(content, R.string.field_line_hud,
+                R.array.line_hud_elements, line.attachUi == null ? 0 : line.attachUi.ordinal() + 1);
+        TextView hudHelp = new TextView(this);
+        hudHelp.setText(R.string.field_line_hud_help);
+        content.addView(hudHelp);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.line_properties_title)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -750,6 +784,8 @@ final class EditorDialogController extends EditorDialogSection {
                         edited.bpmFactor = parseDouble(bpmFactor);
                         edited.zOrder = parseInteger(zOrder);
                         edited.cover = cover.isChecked();
+                        int hudIndex = attachedUi.getSelectedItemPosition();
+                        edited.attachUi = hudIndex == 0 ? null : AttachedUiElement.values()[hudIndex - 1];
                         EditorView.LineApplyResult result = editorView.applyJudgeLineProperties(line, edited);
                         if (result != EditorView.LineApplyResult.APPLIED) {
                             showLineApplyError(result);
@@ -758,7 +794,7 @@ final class EditorDialogController extends EditorDialogSection {
                         host.onLineAppearanceChanged();
                         dialog.dismiss();
                         showMessage(getString(R.string.line_properties_applied));
-                        showLineManager();
+                        afterSave.run();
                     } catch (IllegalArgumentException exception) {
                         showMessage(getString(R.string.line_validation_invalid));
                     }
@@ -774,6 +810,21 @@ final class EditorDialogController extends EditorDialogSection {
             default: message = R.string.line_validation_invalid; break;
         }
         showMessage(getString(message));
+    }
+
+    private void setListButtons(LinearLayout row, Button... buttons) {
+        setCompactButtons(row, buttons);
+        row.setPadding(0, 0, 0, 0);
+        row.setGravity(Gravity.CENTER);
+        for (Button button : buttons) {
+            button.setGravity(Gravity.CENTER);
+            button.setSingleLine(true);
+            button.setAutoSizeTextTypeUniformWithConfiguration(8, 12, 1,
+                    android.util.TypedValue.COMPLEX_UNIT_SP);
+            android.view.ViewGroup.LayoutParams params = button.getLayoutParams();
+            params.height = dp(EditorPanelWindow.ACTION_HEIGHT_DP);
+            button.setLayoutParams(params);
+        }
     }
 
     public void showNoteProperties(Note note) {
@@ -792,9 +843,35 @@ final class EditorDialogController extends EditorDialogSection {
         EditText yOffset = addField(content, getString(R.string.field_note_y_offset), formatNumber(note.yOffset), true);
         EditText visibleTime = addField(content, getString(R.string.field_note_visible_time), formatNumber(note.visibleTime), true);
         EditText alpha = addField(content, getString(R.string.field_note_alpha), Integer.toString(note.alpha), true);
+        EditText hitSound = addField(content, getString(R.string.field_note_hitsound),
+                note.hitSound == null ? "" : note.hitSound, false);
+        hitSound.setSingleLine(true);
+        TextView hitSoundHint = new TextView(this);
+        hitSoundHint.setText(R.string.field_note_hitsound_hint);
+        hitSoundHint.setTextSize(12f);
+        content.addView(hitSoundHint);
+        Button chooseHitSound = new Button(this);
+        chooseHitSound.setText(R.string.action_choose_hitsound);
+        content.addView(chooseHitSound);
+        chooseHitSound.setOnClickListener(view -> {
+            List<String> choices = host.hitSoundChoices();
+            List<String> labels = new ArrayList<>();
+            labels.add(getString(R.string.hitsound_default));
+            for (String path : choices) {
+                if ("tap.mp3".equals(path)) labels.add("Tap / Hold (tap.mp3)");
+                else if ("flick.mp3".equals(path)) labels.add("Flick (flick.mp3)");
+                else if ("drag.mp3".equals(path)) labels.add("Drag (drag.mp3)");
+                else labels.add(path);
+            }
+            new AlertDialog.Builder(this).setTitle(R.string.field_note_hitsound)
+                    .setItems(labels.toArray(new String[0]), (ignored, index) ->
+                            hitSound.setText(index == 0 ? "" : choices.get(index - 1)))
+                    .setNegativeButton(R.string.action_cancel, null).show();
+        });
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.note_properties_title)
+                .selectionProperties(note, editorView.getWorkbenchTab() == 1 ? 1 : 0)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_apply, null)
@@ -815,6 +892,13 @@ final class EditorDialogController extends EditorDialogSection {
                 edited.yOffset = parseDouble(yOffset);
                 edited.visibleTime = parseDouble(visibleTime);
                 edited.alpha = parseInteger(alpha);
+                String reference = hitSound.getText().toString().trim();
+                edited.hitSound = reference.isEmpty() ? null : reference;
+                if (!java.util.Objects.equals(edited.hitSound, note.hitSound)
+                        && !host.isHitSoundAvailable(edited.hitSound)) {
+                    showMessage(getString(R.string.hitsound_file_unavailable));
+                    return;
+                }
 
                 PropertyValidator.Error validation = PropertyValidator.validate(edited);
                 if (validation != PropertyValidator.Error.NONE) {
@@ -909,8 +993,9 @@ final class EditorDialogController extends EditorDialogSection {
         bezierY2.addTextChangedListener(easingWatcher);
         refreshEasingUi.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(getString(R.string.event_properties_title, eventTypeLabel(event.type)))
+                .selectionProperties(event, 0)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_apply, null)

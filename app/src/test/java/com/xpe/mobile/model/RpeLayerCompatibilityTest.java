@@ -33,7 +33,7 @@ public final class RpeLayerCompatibilityTest {
     }
 
     @Test
-    public void prefixesDelayedBaseValuesWithRpeDefaults() throws Exception {
+    public void preservesDelayedBaseAlphaAndPrefixesSpeed() throws Exception {
         JudgeLine line = new JudgeLine();
         EventLayer base = line.layer(0);
         base.events(EventType.ALPHA).clear();
@@ -48,8 +48,10 @@ public final class RpeLayerCompatibilityTest {
         JSONObject alphaPrefix = exported.getJSONArray("alphaEvents").getJSONObject(0);
         JSONObject speedPrefix = exported.getJSONArray("speedEvents").getJSONObject(0);
 
-        assertEquals(255.0, alphaPrefix.getDouble("start"), 0.0);
-        assertEquals(255.0, alphaPrefix.getDouble("end"), 0.0);
+        assertEquals(1, exported.getJSONArray("alphaEvents").length());
+        assertBeat(alphaPrefix.getJSONArray("startTime"), 4, 0, 1);
+        assertEquals(64.0, alphaPrefix.getDouble("start"), 0.0);
+        assertEquals(0.0, alphaPrefix.getDouble("end"), 0.0);
         assertEquals(10.0, speedPrefix.getDouble("start"), 0.0);
         assertEquals(10.0, speedPrefix.getDouble("end"), 0.0);
     }

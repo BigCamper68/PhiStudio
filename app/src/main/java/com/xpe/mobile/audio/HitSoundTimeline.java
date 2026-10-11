@@ -4,11 +4,16 @@ import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.JudgeLine;
 import com.xpe.mobile.model.Note;
 import com.xpe.mobile.model.NoteType;
+import com.xpe.mobile.model.HitSoundReference;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Set;
+import java.util.TreeSet;
 
 /** Immutable, time-sorted hit-sound schedule for one playback run. */
 public final class HitSoundTimeline {
@@ -42,7 +47,9 @@ public final class HitSoundTimeline {
                 long timeMs = saturatingAdd(
                         chart.beatToMillis(Math.max(0.0, note.startTime.toDouble())),
                         offsetMs);
-                events.add(new Event(timeMs, lineIndex, noteIndex, note.type));
+                events.add(new Event(timeMs, lineIndex, noteIndex,
+                        HitSoundReference.soundType(note.type, note.hitSound),
+                        HitSoundReference.isCustom(note.hitSound) ? note.hitSound : null));
             }
         }
         events.sort(Comparator.comparingLong((Event event) -> event.timeMs)
@@ -80,6 +87,16 @@ public final class HitSoundTimeline {
         return noteCount;
     }
 
+    List<Cue> allCues() {
+        return cues;
+    }
+
+    public Set<String> customPaths() {
+        Set<String> paths = new TreeSet<>();
+        for (Cue cue : cues) for (CustomSound sound : cue.customSounds()) paths.add(sound.path());
+        return Collections.unmodifiableSet(paths);
+    }
+
     int cueCount() {
         return cues.size();
     }
@@ -100,15 +117,22 @@ public final class HitSoundTimeline {
         List<Cue> result = new ArrayList<>();
         long timeMs = events.get(0).timeMs;
         int[] counts = new int[NOTE_TYPE_COUNT];
+        Map<String,int[]> custom = Collections.emptyMap();
         for (Event event : events) {
             if (event.timeMs != timeMs) {
-                result.add(new Cue(timeMs, counts));
+                result.add(new Cue(timeMs, counts, custom));
                 timeMs = event.timeMs;
                 counts = new int[NOTE_TYPE_COUNT];
+                custom = Collections.emptyMap();
             }
-            counts[event.type.ordinal()]++;
+            if (event.customPath == null) counts[event.type.ordinal()]++;
+            else {
+                if (custom.isEmpty()) custom = new LinkedHashMap<>();
+                custom.computeIfAbsent(event.customPath, ignored -> new int[NOTE_TYPE_COUNT])
+                        [event.type.ordinal()]++;
+            }
         }
-        result.add(new Cue(timeMs, counts));
+        result.add(new Cue(timeMs, counts, custom));
         return result;
     }
 
@@ -123,12 +147,14 @@ public final class HitSoundTimeline {
         final int lineIndex;
         final int noteIndex;
         final NoteType type;
+        final String customPath;
 
-        Event(long timeMs, int lineIndex, int noteIndex, NoteType type) {
+        Event(long timeMs, int lineIndex, int noteIndex, NoteType type, String customPath) {
             this.timeMs = timeMs;
             this.lineIndex = lineIndex;
             this.noteIndex = noteIndex;
             this.type = type;
+            this.customPath = customPath;
         }
     }
 
@@ -137,11 +163,19 @@ public final class HitSoundTimeline {
         private final long timeMs;
         private final int[] counts;
         private final int noteCount;
+        private final List<CustomSound> customSounds;
 
-        private Cue(long timeMs, int[] counts) {
+        private Cue(long timeMs, int[] counts, Map<String,int[]> custom) {
             this.timeMs = timeMs;
             int total = 0;
             for (int count : counts) total += Math.max(0, count);
+            List<CustomSound> sounds = new ArrayList<>(custom.size());
+            for (Map.Entry<String,int[]> entry : custom.entrySet()) {
+                CustomSound sound = new CustomSound(entry.getKey(), entry.getValue());
+                sounds.add(sound);
+                total += sound.count();
+            }
+            customSounds = Collections.unmodifiableList(sounds);
             this.counts = counts.clone();
             noteCount = total;
         }
@@ -160,5 +194,26 @@ public final class HitSoundTimeline {
             return noteCount;
         }
 
+        public List<CustomSound> customSounds() { return customSounds; }
+
+    }
+
+    /** A custom file can be used by multiple note types at the same timestamp. */
+    public static final class CustomSound {
+        private final String path;
+        private final int[] fallbackCounts;
+        private final int count;
+
+        private CustomSound(String path, int[] counts) {
+            this.path = path;
+            fallbackCounts = counts.clone();
+            int total = 0;
+            for (int value : counts) total += value;
+            count = total;
+        }
+
+        public String path() { return path; }
+        public int count() { return count; }
+        public int fallbackCount(NoteType type) { return fallbackCounts[type.ordinal()]; }
     }
 }

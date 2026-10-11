@@ -2,19 +2,14 @@ package com.xpe.mobile.audio;
 
 import android.app.Activity;
 import android.media.AudioAttributes;
-import android.media.MediaPlayer;
-import android.media.MediaTimestamp;
-import android.media.PlaybackParams;
 import android.media.SoundPool;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Handler;
-
 import com.xpe.mobile.R;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.model.NoteType;
-import com.xpe.mobile.packageio.AndroidPackageIo;
-
+import com.xpe.mobile.packageio.ChartPackage;
+import com.xpe.mobile.packageio.PackageHitSoundCatalog;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -26,52 +21,35 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-/**
- * Owns editor music playback, MP3 decoding and note hit sounds.
- *
- * <p>The controller deliberately uses an executor that is independent from project-library I/O.
- * Decoding a long MP3 therefore cannot block project open, import, recovery or duplication.
- */
+/** One sample-addressed PCM transport for every supported music format and scheduled hits. */
 public final class EditorAudioController implements AutoCloseable {
     public interface Listener {
         void onAudioStateChanged();
-
         void onAudioCompleted();
-
         void showMessage(String message);
-
         boolean isHostUnavailable();
     }
-
-    private static final long AUDIO_SEEK_RETRY_DELAY_MS = 40L;
-
     private final Activity activity;
     private final Handler mainHandler;
     private final Listener listener;
     private final ExecutorService decodeExecutor;
-    private final PlaybackPositionTracker playbackPositionTracker =
-            new PlaybackPositionTracker();
-    private final PlaybackSeekCoordinator playbackSeekCoordinator =
-            new PlaybackSeekCoordinator();
     private final Map<NoteType, Integer> hitSoundIds = new EnumMap<>(NoteType.class);
-    private final Set<Integer> loadedHitSounds =
-            Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Set<Integer> loadedHitSounds = Collections.synchronizedSet(new LinkedHashSet<>());
     private final HitSoundPlayer hitSoundPlayer;
-
-    private MediaPlayer mediaPlayer;
+    private final PcmHitSound[] scheduledSamples;
+    private final CustomHitSoundRepository customHitSounds;
+    private final HitSoundPlaybackGate hitSoundStartGate = new HitSoundPlaybackGate();
+    private final Map<String,Integer> customPoolIds = new java.util.HashMap<>();
+    private ChartPackage hitSoundPackage;
     private SoundPool hitSoundPool;
     private PcmAudioPlayer pcmAudioPlayer;
     private Future<?> audioDecodeTask;
-    private File decodedMp3PcmFile;
+    private File decodedPcmFile;
     private EditorSettings settings = new EditorSettings();
-    private boolean audioPrepared;
-    private boolean audioStartPending;
-    private boolean audioSeekPending;
-    private boolean currentAudioIsMp3;
+    private HitSoundTimeline timeline = HitSoundTimeline.empty();
+    private long audioOffsetMs;
     private boolean closed;
-    private int audioCommandGeneration;
     private int audioLoadGeneration;
-    private long pendingAudioPositionMs;
 
     public EditorAudioController(Activity activity, Handler mainHandler, Listener listener) {
         if (activity == null || mainHandler == null || listener == null) {
@@ -81,224 +59,187 @@ public final class EditorAudioController implements AutoCloseable {
         this.mainHandler = mainHandler;
         this.listener = listener;
         decodeExecutor = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "phistudio-mp3-decode");
+            Thread thread = new Thread(runnable, "phistudio-audio-decode");
             thread.setDaemon(true);
             return thread;
         });
         initializeHitSounds();
         HitSoundPlayer player;
-        try {
-            player = new HitSoundPlayer(activity, mainHandler, this::playHitSoundFallback);
-        } catch (IOException | RuntimeException ignored) {
-            // SoundPool below remains available if bundled PCM cannot be opened on an OEM build.
-            player = null;
-        }
+        try { player = new HitSoundPlayer(activity, mainHandler, this::playHitSoundFallback); }
+        catch (IOException | RuntimeException exception) { player = null; }
         hitSoundPlayer = player;
+        PcmHitSound[] samples;
+        try {
+            samples = new PcmHitSound[NoteType.values().length];
+            samples[NoteType.TAP.ordinal()] = HitSoundPcmLoader.load(activity, R.raw.hitsound_click_pcm);
+            samples[NoteType.HOLD.ordinal()] = samples[NoteType.TAP.ordinal()];
+            samples[NoteType.FLICK.ordinal()] = HitSoundPcmLoader.load(activity, R.raw.hitsound_flick_pcm);
+            samples[NoteType.DRAG.ordinal()] = HitSoundPcmLoader.load(activity, R.raw.hitsound_drag_pcm);
+        } catch (IOException | RuntimeException exception) { samples = null; }
+        scheduledSamples = samples;
+        customHitSounds = new CustomHitSoundRepository(decodeExecutor,
+                callback -> mainHandler.post(callback),
+                file -> CustomHitSoundLoader.load(activity, file), this::customHitSoundsChanged);
     }
 
     public void applySettings(EditorSettings value) {
         settings = value == null ? new EditorSettings() : value.copy();
-        applyMusicVolume();
+        if (pcmAudioPlayer != null) {
+            pcmAudioPlayer.setVolume((float) settings.musicVolume);
+            pcmAudioPlayer.setHitVolume((float) settings.soundEffectVolume);
+        }
+        if (hitSoundPlayer != null) hitSoundPlayer.setVolume((float) settings.soundEffectVolume);
+    }
+
+    public boolean isReady() { return !closed && pcmAudioPlayer != null; }
+    public boolean isPlaying() { return isReady() && (hitSoundStartGate.isWaiting() || pcmAudioPlayer.isPlaying()); }
+    public boolean schedulesHitSounds() { return isReady() && scheduledSamples != null; }
+
+    public void configureHitSounds(HitSoundTimeline schedule, long chartOffsetMs, long packageOffsetMs) {
+        timeline = schedule == null ? HitSoundTimeline.empty() : schedule;
+        audioOffsetMs = ScheduledHitSoundMixer.addSaturated(chartOffsetMs, packageOffsetMs);
+        customHitSounds.ensure(timeline.customPaths());
+        if (pcmAudioPlayer != null) {
+            pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples, customHitSounds.samples());
+        }
+    }
+
+    public void setHitSoundPackage(ChartPackage pack) {
+        pause();
+        hitSoundPackage = pack;
+        timeline = HitSoundTimeline.empty();
+        for (Integer id : customPoolIds.values()) {
+            loadedHitSounds.remove(id);
+            if (hitSoundPool != null) hitSoundPool.unload(id);
+        }
+        customPoolIds.clear();
+        customHitSounds.setPackage(pack);
+        if (hitSoundPlayer != null) hitSoundPlayer.setCustomSounds(Collections.emptyMap());
+        customHitSounds.ensure(PackageHitSoundCatalog.referencedPaths(pack));
+    }
+
+    private void customHitSoundsChanged(java.util.List<String> failures) {
+        if (closed) return;
+        if (!failures.isEmpty()) listener.showMessage("Custom hit sounds unavailable; using note defaults: "
+                + String.join(", ", failures.subList(0, Math.min(3, failures.size()))));
+        if (pcmAudioPlayer != null) {
+            pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples, customHitSounds.samples());
+        }
         if (hitSoundPlayer != null) {
-            hitSoundPlayer.setVolume((float) settings.soundEffectVolume);
+            try { hitSoundPlayer.setCustomSounds(customHitSounds.samples()); }
+            catch (OutOfMemoryError exception) {
+                hitSoundPlayer.setCustomSounds(Collections.emptyMap());
+                listener.showMessage("Not enough memory for standalone custom hit sounds; using note defaults");
+            }
         }
-    }
-
-    public boolean isReady() {
-        if (closed) return false;
-        if (currentAudioIsMp3) return pcmAudioPlayer != null && audioPrepared;
-        return mediaPlayer != null && audioPrepared;
-    }
-
-    public boolean isPlaying() {
-        if (currentAudioIsMp3) {
-            return isReady() && pcmAudioPlayer.isPlaying();
+        for (String path : customHitSounds.samples().keySet()) {
+            if (hitSoundPool == null || customPoolIds.containsKey(path)) continue;
+            try {
+                File file = PackageHitSoundCatalog.resolve(hitSoundPackage, path);
+                customPoolIds.put(path, hitSoundPool.load(file.getAbsolutePath(), 1));
+            } catch (IOException | RuntimeException ignored) { }
         }
-        try {
-            return isReady() && (audioStartPending || mediaPlayer.isPlaying());
-        } catch (IllegalStateException ignored) {
-            return false;
-        }
+        HitSoundPlaybackGate.Request pending = hitSoundStartGate.takeIfReady(
+                isReady() && !customHitSounds.isLoading());
+        if (pending != null) start(pending.positionMs, pending.speed);
+        notifyAudioStateChanged();
     }
 
     public void playHitSound(HitSoundTimeline.Cue cue) {
-        if (closed || cue == null || cue.noteCount() == 0) return;
+        // Scheduled music playback owns hits. UI-triggered sounds are only the no-music fallback.
+        if (closed || cue == null || cue.noteCount() == 0 || schedulesHitSounds()) return;
         if (hitSoundPlayer != null) hitSoundPlayer.play(cue);
         else playHitSoundFallback(cue);
     }
 
     public void start(long positionMs, float speed) {
-        if (!isReady()) return;
-        if (currentAudioIsMp3) {
-            pcmAudioPlayer.start(positionMs, speed);
+        if (hitSoundPlayer != null) hitSoundPlayer.stop();
+        if (isReady()) {
+            if (hitSoundStartGate.request(positionMs, speed, customHitSounds.isLoading())) {
+                pcmAudioPlayer.start(positionMs, speed);
+            } else {
+                pcmAudioPlayer.pause();
+                listener.showMessage("Preparing custom hit sounds…");
+            }
             notifyAudioStateChanged();
-            return;
-        }
-        try {
-            int duration = mediaPlayer.getDuration();
-            int target = (int) Math.max(0L, Math.min(positionMs, Math.max(0, duration - 1)));
-            int generation = ++audioCommandGeneration;
-            float targetSpeed = Math.max(0.25f, Math.min(2.0f, speed));
-            audioStartPending = true;
-            audioSeekPending = false;
-            pendingAudioPositionMs = target;
-            if (mediaPlayer.isPlaying()) mediaPlayer.pause();
-            playbackSeekCoordinator.begin();
-            mediaPlayer.setOnSeekCompleteListener(player -> {
-                if (player != mediaPlayer || generation != audioCommandGeneration) return;
-                try {
-                    long reportedPosition = player.getCurrentPosition();
-                    if (playbackSeekCoordinator.onSeekComplete(target, reportedPosition)
-                            == PlaybackSeekCoordinator.Action.RETRY) {
-                        // Some OEM decoders publish a stale compressed-audio position once.
-                        mainHandler.postDelayed(() -> {
-                            if (player != mediaPlayer
-                                    || generation != audioCommandGeneration
-                                    || !audioStartPending) return;
-                            try {
-                                player.seekTo(target, MediaPlayer.SEEK_CLOSEST);
-                            } catch (IllegalArgumentException | IllegalStateException exception) {
-                                failPendingAudioStart(player);
-                            }
-                        }, AUDIO_SEEK_RETRY_DELAY_MS);
-                        return;
-                    }
-                    player.setOnSeekCompleteListener(null);
-                    PlaybackParams params = player.getPlaybackParams();
-                    params.setSpeed(targetSpeed);
-                    params.setPitch(1.0f);
-                    player.setPlaybackParams(params);
-                    playbackPositionTracker.startAfterSeek(
-                            target, targetSpeed, System.nanoTime());
-                    audioStartPending = false;
-                    playbackSeekCoordinator.reset();
-                    notifyAudioStateChanged();
-                } catch (IllegalArgumentException | IllegalStateException exception) {
-                    failPendingAudioStart(player);
-                }
-            });
-            mediaPlayer.seekTo(target, MediaPlayer.SEEK_CLOSEST);
-        } catch (IllegalArgumentException | IllegalStateException exception) {
-            failPendingAudioStart(mediaPlayer);
         }
     }
 
     public void pause() {
-        if (!isReady()) return;
-        if (currentAudioIsMp3) {
-            pcmAudioPlayer.pause();
-            return;
-        }
-        try {
-            audioCommandGeneration++;
-            audioStartPending = false;
-            audioSeekPending = false;
-            playbackSeekCoordinator.reset();
-            playbackPositionTracker.reset();
-            mediaPlayer.setOnSeekCompleteListener(null);
-            if (mediaPlayer.isPlaying()) mediaPlayer.pause();
-        } catch (IllegalStateException ignored) {
-            // The player will be recreated after another audio import.
-        }
+        hitSoundStartGate.cancel();
+        if (hitSoundPlayer != null) hitSoundPlayer.stop();
+        if (pcmAudioPlayer != null) pcmAudioPlayer.pause();
     }
 
     public void seek(long positionMs) {
-        if (!isReady()) return;
-        if (currentAudioIsMp3) {
+        hitSoundStartGate.cancel();
+        if (hitSoundPlayer != null) hitSoundPlayer.stop();
+        if (isReady()) {
             pcmAudioPlayer.seek(positionMs);
             notifyAudioStateChanged();
-            return;
-        }
-        try {
-            int duration = mediaPlayer.getDuration();
-            int target = (int) Math.max(0L, Math.min(positionMs, Math.max(0, duration - 1)));
-            int generation = ++audioCommandGeneration;
-            audioStartPending = false;
-            audioSeekPending = true;
-            pendingAudioPositionMs = target;
-            playbackSeekCoordinator.reset();
-            playbackPositionTracker.reset();
-            if (mediaPlayer.isPlaying()) mediaPlayer.pause();
-            mediaPlayer.setOnSeekCompleteListener(player -> {
-                if (player != mediaPlayer || generation != audioCommandGeneration) return;
-                try {
-                    player.setOnSeekCompleteListener(null);
-                } catch (IllegalStateException ignored) {
-                    // The player is already being recreated.
-                }
-                audioSeekPending = false;
-                pendingAudioPositionMs = target;
-                notifyAudioStateChanged();
-            });
-            mediaPlayer.seekTo(target, MediaPlayer.SEEK_CLOSEST);
-            notifyAudioStateChanged();
-        } catch (IllegalArgumentException | IllegalStateException exception) {
-            audioCommandGeneration++;
-            audioSeekPending = false;
-            playbackPositionTracker.reset();
-            try {
-                if (mediaPlayer != null) mediaPlayer.setOnSeekCompleteListener(null);
-            } catch (IllegalStateException ignored) {
-                // The player is already being recreated.
-            }
-            notifyAudioStateChanged();
-            listener.showMessage(activity.getString(R.string.audio_player_not_ready));
         }
     }
 
     public long positionMillis() {
-        if (!isReady()) return 0L;
-        if (currentAudioIsMp3) return pcmAudioPlayer.positionMillis();
-        try {
-            long fallback = mediaPlayer.getCurrentPosition();
-            MediaTimestamp timestamp = mediaPlayer.getTimestamp();
-            long timestampMediaUs = timestamp == null ? -1L : timestamp.getAnchorMediaTimeUs();
-            long timestampSystemNs = timestamp == null ? -1L
-                    : Build.VERSION.SDK_INT >= 29
-                    ? timestamp.getAnchorSystemNanoTime()
-                    : timestamp.getAnchorSytemNanoTime();
-            float timestampRate = timestamp == null ? -1f : timestamp.getMediaClockRate();
-            long nowSystemNs = System.nanoTime();
-            if (audioStartPending || audioSeekPending) return pendingAudioPositionMs;
-            long position = playbackPositionTracker.positionMillis(
-                    timestampMediaUs, timestampSystemNs, timestampRate,
-                    nowSystemNs, fallback);
-            return Math.min(position, Math.max(0, mediaPlayer.getDuration()));
-        } catch (IllegalStateException ignored) {
-            return audioStartPending || audioSeekPending ? pendingAudioPositionMs : 0L;
-        }
+        return hitSoundStartGate.isWaiting() ? hitSoundStartGate.positionMillis()
+                : isReady() ? pcmAudioPlayer.positionMillis() : 0;
     }
-
-    public long durationMillis() {
-        if (!isReady()) return 0L;
-        if (currentAudioIsMp3) return pcmAudioPlayer.durationMillis();
-        try {
-            return mediaPlayer.getDuration();
-        } catch (IllegalStateException ignored) {
-            return 0L;
-        }
-    }
+    public long durationMillis() { return isReady() ? pcmAudioPlayer.durationMillis() : 0; }
 
     public void load(Uri uri) throws IOException {
         if (closed) throw new IOException("Audio controller is closed");
         if (uri == null) throw new IOException("Audio source is missing");
         clearSource();
-        currentAudioIsMp3 = isMp3Audio(uri);
-        audioPrepared = false;
+        final int generation = ++audioLoadGeneration;
+        File output = File.createTempFile("phistudio-audio-", ".pcm", activity.getCacheDir());
+        decodedPcmFile = output;
+        listener.showMessage("Preparing audio…");
         try {
-            if (currentAudioIsMp3) {
-                decodeMp3Audio(uri);
-            } else {
-                prepareMediaPlayerAudio(uri);
-            }
-        } catch (IOException | RuntimeException exception) {
-            clearSource();
-            throw exception;
+            audioDecodeTask = decodeExecutor.submit(() -> {
+                try {
+                    PcmAudioAsset asset = AudioPcmDecoder.decode(activity, uri, output);
+                    mainHandler.post(() -> {
+                        if (!isCurrentLoad(generation)) { asset.file.delete(); return; }
+                        audioDecodeTask = null;
+                        decodedPcmFile = asset.file;
+                        pcmAudioPlayer = new PcmAudioPlayer(asset, mainHandler, new PcmAudioPlayer.Listener() {
+                            public void onCompletion() {
+                                if (isCurrentLoad(generation)) listener.onAudioCompleted();
+                            }
+                            public void onError(String message) {
+                                if (!isCurrentLoad(generation)) return;
+                                listener.onAudioCompleted();
+                                listener.showMessage("PCM playback error: " + message);
+                            }
+                        });
+                        pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples,
+                                customHitSounds.samples());
+                        applySettings(settings);
+                        notifyAudioStateChanged();
+                        listener.showMessage("Audio loaded");
+                    });
+                } catch (Exception exception) {
+                    output.delete();
+                    mainHandler.post(() -> {
+                        if (!isCurrentLoad(generation)) return;
+                        audioDecodeTask = null;
+                        if (decodedPcmFile == output) decodedPcmFile = null;
+                        notifyAudioStateChanged();
+                        listener.showMessage("Audio decoder error: " + safeMessage(exception));
+                    });
+                }
+            });
+        } catch (RuntimeException exception) {
+            output.delete();
+            decodedPcmFile = null;
+            throw new IOException("Unable to start audio decoder", exception);
         }
     }
 
     public void clearSource() {
+        hitSoundStartGate.cancel();
         audioLoadGeneration++;
+        if (hitSoundPlayer != null) hitSoundPlayer.stop();
         if (audioDecodeTask != null) {
             audioDecodeTask.cancel(true);
             audioDecodeTask = null;
@@ -307,180 +248,24 @@ public final class EditorAudioController implements AutoCloseable {
             pcmAudioPlayer.release();
             pcmAudioPlayer = null;
         }
-        if (decodedMp3PcmFile != null) {
-            decodedMp3PcmFile.delete();
-            decodedMp3PcmFile = null;
-        }
-        audioCommandGeneration++;
-        audioStartPending = false;
-        audioSeekPending = false;
-        playbackSeekCoordinator.reset();
-        pendingAudioPositionMs = 0L;
-        playbackPositionTracker.reset();
-        audioPrepared = false;
-        currentAudioIsMp3 = false;
-        if (mediaPlayer != null) {
-            try {
-                mediaPlayer.reset();
-            } catch (IllegalStateException ignored) {
-                // Release is still required below.
-            }
-            mediaPlayer.release();
-            mediaPlayer = null;
+        if (decodedPcmFile != null) {
+            decodedPcmFile.delete();
+            decodedPcmFile = null;
         }
     }
 
-    @Override
-    public void close() {
+    @Override public void close() {
         if (closed) return;
         closed = true;
+        customHitSounds.close();
         clearSource();
         decodeExecutor.shutdownNow();
         if (hitSoundPlayer != null) hitSoundPlayer.close();
         releaseHitSounds();
     }
 
-    private void failPendingAudioStart(MediaPlayer player) {
-        audioCommandGeneration++;
-        audioStartPending = false;
-        audioSeekPending = false;
-        playbackSeekCoordinator.reset();
-        playbackPositionTracker.reset();
-        if (player != null) {
-            try {
-                player.setOnSeekCompleteListener(null);
-                if (player.isPlaying()) player.pause();
-            } catch (IllegalStateException ignored) {
-                // The player is already being released or recreated.
-            }
-        }
-        notifyAudioStateChanged();
-        listener.showMessage(activity.getString(R.string.audio_player_not_ready));
-    }
-
-    private void prepareMediaPlayerAudio(Uri uri) throws IOException {
-        MediaPlayer player = new MediaPlayer();
-        mediaPlayer = player;
-        player.setAudioAttributes(new AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .build());
-        player.setDataSource(activity, uri);
-        player.setOnPreparedListener(prepared -> {
-            if (prepared != mediaPlayer || closed) return;
-            audioPrepared = true;
-            applyMusicVolume();
-            notifyAudioStateChanged();
-            listener.showMessage("Audio loaded");
-        });
-        player.setOnCompletionListener(completed -> {
-            if (completed != mediaPlayer || closed) return;
-            audioCommandGeneration++;
-            audioStartPending = false;
-            audioSeekPending = false;
-            playbackSeekCoordinator.reset();
-            playbackPositionTracker.reset();
-            listener.onAudioCompleted();
-        });
-        player.setOnErrorListener((failed, what, extra) -> {
-            if (failed != mediaPlayer || closed) return true;
-            audioCommandGeneration++;
-            audioStartPending = false;
-            audioSeekPending = false;
-            playbackSeekCoordinator.reset();
-            playbackPositionTracker.reset();
-            audioPrepared = false;
-            notifyAudioStateChanged();
-            listener.showMessage("Audio decoder error");
-            return true;
-        });
-        player.prepareAsync();
-    }
-
-    private void decodeMp3Audio(Uri uri) throws IOException {
-        int generation = ++audioLoadGeneration;
-        File output = new File(activity.getCacheDir(), "xpe-mp3-" + generation + ".pcm");
-        decodedMp3PcmFile = output;
-        listener.showMessage("Decoding MP3 audio…");
-        try {
-            audioDecodeTask = decodeExecutor.submit(() -> {
-                PcmAudioAsset asset;
-                try {
-                    asset = Mp3PcmDecoder.decode(activity, uri, output);
-                } catch (Exception exception) {
-                    mainHandler.post(() -> {
-                        if (!isCurrentLoad(generation)) return;
-                        audioDecodeTask = null;
-                        output.delete();
-                        if (decodedMp3PcmFile == output) decodedMp3PcmFile = null;
-                        audioPrepared = false;
-                        notifyAudioStateChanged();
-                        listener.showMessage("MP3 decoder error: " + safeMessage(exception));
-                    });
-                    return;
-                }
-                mainHandler.post(() -> {
-                    if (!isCurrentLoad(generation)) {
-                        asset.file.delete();
-                        return;
-                    }
-                    audioDecodeTask = null;
-                    decodedMp3PcmFile = asset.file;
-                    pcmAudioPlayer = new PcmAudioPlayer(asset, mainHandler,
-                            new PcmAudioPlayer.Listener() {
-                                @Override
-                                public void onCompletion() {
-                                    if (isCurrentLoad(generation) && currentAudioIsMp3) {
-                                        listener.onAudioCompleted();
-                                    }
-                                }
-
-                                @Override
-                                public void onError(String message) {
-                                    if (!isCurrentLoad(generation) || !currentAudioIsMp3) return;
-                                    listener.onAudioCompleted();
-                                    listener.showMessage("PCM playback error: " + message);
-                                }
-                            });
-                    applyMusicVolume();
-                    audioPrepared = true;
-                    notifyAudioStateChanged();
-                    listener.showMessage("MP3 decoded and loaded");
-                });
-            });
-        } catch (RuntimeException exception) {
-            output.delete();
-            decodedMp3PcmFile = null;
-            throw new IOException("Unable to start MP3 decoder", exception);
-        }
-    }
-
     private boolean isCurrentLoad(int generation) {
         return !closed && generation == audioLoadGeneration && !listener.isHostUnavailable();
-    }
-
-    private boolean isMp3Audio(Uri uri) {
-        String displayName = AndroidPackageIo.displayName(activity.getContentResolver(), uri);
-        String mimeType = null;
-        try {
-            mimeType = activity.getContentResolver().getType(uri);
-        } catch (RuntimeException ignored) {
-            // File URIs and some document providers expose only the display name.
-        }
-        return AudioSourceFormat.isMp3(displayName, mimeType)
-                || AudioSourceFormat.isMp3(uri.toString(), mimeType);
-    }
-
-    private void applyMusicVolume() {
-        float volume = (float) Math.max(0.0, Math.min(1.0, settings.musicVolume));
-        if (mediaPlayer != null) {
-            try {
-                mediaPlayer.setVolume(volume, volume);
-            } catch (IllegalStateException ignored) {
-                // The player may be transitioning between sources.
-            }
-        }
-        if (pcmAudioPlayer != null) pcmAudioPlayer.setVolume(volume);
     }
 
     private void initializeHitSounds() {
@@ -519,6 +304,14 @@ public final class EditorAudioController implements AutoCloseable {
                 cue.count(NoteType.FLICK), volume);
         playFallbackSample(pool, hitSoundIds.get(NoteType.DRAG),
                 cue.count(NoteType.DRAG), volume);
+        for (HitSoundTimeline.CustomSound custom : cue.customSounds()) {
+            Integer id = customPoolIds.get(custom.path());
+            if (id != null && loadedHitSounds.contains(id)) {
+                playFallbackSample(pool, id, custom.count(), volume);
+            } else for (NoteType type : NoteType.values()) {
+                playFallbackSample(pool, hitSoundIds.get(type), custom.fallbackCount(type), volume);
+            }
+        }
     }
 
     private void playFallbackSample(SoundPool pool, Integer soundId,

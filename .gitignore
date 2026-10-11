@@ -13,3 +13,5 @@ keystore.properties
 *.keystore
 *.p12
 *-release-password.txt
+/tools/phira-fonts/target/
+/tools/shader-tests/build/

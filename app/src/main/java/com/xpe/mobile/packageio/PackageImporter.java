@@ -199,10 +199,12 @@ public final class PackageImporter {
             validateOfficialCandidate(selected.root);
         }
         String audioPath = selectResource(manifests, entries, filePaths,
-                new String[]{"music", "song"}, new String[]{"ogg", "mp3", "wav", "flac", "m4a", "aac"});
+                new String[]{"music", "song"}, new String[]{"ogg", "mp3", "wav", "flac", "m4a", "aac"},
+                selected.path, metaAsset(selected.root, "song"));
         String illustrationPath = selectResource(manifests, entries, filePaths,
                 new String[]{"illustration", "picture", "background"},
-                new String[]{"png", "jpg", "jpeg", "webp", "bmp"});
+                new String[]{"png", "jpg", "jpeg", "webp", "bmp"},
+                selected.path, metaAsset(selected.root, "background"));
         String projectName = selectProjectName(manifests, selected.root, sourceDisplayName);
         long manifestOffsetMs = selectManifestOffsetMs(manifests);
         boolean useRpe170Speed = selectUseRpe170Speed(manifests);
@@ -308,7 +310,8 @@ public final class PackageImporter {
     private static String selectResource(List<PackageManifest> manifests,
                                          List<ChartPackage.Entry> entries,
                                          Set<String> filePaths,
-                                         String[] keys, String[] extensions) throws PackageException {
+                                         String[] keys, String[] extensions, String chartPath,
+                                         String metaPath) throws PackageException {
         for (PackageManifest manifest : manifests) {
             for (String key : keys) {
                 String value = manifest.get(key);
@@ -321,6 +324,18 @@ public final class PackageImporter {
                             "Manifest contains an unsafe resource path: " + value);
                 }
                 if (filePaths.contains(path)) return path;
+            }
+        }
+
+        // Multiple hit-sound assets must not make the chart's main music ambiguous.
+        if (metaPath != null && !metaPath.trim().isEmpty()) {
+            try {
+                String path = normalizePath(metaPath.trim());
+                if (filePaths.contains(path)) return path;
+                path = resolveManifestPath(chartPath, metaPath);
+                if (filePaths.contains(path)) return path;
+            } catch (PackageException ignored) {
+                // Unsafe/missing optional META hints never access files outside the package.
             }
         }
 
@@ -337,6 +352,11 @@ public final class PackageImporter {
         }
         Collections.sort(matches);
         return matches.size() == 1 ? matches.get(0) : null;
+    }
+
+    private static String metaAsset(JSONObject root, String key) {
+        JSONObject meta = root == null ? null : root.optJSONObject("META");
+        return meta == null ? "" : meta.optString(key, "");
     }
 
     private static String selectProjectName(List<PackageManifest> manifests,

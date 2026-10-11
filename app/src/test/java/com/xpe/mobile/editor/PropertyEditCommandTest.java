@@ -30,17 +30,21 @@ public final class PropertyEditCommandTest {
         after.startTime = new BeatTime(0, 0, 1);
         after.endTime = after.startTime;
         after.positionX = 250.0;
+        after.hitSound = "sounds/edited.ogg";
 
         EditHistory history = new EditHistory(10);
         history.execute(PropertyEditCommand.note(line, target, before, after));
         assertEquals(250.0, target.positionX, 0.0);
+        assertEquals("sounds/edited.ogg", target.hitSound);
         assertSame(target, line.notes.get(0));
 
         history.undo();
         assertEquals(0.0, target.positionX, 0.0);
+        assertEquals(null, target.hitSound);
         assertSame(target, line.notes.get(1));
         history.redo();
         assertEquals(250.0, target.positionX, 0.0);
+        assertEquals("sounds/edited.ogg", target.hitSound);
     }
 
     @Test

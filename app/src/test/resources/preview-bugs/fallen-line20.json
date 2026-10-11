@@ -1,0 +1,346 @@
+{
+  "META": {
+    "RPEVersion": 150,
+    "background": "1314970.png",
+    "charter": "XXY",
+    "composer": "L",
+    "duration": 567.9539794921875,
+    "id": "1314970",
+    "illustration": "",
+    "level": "AT.17",
+    "name": "Fallen",
+    "offset": -10,
+    "song": "1314970.mp3"
+  },
+  "BPMList": [
+    {
+      "bpm": 250.0,
+      "startTime": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "bpm": 500.0,
+      "startTime": [
+        2296,
+        0,
+        1
+      ]
+    }
+  ],
+  "judgeLineList": [
+    {
+      "Group": 0,
+      "Name": "Untitled",
+      "Texture": "line.png",
+      "alphaControl": [
+        {
+          "alpha": 1.0,
+          "easing": 1,
+          "x": 0.0
+        },
+        {
+          "alpha": 1.0,
+          "easing": 1,
+          "x": 9999999.0
+        }
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bpmfactor": 1.0,
+      "eventLayers": [
+        {
+          "alphaEvents": [
+            {
+              "bezier": 0,
+              "bezierPoints": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "easingLeft": 0.0,
+              "easingRight": 1.0,
+              "easingType": 1,
+              "end": 0,
+              "endTime": [
+                2,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": 0,
+              "startTime": [
+                1,
+                0,
+                1
+              ]
+            }
+          ],
+          "moveXEvents": [
+            {
+              "bezier": 0,
+              "bezierPoints": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "easingLeft": 0.0,
+              "easingRight": 1.0,
+              "easingType": 1,
+              "end": 500.0,
+              "endTime": [
+                2,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": 500.0,
+              "startTime": [
+                1,
+                0,
+                1
+              ]
+            }
+          ],
+          "moveYEvents": [
+            {
+              "bezier": 0,
+              "bezierPoints": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "easingLeft": 0.0,
+              "easingRight": 1.0,
+              "easingType": 1,
+              "end": 500.0,
+              "endTime": [
+                2,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": 500.0,
+              "startTime": [
+                1,
+                0,
+                1
+              ]
+            },
+            {
+              "bezier": 0,
+              "bezierPoints": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "easingLeft": 0.0,
+              "easingRight": 1.0,
+              "easingType": 1,
+              "end": -500.0,
+              "endTime": [
+                72,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": 500.0,
+              "startTime": [
+                16,
+                0,
+                1
+              ]
+            }
+          ],
+          "rotateEvents": [
+            {
+              "bezier": 0,
+              "bezierPoints": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "easingLeft": 0.0,
+              "easingRight": 1.0,
+              "easingType": 1,
+              "end": -14.0,
+              "endTime": [
+                2,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": -14.0,
+              "startTime": [
+                1,
+                0,
+                1
+              ]
+            }
+          ],
+          "speedEvents": [
+            {
+              "end": 10.0,
+              "endTime": [
+                0,
+                1,
+                2
+              ],
+              "linkgroup": 0,
+              "start": 10.0,
+              "startTime": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "end": 0.0,
+              "endTime": [
+                2,
+                0,
+                1
+              ],
+              "linkgroup": 0,
+              "start": 0.0,
+              "startTime": [
+                1,
+                0,
+                1
+              ]
+            },
+            {
+              "end": 10.0,
+              "endTime": [
+                72,
+                1,
+                4
+              ],
+              "linkgroup": 0,
+              "start": 10.0,
+              "startTime": [
+                72,
+                0,
+                1
+              ]
+            }
+          ]
+        }
+      ],
+      "extended": {
+        "inclineEvents": [
+          {
+            "bezier": 0,
+            "bezierPoints": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "easingLeft": 0.0,
+            "easingRight": 1.0,
+            "easingType": 20,
+            "end": 0.0,
+            "endTime": [
+              1,
+              0,
+              1
+            ],
+            "linkgroup": 0,
+            "start": 0.0,
+            "startTime": [
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      },
+      "father": -1,
+      "isCover": 1,
+      "isGif": false,
+      "notes": [
+        {
+          "above": 1,
+          "alpha": 255,
+          "endTime": [
+            72,
+            1,
+            4
+          ],
+          "isFake": 1,
+          "positionX": 0.0,
+          "size": 1.0,
+          "speed": 1.0,
+          "startTime": [
+            72,
+            0,
+            1
+          ],
+          "type": 2,
+          "visibleTime": 999999.0,
+          "yOffset": 0.0
+        }
+      ],
+      "numOfNotes": 0,
+      "posControl": [
+        {
+          "easing": 1,
+          "pos": 1.0,
+          "x": 0.0
+        },
+        {
+          "easing": 1,
+          "pos": 1.0,
+          "x": 9999999.0
+        }
+      ],
+      "sizeControl": [
+        {
+          "easing": 1,
+          "size": 1.0,
+          "x": 0.0
+        },
+        {
+          "easing": 1,
+          "size": 1.0,
+          "x": 9999999.0
+        }
+      ],
+      "skewControl": [
+        {
+          "easing": 1,
+          "skew": 0.0,
+          "x": 0.0
+        },
+        {
+          "easing": 1,
+          "skew": 0.0,
+          "x": 9999999.0
+        }
+      ],
+      "yControl": [
+        {
+          "easing": 1,
+          "x": 0.0,
+          "y": 1.0
+        },
+        {
+          "easing": 1,
+          "x": 9999999.0,
+          "y": 1.0
+        }
+      ],
+      "zOrder": 0
+    }
+  ]
+}

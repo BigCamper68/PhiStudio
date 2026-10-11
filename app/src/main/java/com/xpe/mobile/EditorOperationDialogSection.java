@@ -89,7 +89,7 @@ final class EditorOperationDialogSection extends EditorDialogSection {
         setSpinnerChangeListener(target, updateTarget);
         updateTarget.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.batch_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -177,7 +177,7 @@ final class EditorOperationDialogSection extends EditorDialogSection {
                 getString(R.string.event_clone_alpha_sequence), "1", false);
         CheckBox keepSource = addCheckBox(content, R.string.event_clone_keep_source, false);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.event_clone_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -308,13 +308,22 @@ final class EditorOperationDialogSection extends EditorDialogSection {
         EditText yEquation = addField(content, getString(R.string.complex_move_y_equation),
                 getString(R.string.complex_move_default_y), false);
         addHint(content, getString(R.string.complex_move_equation_help));
-        EditText xTimeEasing = addField(content,
-                getString(R.string.complex_move_x_time_easing),
-                getString(R.string.complex_move_default_easing), false);
-        EditText yTimeEasing = addField(content,
-                getString(R.string.complex_move_y_time_easing),
-                getString(R.string.complex_move_default_easing), false);
+        Spinner xEasingType = addSpinner(content, R.string.complex_move_x_time_easing,
+                R.array.event_easing_entries, 0);
+        Spinner yEasingType = addSpinner(content, R.string.complex_move_y_time_easing,
+                R.array.event_easing_entries, 0);
         addHint(content, getString(R.string.complex_move_time_easing_help));
+        CheckBox easingWindows = addCheckBox(content, R.string.complex_move_easing_windows, false);
+        LinearLayout windowFields = new LinearLayout(this);
+        windowFields.setOrientation(LinearLayout.VERTICAL);
+        content.addView(windowFields, new LinearLayout.LayoutParams(-1, -2));
+        EditText xLeft = addField(windowFields, "X · " + getString(R.string.field_event_easing_left), "0", true);
+        EditText xRight = addField(windowFields, "X · " + getString(R.string.field_event_easing_right), "1", true);
+        EditText yLeft = addField(windowFields, "Y · " + getString(R.string.field_event_easing_left), "0", true);
+        EditText yRight = addField(windowFields, "Y · " + getString(R.string.field_event_easing_right), "1", true);
+        windowFields.setVisibility(View.GONE);
+        TimeEasingInput xTimeEasing = new TimeEasingInput(xEasingType, easingWindows, xLeft, xRight);
+        TimeEasingInput yTimeEasing = new TimeEasingInput(yEasingType, easingWindows, yLeft, yRight);
         EditText generationDensity = addField(content,
                 getString(R.string.complex_move_density),
                 getString(R.string.complex_move_default_density), true);
@@ -345,10 +354,16 @@ final class EditorOperationDialogSection extends EditorDialogSection {
             }
         };
         watch(refreshPreview, startTime, endTime, xEquation, yEquation,
-                xTimeEasing, yTimeEasing, generationDensity);
+                generationDensity, xLeft, xRight, yLeft, yRight);
+        setSpinnerChangeListener(xEasingType, refreshPreview);
+        setSpinnerChangeListener(yEasingType, refreshPreview);
+        easingWindows.setOnCheckedChangeListener((button, enabled) -> {
+            windowFields.setVisibility(enabled ? View.VISIBLE : View.GONE);
+            refreshPreview.run();
+        });
         refreshPreview.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.complex_move_title)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -377,19 +392,32 @@ final class EditorOperationDialogSection extends EditorDialogSection {
     private ComplexMoveGenerator.Spec readComplexMoveSpec(
             EditText startTime, EditText endTime,
             EditText xEquation, EditText yEquation,
-            EditText xTimeEasing, EditText yTimeEasing,
+            TimeEasingInput xTimeEasing, TimeEasingInput yTimeEasing,
             EditText generationDensity) {
         ComplexMoveGenerator.Spec spec = new ComplexMoveGenerator.Spec();
         spec.startTime = BeatTime.parseFlexible(startTime.getText().toString());
         spec.endTime = BeatTime.parseFlexible(endTime.getText().toString());
         spec.xExpression = xEquation.getText().toString();
         spec.yExpression = yEquation.getText().toString();
-        spec.xTimeEasing = ComplexMoveGenerator.TimeEasing.parse(
-                xTimeEasing.getText().toString());
-        spec.yTimeEasing = ComplexMoveGenerator.TimeEasing.parse(
-                yTimeEasing.getText().toString());
+        spec.xTimeEasing = readTimeEasing(xTimeEasing);
+        spec.yTimeEasing = readTimeEasing(yTimeEasing);
         spec.density = parseDouble(generationDensity);
         return spec;
+    }
+
+    private ComplexMoveGenerator.TimeEasing readTimeEasing(TimeEasingInput input) {
+        return new ComplexMoveGenerator.TimeEasing(input.type.getSelectedItemPosition() + Easing.MIN_TYPE,
+                input.windows.isChecked() ? parseDouble(input.left) : 0,
+                input.windows.isChecked() ? parseDouble(input.right) : 1);
+    }
+
+    private static final class TimeEasingInput {
+        final Spinner type;
+        final CheckBox windows;
+        final EditText left, right;
+        TimeEasingInput(Spinner type, CheckBox windows, EditText left, EditText right) {
+            this.type = type; this.windows = windows; this.left = left; this.right = right;
+        }
     }
 
     private String complexMoveErrorMessage(ComplexMoveGenerator.Error error, String detail) {
@@ -484,7 +512,7 @@ final class EditorOperationDialogSection extends EditorDialogSection {
         watch(refreshPreview, curveDensity);
         refreshPreview.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(R.string.curve_notes_title)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)

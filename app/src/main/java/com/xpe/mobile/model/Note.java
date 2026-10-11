@@ -14,6 +14,8 @@ public final class Note {
     public double size = 1.0;
     public double speed = 1.0;
     public NoteType type = NoteType.TAP;
+    /** Null/empty = note-type default; reserved name = built-in override; otherwise package path. */
+    public String hitSound;
     public double visibleTime = 999999.0;
     public double yOffset;
     public boolean hasTint;
@@ -27,7 +29,7 @@ public final class Note {
         Note note = new Note();
         note.raw = RawJson.unknownFields(object,
                 "above", "alpha", "startTime", "endTime", "isFake",
-                "positionX", "size", "speed", "type", "visibleTime", "yOffset");
+                "positionX", "size", "speed", "type", "visibleTime", "yOffset", "hitsound");
         note.above = object.optInt("above", 1);
         note.alpha = object.optInt("alpha", 255);
         note.startTime = BeatTime.fromJson(object.optJSONArray("startTime"));
@@ -37,6 +39,7 @@ public final class Note {
         note.size = object.optDouble("size", 1.0);
         note.speed = object.optDouble("speed", 1.0);
         note.type = NoteType.fromCode(object.optInt("type", 1));
+        note.hitSound = object.isNull("hitsound") ? null : object.optString("hitsound", null);
         note.visibleTime = object.optDouble("visibleTime", 999999.0);
         note.yOffset = object.optDouble("yOffset", 0.0);
         JSONArray tint = object.optJSONArray("tint");
@@ -66,6 +69,8 @@ public final class Note {
         object.put("speed", speed);
         object.put("startTime", startTime.toJson());
         object.put("type", type.rpeCode);
+        if (hitSound == null || hitSound.isEmpty()) object.remove("hitsound");
+        else object.put("hitsound", hitSound);
         object.put("visibleTime", visibleTime);
         object.put("yOffset", yOffset);
         if (hasTint) object.put("tint", colorArray(tintRgb, sourceTint));
@@ -92,6 +97,7 @@ public final class Note {
         copy.size = size;
         copy.speed = speed;
         copy.type = type;
+        copy.hitSound = hitSound;
         copy.visibleTime = visibleTime;
         copy.yOffset = yOffset;
         copy.hasTint = hasTint;

@@ -1,4 +1,10 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="shader_loop">Loop</string>
+    <string name="shader_global">Global · HUD + margins</string>
+    <string name="shader_error">Shaders · %1$s</string>
+    <string name="shader_clock">Shaders · %1$s %2$s%3$s</string>
+    <string name="shader_beats_unit">beat</string>
+    <string name="shader_seconds_unit">s</string>
     <string name="audio_player_not_ready">Audio player is not ready</string>
     <string name="app_name">PhiStudio</string>
     <string name="toolbar_play">Play</string>
@@ -150,7 +156,8 @@
     <string name="complex_move_default_density">16</string>
     <string name="complex_move_x_time_easing">X time easing</string>
     <string name="complex_move_y_time_easing">Y time easing</string>
-    <string name="complex_move_time_easing_help">Enter an easing ID 1–28, or three values type,left,right for a bounded easing slice.</string>
+    <string name="complex_move_time_easing_help">Choose X and Y easing from the 29 named types. Enable custom easing windows to limit each curve to a slice.</string>
+    <string name="complex_move_easing_windows">Custom easing windows</string>
     <string name="complex_move_density">Density (linear event segments per beat)</string>
     <string name="complex_move_preview_description">Live Complex Move path preview, colored green at the start and red at the end</string>
     <plurals name="complex_move_preview_ready">
@@ -165,7 +172,7 @@
     <string name="complex_move_error_time">Start and end must be valid non-negative beats, with end after start</string>
     <string name="complex_move_error_density">Density must be a positive finite number</string>
     <string name="complex_move_error_too_many">The requested density would generate more than 4096 segments</string>
-    <string name="complex_move_error_easing">Time easing must be ID 1–28 or type,left,right with 0 ≤ left ≤ right ≤ 1</string>
+    <string name="complex_move_error_easing">Choose easing 1–29; custom windows must satisfy 0 ≤ left ≤ right ≤ 1</string>
     <string name="complex_move_error_expression">Invalid equation: %1$s</string>
     <string name="complex_move_error_result">An equation produced an undefined or infinite result</string>
     <string name="complex_move_error_x_range">The generated X path leaves the supported range −675 to 675</string>
@@ -205,6 +212,11 @@
     <string name="curve_notes_error_x_range">The eased note curve leaves the supported X range −675 to 675</string>
 
     <string name="field_note_type">Note type</string>
+    <string name="field_note_hitsound">Hit sound</string>
+    <string name="field_note_hitsound_hint">Empty = default for this note type. tap.mp3, flick.mp3 and drag.mp3 select built-in sounds. Other names are audio files relative to the chart package root.</string>
+    <string name="action_choose_hitsound">Choose hit sound</string>
+    <string name="hitsound_default">Default (by note type)</string>
+    <string name="hitsound_file_unavailable">Choose a built-in sound or an existing audio file from this chart package.</string>
     <string name="field_start_beat">Start beat (whole:numerator/denominator)</string>
     <string name="field_end_beat">End beat (whole:numerator/denominator)</string>
     <string name="field_end_beat_hold">End beat (Hold only)</string>
@@ -315,7 +327,7 @@
     <string name="storyboard_help_generic">Storyboard events are stored in the active line’s RPE extended structure and support the same timing and easing controls as normal events.</string>
     <string name="storyboard_help_scale_x">Controls horizontal scale. The manual-defined neutral value is 1.0; negative values mirror the visual.</string>
     <string name="storyboard_help_scale_y">Controls vertical scale. The manual-defined neutral value is 1.0; negative values mirror the visual.</string>
-    <string name="storyboard_help_color">Controls line, texture, paint and text tint. Enter colors as #RRGGBB.</string>
+    <string name="storyboard_help_color">Controls line, texture, paint and text tint. Tap a color button to open the palette.</string>
     <string name="storyboard_help_paint">Controls brush radius. Zero disables painting; a negative value clears the accumulated canvas at that time.</string>
     <string name="storyboard_help_text" formatted="false">Controls displayed text. Prefix growth is animated; numeric endpoints containing %P% interpolate as numbers.</string>
     <string name="storyboard_help_incline">Controls simulated X-axis incline in degrees. RPE does not apply incline to Hold notes.</string>
@@ -459,17 +471,17 @@
     <string name="settings_sound_effect_volume">Sound-effect volume (0 to 1)</string>
     <string name="settings_highlight_simultaneous">Highlight simultaneous same-type notes</string>
     <string name="settings_note_width">Default note width (screen pixels)</string>
-    <string name="settings_line_width">Default judgment-line width multiplier</string>
     <string name="settings_mark_line_id">Mark active line ID</string>
-    <string name="settings_line_color">Default line color (#RRGGBB)</string>
-    <string name="settings_background_brightness">Background viewer brightness (0 to 255)</string>
+    <string name="settings_highlight_current_line">Highlight current line in preview</string>
+    <string name="settings_line_color">Current-line highlight color</string>
+    <string name="settings_background_brightness">Editor background brightness (0 to 255)</string>
     <string name="settings_hitsound_tap_offset">Tap/Flick hitsound offset (ms)</string>
     <string name="settings_hitsound_drag_offset">Drag hitsound offset (ms)</string>
     <string name="settings_autosave">Enable periodic autosave</string>
     <string name="settings_autosave_interval">Autosave interval (seconds)</string>
     <string name="settings_timeline_scroll_speed">Touch timeline scroll multiplier</string>
     <string name="settings_event_scroll_speed">Event adjustment speed multiplier</string>
-    <string name="settings_preview_background_alpha">Preview background alpha (0 to 1)</string>
+    <string name="field_background_dim">Background dim (0 to 1)</string>
     <string name="settings_player_width">Preview player width</string>
     <string name="settings_player_height">Preview player height</string>
     <string name="settings_auto_apply">Autoapply property edits</string>
@@ -510,7 +522,7 @@
     <string name="batch_data_type">Data type</string>
     <string name="batch_lower_bound">Lower bound</string>
     <string name="batch_upper_bound">Upper bound</string>
-    <string name="batch_easing">Easing ID (1 to 28)</string>
+    <string name="batch_easing">Easing ID (1 to 29)</string>
     <string name="batch_periodic_sequence">Periodic sequence (space/comma separated)</string>
     <string name="batch_disturbance">Random disturbance ±</string>
     <string name="batch_edit_mode">Modification mode</string>
@@ -518,7 +530,7 @@
     <string name="batch_empty_selection">Select at least one note or event for batch editing</string>
     <string name="batch_mixed_events">Choose one event type for this batch operation</string>
     <string name="batch_unsupported_field">Speed event easing is fixed to Linear and cannot be batch-edited</string>
-    <string name="batch_invalid_profile">Enter finite bounds/disturbance, easing 1–28, and a finite periodic sequence</string>
+    <string name="batch_invalid_profile">Enter finite bounds/disturbance, easing 1–29, and a finite periodic sequence</string>
     <string name="batch_invalid_result">The generated batch values violate a note or event constraint</string>
     <plurals name="batch_applied">
         <item quantity="one">Batch edit applied to %1$d item</item>
@@ -550,7 +562,7 @@
     <string name="event_clone_invalid">Check the line sequence, time increment, U.L.E.D. values and sequences</string>
     <string name="event_clone_invalid_lines">Every target line index must exist and appear once</string>
     <string name="event_clone_invalid_time">The time increment creates an invalid or negative event interval</string>
-    <string name="event_clone_invalid_profile">Each U.L.E.D. profile needs finite bounds/disturbance, easing 1–28 and a finite sequence</string>
+    <string name="event_clone_invalid_profile">Each U.L.E.D. profile needs finite bounds/disturbance, easing 1–29 and a finite sequence</string>
     <string name="event_clone_too_many">Event Clone is limited to 4096 generated events per operation</string>
     <string name="event_clone_overlap">Cloned events would overlap existing or other cloned same-type events</string>
     <string name="event_clone_invalid_result">A cloned value violates the event constraints</string>
@@ -626,4 +638,21 @@
         <item>28 · In Out Bounce</item>
         <item>29 · In Out Elastic</item>
     </string-array>
+    <string name="settings_fake_note_outline">Show fake note outlines</string>
+    <string name="field_line_hud">HUD element controlled by this line</string>
+    <string name="field_line_hud_help">Bind a HUD element, then edit this line’s Move X/Y, Rotate, Alpha, Scale X/Y and Color events. Position is added to the original HUD position; the line itself is hidden. Enable the in-game UI in preview to see the result.</string>
+    <string-array name="line_hud_elements">
+        <item>0 — None</item>
+        <item>1 — Pause button</item>
+        <item>2 — Combo number</item>
+        <item>3 — Combo label</item>
+        <item>4 — Score</item>
+        <item>5 — Progress bar</item>
+        <item>6 — Song name</item>
+        <item>7 — Difficulty</item>
+    </string-array>
+    <string name="preview_shader_error">Preview shader: %1$s</string>
+    <string name="color_picker_hue">Hue</string>
+    <string name="color_picker_channel">%1$s %2$d</string>
+    <string name="settings_tap_to_seek">Seek time by tapping a beatmap</string>
 </resources>

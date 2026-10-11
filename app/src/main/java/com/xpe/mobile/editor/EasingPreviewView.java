@@ -51,6 +51,14 @@ public final class EasingPreviewView extends View {
         float bottom = getHeight() - getPaddingBottom() - inset;
         if (right <= left || bottom <= top) return;
 
+        // Equal coordinate units must occupy equal pixel distances on both axes.
+        PreviewViewportCalculator.Result plot = PreviewViewportCalculator.fit(
+                left, top, right, bottom, 1, 1);
+        left = (float) plot.left;
+        top = (float) plot.top;
+        right = (float) plot.right;
+        bottom = (float) plot.bottom;
+
         fillPaint.setColor(Color.rgb(25, 31, 38));
         canvas.drawRoundRect(left, top, right, bottom, 8f * density, 8f * density, fillPaint);
 

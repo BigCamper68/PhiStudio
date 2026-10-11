@@ -5,336 +5,351 @@ import android.media.AudioFormat;
 import android.media.AudioTrack;
 import android.media.PlaybackParams;
 import android.os.Handler;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.function.Consumer;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
 
-/** Plays decoded MP3 PCM with sample-accurate seeks and a playback-head based clock. */
+/** Sample-addressed music and hit playback with one output clock and atomic transport changes. */
 public final class PcmAudioPlayer {
     public interface Listener {
         void onCompletion();
-
         void onError(String message);
     }
 
-    private static final long WRITER_POLL_MS = 2L;
-    private static final long COMPLETION_POLL_MS = 5L;
+    // Small injectable boundary for deterministic seek/cancellation tests without Android JNI.
+    interface Output {
+        int write(byte[] pcm, int offset, int length) throws IOException;
+        void play();
+        void pause();
+        void flush();
+        long headFrames();
+        default int startThresholdFrames() { return 0; }
+        void release();
+    }
+    interface OutputFactory {
+        Output create(PcmAudioAsset asset, float speed) throws IOException;
+    }
 
     private final Object lock = new Object();
     private final PcmAudioAsset asset;
-    private final Handler callbackHandler;
+    private final Consumer<Runnable> post;
     private final Listener listener;
-
-    private AudioTrack activeTrack;
+    private final OutputFactory outputFactory;
+    private Output activeTrack;
     private Thread worker;
     private int generation;
     private long playbackStartFrame;
+    private float playbackSpeed = 1f;
     private long lastPositionMs;
     private boolean playRequested;
     private boolean released;
-    private float volume = 1.0f;
+    private volatile float volume = 1f;
+    private volatile float hitVolume = 1f;
+    private HitSoundTimeline timeline = HitSoundTimeline.empty();
+    private long audioOffsetMs;
+    private PcmHitSound[] sounds;
+    private Map<String,PcmHitSound> customSounds = Collections.emptyMap();
 
-    public PcmAudioPlayer(PcmAudioAsset asset, Handler callbackHandler, Listener listener) {
-        if (asset == null || callbackHandler == null || listener == null) {
-            throw new IllegalArgumentException("PCM asset, handler and listener are required");
+    public PcmAudioPlayer(PcmAudioAsset asset, Handler handler, Listener listener) {
+        this(asset, callback -> handler.post(callback), listener, PcmAudioPlayer::createTrack);
+    }
+
+    PcmAudioPlayer(PcmAudioAsset asset, Consumer<Runnable> post, Listener listener,
+                   OutputFactory factory) {
+        if (asset == null || post == null || listener == null || factory == null) {
+            throw new IllegalArgumentException("PCM asset, callback and output are required");
         }
         this.asset = asset;
-        this.callbackHandler = callbackHandler;
+        this.post = post;
         this.listener = listener;
+        outputFactory = factory;
+    }
+
+    void configureHitSounds(HitSoundTimeline timeline, long offsetMs, PcmHitSound[] samples) {
+        configureHitSounds(timeline, offsetMs, samples, Collections.emptyMap());
+    }
+
+    void configureHitSounds(HitSoundTimeline timeline, long offsetMs, PcmHitSound[] samples,
+                            Map<String,PcmHitSound> customSamples) {
+        synchronized (lock) {
+            this.timeline = timeline == null ? HitSoundTimeline.empty() : timeline;
+            audioOffsetMs = offsetMs;
+            sounds = samples == null ? null : samples.clone();
+            customSounds = Collections.unmodifiableMap(new HashMap<>(customSamples));
+        }
     }
 
     public void start(long positionMs, float speed) {
-        stopCurrentPlayback();
-        float targetSpeed = Math.max(0.25f, Math.min(2.0f, speed));
-        long targetFrame = asset.frameForPositionMillis(positionMs);
-        Thread nextWorker;
-        int nextGeneration;
+        Thread next;
         synchronized (lock) {
             if (released) return;
-            nextGeneration = ++generation;
+            stopLocked();
+            int expected = ++generation;
+            long targetFrame = asset.frameForPositionMillis(positionMs);
             playbackStartFrame = targetFrame;
             lastPositionMs = asset.positionMillisForFrame(targetFrame);
             playRequested = true;
-            nextWorker = new Thread(
-                    () -> streamPcm(nextGeneration, targetFrame, targetSpeed),
-                    "xpe-mp3-pcm-playback");
-            worker = nextWorker;
+            float rate = Float.isFinite(speed) ? Math.max(.25f, Math.min(2f, speed)) : 1f;
+            playbackSpeed = rate;
+            HitSoundTimeline schedule = timeline;
+            long offset = audioOffsetMs;
+            PcmHitSound[] samples = sounds;
+            Map<String,PcmHitSound> custom = customSounds;
+            next = new Thread(() -> stream(expected, targetFrame, rate, schedule, offset, samples, custom),
+                    "phistudio-pcm-playback");
+            next.setDaemon(true);
+            worker = next;
         }
-        nextWorker.start();
+        next.start();
     }
 
     public void pause() {
-        stopCurrentPlayback();
+        synchronized (lock) { stopLocked(); }
     }
 
     public void seek(long positionMs) {
-        stopCurrentPlayback();
-        long targetFrame = asset.frameForPositionMillis(positionMs);
         synchronized (lock) {
             if (released) return;
-            playbackStartFrame = targetFrame;
-            lastPositionMs = asset.positionMillisForFrame(targetFrame);
+            stopLocked();
+            playbackStartFrame = asset.frameForPositionMillis(positionMs);
+            lastPositionMs = asset.positionMillisForFrame(playbackStartFrame);
         }
     }
 
     public void release() {
-        stopCurrentPlayback();
         synchronized (lock) {
+            if (released) return;
+            stopLocked();
             released = true;
-            generation++;
         }
     }
 
     public boolean isPlaying() {
-        synchronized (lock) {
-            return playRequested;
-        }
+        synchronized (lock) { return playRequested; }
     }
 
     public long positionMillis() {
         synchronized (lock) {
-            updatePositionFromPlaybackHeadLocked(activeTrack);
+            updatePositionLocked();
             return lastPositionMs;
         }
     }
 
-    public long durationMillis() {
-        return asset.durationMillis();
+    public long durationMillis() { return asset.durationMillis(); }
+    public void setVolume(float value) { volume = safeVolume(value); }
+    public void setHitVolume(float value) { hitVolume = safeVolume(value); }
+
+    private static float safeVolume(float value) {
+        return Float.isFinite(value) ? Math.max(0f, Math.min(1f, value)) : 0f;
     }
 
-    public void setVolume(float value) {
-        float target = Math.max(0.0f, Math.min(1.0f, value));
-        synchronized (lock) {
-            volume = target;
-            if (activeTrack != null) activeTrack.setVolume(target);
-        }
-    }
-
-    private void stopCurrentPlayback() {
-        AudioTrack track;
-        Thread currentWorker;
-        synchronized (lock) {
-            updatePositionFromPlaybackHeadLocked(activeTrack);
-            playRequested = false;
-            generation++;
-            track = activeTrack;
+    // ALL native play/write/pause/flush operations share this lock and generation check.
+    private void stopLocked() {
+        generation++;
+        playRequested = false;
+        if (activeTrack != null) {
+            try {
+                activeTrack.pause();
+                updatePositionLocked();
+                activeTrack.flush();
+            } catch (IllegalStateException ignored) { }
             activeTrack = null;
-            currentWorker = worker;
+        }
+        if (worker != null) {
+            worker.interrupt();
             worker = null;
         }
-        if (track != null) {
-            try {
-                track.pause();
-                track.flush();
-            } catch (IllegalStateException ignored) {
-                // The worker is already releasing this track.
-            }
-        }
-        if (currentWorker != null && currentWorker != Thread.currentThread()) {
-            currentWorker.interrupt();
-        }
     }
 
-    private void streamPcm(int expectedGeneration, long targetFrame, float speed) {
-        try {
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
-        } catch (RuntimeException ignored) {
-            // Playback remains correct if an OEM refuses the priority hint.
-        }
-        AudioTrack track = null;
-        try (RandomAccessFile pcm = new RandomAccessFile(asset.file, "r")) {
+    private void stream(int expected, long target, float speed, HitSoundTimeline schedule,
+                        long offsetMs, PcmHitSound[] samples, Map<String,PcmHitSound> custom) {
+        Output output = null;
+        try (RandomAccessFile input = new RandomAccessFile(asset.file, "r")) {
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO); }
+            catch (RuntimeException ignored) { }
             int frameSize = asset.bytesPerFrame();
-            int bufferSize = playbackBufferSize(frameSize);
-            byte[] buffer = new byte[bufferSize];
-            track = createTrack(bufferSize, speed);
-            synchronized (lock) {
-                if (!isCurrentLocked(expectedGeneration)) return;
-                activeTrack = track;
-            }
-
-            pcm.seek(asset.byteOffsetForFrame(targetFrame));
-            long framesWritten = 0L;
-            int pendingOffset = 0;
-            int pendingBytes = readAligned(pcm, buffer, frameSize);
-            boolean endOfFile = pendingBytes < 0;
-
-            if (!endOfFile) {
-                int written = writeBlocking(track, buffer, 0, pendingBytes);
-                framesWritten += written / frameSize;
-                pendingOffset = written;
-            }
-
-            if (!isCurrent(expectedGeneration)) return;
-            track.play();
-
-            while (isCurrent(expectedGeneration) && !endOfFile) {
-                if (pendingOffset >= pendingBytes) {
-                    pendingBytes = readAligned(pcm, buffer, frameSize);
-                    pendingOffset = 0;
-                    if (pendingBytes < 0) {
-                        endOfFile = true;
-                        break;
+            byte[] buffer = new byte[Math.max(1, asset.sampleRate / 100) * frameSize];
+            ScheduledHitSoundMixer mixer = new ScheduledHitSoundMixer(
+                    asset, schedule, offsetMs, samples, custom, target, speed);
+            PcmMusicStream music = new PcmMusicStream(input, asset, target, speed);
+            // Native speed MUST stay 1x: only the music has been time-stretched.
+            output = outputFactory.create(asset, 1f);
+            long framesRead = 0;
+            long framesWritten = 0;
+            boolean started = false;
+            while (isCurrent(expected)) {
+                int count = music.read(buffer);
+                if (count < 0) break;
+                if (count % frameSize != 0) throw new IOException("Incomplete PCM frame");
+                mixer.mix(buffer, count, target + framesRead, volume, hitVolume);
+                framesRead += count / frameSize;
+                int writtenBytes = 0;
+                while (writtenBytes < count) {
+                    int written;
+                    synchronized (lock) {
+                        if (!isCurrentLocked(expected)) return;
+                        activeTrack = output;
+                        written = output.write(buffer, writtenBytes, count - writtenBytes);
+                        if (written < 0 || written % frameSize != 0) {
+                            throw new IOException("PCM output write failed: " + written);
+                        }
+                        if (!started && written > 0) {
+                            // No cancelled worker can play after a newer pause/seek/start.
+                            output.play();
+                            started = true;
+                        }
                     }
-                }
-                int written = track.write(buffer, pendingOffset,
-                        pendingBytes - pendingOffset, AudioTrack.WRITE_NON_BLOCKING);
-                if (written > 0) {
-                    if (written % frameSize != 0) {
-                        throw new IOException("AudioTrack accepted a partial PCM frame");
-                    }
-                    pendingOffset += written;
+                    writtenBytes += written;
                     framesWritten += written / frameSize;
-                } else if (written == 0) {
-                    Thread.sleep(WRITER_POLL_MS);
-                } else {
-                    throw new IOException("AudioTrack write failed: " + written);
+                    if (written == 0) Thread.sleep(2);
                 }
             }
-
-            while (isCurrent(expectedGeneration)
-                    && playbackHeadFrames(track) < framesWritten) {
-                Thread.sleep(COMPLETION_POLL_MS);
+            // A seek within the final few milliseconds may leave less music than the
+            // native stream's start threshold. Pad only its output queue so it can drain;
+            // the chart duration and completion target remain the real music length.
+            if (framesWritten > 0 && framesWritten < output.startThresholdFrames()) {
+                byte[] silence = new byte[buffer.length];
+                long queued = framesWritten;
+                while (queued < output.startThresholdFrames()) {
+                    int written;
+                    synchronized (lock) {
+                        if (!isCurrentLocked(expected)) return;
+                        int length = (int) Math.min(silence.length,
+                                (output.startThresholdFrames() - queued) * frameSize);
+                        written = output.write(silence, 0, length);
+                        if (written < 0 || written % frameSize != 0) {
+                            throw new IOException("PCM tail write failed: " + written);
+                        }
+                    }
+                    queued += written / frameSize;
+                    if (written == 0) Thread.sleep(2);
+                }
             }
-            if (isCurrent(expectedGeneration)) complete(expectedGeneration);
+            while (true) {
+                synchronized (lock) {
+                    if (!isCurrentLocked(expected)) return;
+                    if (output.headFrames() >= framesWritten) break;
+                }
+                Thread.sleep(5);
+            }
+            complete(expected);
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         } catch (Exception exception) {
-            fail(expectedGeneration, exception);
+            fail(expected, exception);
+        } catch (OutOfMemoryError exception) {
+            fail(expected, new IOException("Not enough memory for PCM hit-sound mixing", exception));
         } finally {
             synchronized (lock) {
-                if (activeTrack == track) activeTrack = null;
+                if (activeTrack == output) {
+                    updatePositionLocked();
+                    activeTrack = null;
+                }
                 if (worker == Thread.currentThread()) worker = null;
-            }
-            releaseTrack(track);
-        }
-    }
-
-    private AudioTrack createTrack(int bufferSize, float speed) throws IOException {
-        int channelMask = asset.channelCount == 1
-                ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-        AudioFormat format = new AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setSampleRate(asset.sampleRate)
-                .setChannelMask(channelMask)
-                .build();
-        AudioTrack track = new AudioTrack.Builder()
-                .setAudioAttributes(new AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .build())
-                .setAudioFormat(format)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .setBufferSizeInBytes(bufferSize)
-                .build();
-        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
-            track.release();
-            throw new IOException("Unable to initialize PCM AudioTrack");
-        }
-        PlaybackParams params = new PlaybackParams().allowDefaults()
-                .setSpeed(speed)
-                .setPitch(1.0f);
-        track.setPlaybackParams(params);
-        synchronized (lock) {
-            track.setVolume(volume);
-        }
-        return track;
-    }
-
-    private int playbackBufferSize(int frameSize) throws IOException {
-        int channelMask = asset.channelCount == 1
-                ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-        int minimum = AudioTrack.getMinBufferSize(asset.sampleRate, channelMask,
-                AudioFormat.ENCODING_PCM_16BIT);
-        if (minimum <= 0) throw new IOException("Unsupported PCM output format");
-        long quarterSecond = asset.sampleRate * (long) frameSize / 4L;
-        long requested = Math.max(minimum, quarterSecond);
-        if (requested > Integer.MAX_VALUE) throw new IOException("PCM buffer is too large");
-        int aligned = (int) requested;
-        aligned -= aligned % frameSize;
-        return Math.max(frameSize, aligned);
-    }
-
-    private int writeBlocking(AudioTrack track, byte[] data, int offset, int length)
-            throws IOException {
-        int total = 0;
-        while (total < length) {
-            int written = track.write(data, offset + total, length - total,
-                    AudioTrack.WRITE_BLOCKING);
-            if (written <= 0) throw new IOException("AudioTrack prebuffer failed: " + written);
-            total += written;
-        }
-        return total;
-    }
-
-    private static int readAligned(RandomAccessFile input, byte[] buffer, int frameSize)
-            throws IOException {
-        int read = input.read(buffer);
-        if (read < 0) return -1;
-        if (read % frameSize != 0) {
-            throw new IOException("PCM cache contains a partial frame");
-        }
-        return read;
-    }
-
-    private boolean isCurrent(int expectedGeneration) {
-        synchronized (lock) {
-            return isCurrentLocked(expectedGeneration);
-        }
-    }
-
-    private boolean isCurrentLocked(int expectedGeneration) {
-        return !released && playRequested && generation == expectedGeneration;
-    }
-
-    private void complete(int expectedGeneration) {
-        boolean notify = false;
-        synchronized (lock) {
-            if (isCurrentLocked(expectedGeneration)) {
-                lastPositionMs = asset.durationMillis();
-                playRequested = false;
-                notify = true;
+                if (output != null) output.release();
             }
         }
-        if (notify) callbackHandler.post(listener::onCompletion);
     }
 
-    private void fail(int expectedGeneration, Exception exception) {
-        boolean notify = false;
+    private boolean isCurrent(int expected) {
+        synchronized (lock) { return isCurrentLocked(expected); }
+    }
+
+    private boolean isCurrentLocked(int expected) {
+        return !released && playRequested && generation == expected;
+    }
+
+    private void complete(int expected) {
         synchronized (lock) {
-            if (generation == expectedGeneration && !released) {
-                playRequested = false;
-                notify = true;
+            if (!isCurrentLocked(expected)) return;
+            lastPositionMs = asset.durationMillis();
+            playRequested = false;
+        }
+        post.accept(() -> {
+            synchronized (lock) {
+                if (released || generation != expected) return;
+                listener.onCompletion();
             }
-        }
-        if (notify) {
-            String message = exception.getMessage() == null
-                    ? exception.getClass().getSimpleName() : exception.getMessage();
-            callbackHandler.post(() -> listener.onError(message));
-        }
+        });
     }
 
-    private void updatePositionFromPlaybackHeadLocked(AudioTrack track) {
-        if (track == null) return;
+    private void fail(int expected, Exception exception) {
+        synchronized (lock) {
+            if (released || generation != expected) return;
+            playRequested = false;
+        }
+        String message = exception.getMessage() == null
+                ? exception.getClass().getSimpleName() : exception.getMessage();
+        post.accept(() -> {
+            synchronized (lock) {
+                if (released || generation != expected) return;
+                listener.onError(message);
+            }
+        });
+    }
+
+    private void updatePositionLocked() {
+        if (activeTrack == null) return;
         try {
-            long headFrames = playbackHeadFrames(track);
             lastPositionMs = Math.max(lastPositionMs,
-                    PcmPlaybackClock.positionMillis(asset, playbackStartFrame, headFrames));
-        } catch (IllegalStateException ignored) {
-            // Keep the last stable position while a cancelled worker releases the track.
-        }
+                    PcmPlaybackClock.positionMillis(asset, playbackStartFrame,
+                            activeTrack.headFrames(), playbackSpeed));
+        } catch (IllegalStateException ignored) { }
     }
 
-    private static long playbackHeadFrames(AudioTrack track) {
-        return Integer.toUnsignedLong(track.getPlaybackHeadPosition());
-    }
-
-    private static void releaseTrack(AudioTrack track) {
-        if (track == null) return;
-        try {
-            if (track.getPlayState() != AudioTrack.PLAYSTATE_STOPPED) track.stop();
-        } catch (IllegalStateException ignored) {
-            // Release is still required after a route or device failure.
-        }
-        track.release();
+    private static Output createTrack(PcmAudioAsset asset, float speed) throws IOException {
+        int channels = asset.channelCount == 1
+                ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+        int minimum = AudioTrack.getMinBufferSize(asset.sampleRate, channels, AudioFormat.ENCODING_PCM_16BIT);
+        if (minimum <= 0) throw new IOException("Unsupported PCM output format");
+        AudioTrack track = PcmOutputSetup.open(asset.sampleRate, asset.bytesPerFrame(), minimum, speed,
+                new PcmOutputSetup.Backend<AudioTrack>() {
+            public AudioTrack create(int bufferBytes, boolean lowLatency) throws IOException {
+                AudioTrack result = new AudioTrack.Builder()
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                .setAudioFormat(new AudioFormat.Builder().setSampleRate(asset.sampleRate)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(channels).build())
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setPerformanceMode(lowLatency ? AudioTrack.PERFORMANCE_MODE_LOW_LATENCY
+                        : AudioTrack.PERFORMANCE_MODE_NONE)
+                .setBufferSizeInBytes(bufferBytes)
+                .build();
+                if (result.getState() != AudioTrack.STATE_INITIALIZED) {
+                    result.release();
+                    throw new IOException("PCM output unavailable");
+                }
+                return result;
+            }
+            public void setSpeed(AudioTrack track, float rate) {
+                track.setPlaybackParams(new PlaybackParams().allowDefaults().setSpeed(rate).setPitch(1f));
+            }
+            public void prepare(AudioTrack track) {
+            // setPlaybackParams may implicitly start playback. Return a paused, empty output.
+            track.pause();
+            track.flush();
+            track.setVolume(1f); // Music and effects have independent gain in the PCM mixer.
+            }
+            public void release(AudioTrack track) { track.release(); }
+        });
+        return new Output() {
+            public int write(byte[] pcm, int offset, int length) {
+                return track.write(pcm, offset, length, AudioTrack.WRITE_NON_BLOCKING);
+            }
+            public void play() { track.play(); }
+            public void pause() { track.pause(); }
+            public void flush() { track.flush(); }
+            public long headFrames() { return Integer.toUnsignedLong(track.getPlaybackHeadPosition()); }
+            public int startThresholdFrames() { return track.getBufferSizeInFrames(); }
+            public void release() {
+                try { track.pause(); track.flush(); }
+                catch (IllegalStateException ignored) { }
+                track.release();
+            }
+        };
     }
 }

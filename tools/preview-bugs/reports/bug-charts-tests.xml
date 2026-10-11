@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.xpe.mobile.packageio.PreviewBugChartsTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-08T19:45:28" hostname="localhost" time="3.737">
+  <properties/>
+  <testcase name="fullSuppliedPackagesKeepFixesThroughImportSaveAndReload" classname="com.xpe.mobile.packageio.PreviewBugChartsTest" time="3.7"/>
+  <testcase name="coverUsesPrprToleranceAndExcludesYOffset" classname="com.xpe.mobile.packageio.PreviewBugChartsTest" time="0.009"/>
+  <testcase name="fallenLine20StaysHiddenBeforeFirstAlphaEventAndAfterSave" classname="com.xpe.mobile.packageio.PreviewBugChartsTest" time="0.001"/>
+  <testcase name="pecRotationUsesPrprEndOrderingWithoutOverlapsAndCanBeEdited" classname="com.xpe.mobile.packageio.PreviewBugChartsTest" time="0.004"/>
+  <testcase name="sirensFlickSurvivesCancelledSpeedPlateauAndHitsAt24Quarter" classname="com.xpe.mobile.packageio.PreviewBugChartsTest" time="0.023"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

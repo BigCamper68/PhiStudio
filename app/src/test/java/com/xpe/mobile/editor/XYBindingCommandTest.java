@@ -170,11 +170,13 @@ public final class XYBindingCommandTest {
         JSONObject exportedLayer = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0)
                 .getJSONArray("eventLayers").getJSONObject(0);
-        // The original events follow the generated 0→1 neutral compatibility interval.
+        // Base spatial tracks keep their first keyframe instead of a zero prefix.
+        assertEquals(1, exportedLayer.getJSONArray("moveXEvents").length());
+        assertEquals(1, exportedLayer.getJSONArray("moveYEvents").length());
         assertEquals(77, exportedLayer.getJSONArray("moveXEvents")
-                .getJSONObject(1).getInt("futureX"));
+                .getJSONObject(0).getInt("futureX"));
         assertEquals(88, exportedLayer.getJSONArray("moveYEvents")
-                .getJSONObject(1).getInt("futureY"));
+                .getJSONObject(0).getInt("futureY"));
     }
 
 

@@ -49,186 +49,11 @@ final class StoryboardDialogSection extends EditorDialogSection {
     }
 
     public void showStoryboardEditor() {
-        JudgeLine line = editorView.getCurrentJudgeLine();
-        if (line == null) {
-            showMessage(getString(R.string.storyboard_chart_required));
-            return;
-        }
-
-        int pad = dp(10);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, dp(4), pad, dp(6));
-        TextView scope = addHint(root, getString(R.string.storyboard_scope,
-                editorView.getLineIndex(), line.name));
-        scope.setTextSize(13f);
-
-        List<String> filters = new ArrayList<>();
-        filters.add(getString(R.string.storyboard_filter_all));
-        for (StoryboardEventType type : StoryboardEventType.values()) {
-            filters.add(storyboardTypeLabel(type));
-        }
-        Spinner filter = addStringSpinner(root,
-                getString(R.string.storyboard_filter), filters, 0);
-
-        ListView list = new ListView(this);
-        list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        list.setMinimumHeight(dp(120));
-        List<String> rows = new ArrayList<>();
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_list_item_single_choice, rows);
-        list.setAdapter(adapter);
-        root.addView(list, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
-
-        LinearLayout firstActions = new LinearLayout(this);
-        firstActions.setOrientation(LinearLayout.HORIZONTAL);
-        Button add = addActionButton(firstActions, R.string.storyboard_add);
-        Button edit = addActionButton(firstActions, R.string.storyboard_edit);
-        Button duplicate = addActionButton(firstActions, R.string.storyboard_duplicate);
-        Button delete = addActionButton(firstActions, R.string.storyboard_delete);
-        setCompactButtons(firstActions, add, edit, duplicate, delete);
-        root.addView(firstActions);
-
-        LinearLayout secondActions = new LinearLayout(this);
-        secondActions.setOrientation(LinearLayout.HORIZONTAL);
-        Button glue = addActionButton(secondActions, R.string.storyboard_glue);
-        Button split = addActionButton(secondActions, R.string.storyboard_split);
-        Button close = addActionButton(secondActions, R.string.storyboard_close);
-        setCompactButtons(secondActions, glue, split, close);
-        root.addView(secondActions);
-
-        List<StoryboardEntry> entries = new ArrayList<>();
-        StoryboardEntry[] selected = new StoryboardEntry[1];
-        Runnable[] refresh = new Runnable[1];
-        refresh[0] = () -> {
-            StoryboardEntry previous = selected[0];
-            entries.clear();
-            rows.clear();
-            StoryboardEventType only = filter.getSelectedItemPosition() <= 0
-                    ? null : StoryboardEventType.values()[filter.getSelectedItemPosition() - 1];
-            ExtendedLineEvents storyboard = line.extended;
-            if (storyboard != null) {
-                for (StoryboardEventType type : StoryboardEventType.values()) {
-                    if (only != null && only != type) continue;
-                    for (ExtendedLineEvents.TimedEvent event : storyboard.events(type)) {
-                        StoryboardEntry entry = new StoryboardEntry(type, event);
-                        entries.add(entry);
-                        rows.add(storyboardEntryLabel(entry));
-                    }
-                }
-            }
-            adapter.notifyDataSetChanged();
-            selected[0] = null;
-            list.clearChoices();
-            if (previous != null) {
-                for (int index = 0; index < entries.size(); index++) {
-                    StoryboardEntry candidate = entries.get(index);
-                    if (candidate.type == previous.type && candidate.event == previous.event) {
-                        selected[0] = candidate;
-                        list.setItemChecked(index, true);
-                        break;
-                    }
-                }
-            }
-            boolean hasSelection = selected[0] != null;
-            edit.setEnabled(hasSelection);
-            duplicate.setEnabled(hasSelection);
-            delete.setEnabled(hasSelection);
-            glue.setEnabled(hasSelection);
-            split.setEnabled(hasSelection);
-        };
-        setSpinnerChangeListener(filter, refresh[0]);
-        list.setOnItemClickListener((parent, view, position, id) -> {
-            selected[0] = position >= 0 && position < entries.size()
-                    ? entries.get(position) : null;
-            refresh[0].run();
-        });
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.storyboard_title)
-                .setView(root)
-                .create();
-        add.setOnClickListener(view -> {
-            int position = filter.getSelectedItemPosition();
-            if (position > 0) {
-                StoryboardEventType type = StoryboardEventType.values()[position - 1];
-                showStoryboardEventForm(type, newStoryboardEvent(type), true, refresh[0]);
-            } else {
-                chooseStoryboardType(type -> showStoryboardEventForm(
-                        type, newStoryboardEvent(type), true, refresh[0]));
-            }
-        });
-        edit.setOnClickListener(view -> {
-            StoryboardEntry entry = selected[0];
-            if (entry != null) showStoryboardEventForm(
-                    entry.type, entry.event, false, refresh[0]);
-        });
-        duplicate.setOnClickListener(view -> {
-            StoryboardEntry entry = selected[0];
-            if (entry == null) return;
-            try {
-                ExtendedLineEvents.TimedEvent copy = entry.event.copy();
-                BeatTime duration = copy.endTime.minus(copy.startTime);
-                copy.startTime = copy.endTime;
-                copy.endTime = copy.endTime.plus(duration);
-                showStoryboardEventForm(entry.type, copy, true, refresh[0]);
-            } catch (ArithmeticException exception) {
-                showMessage(getString(R.string.storyboard_invalid_time));
-            }
-        });
-        delete.setOnClickListener(view -> {
-            StoryboardEntry entry = selected[0];
-            if (entry == null) return;
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.storyboard_delete_title)
-                    .setMessage(getString(R.string.storyboard_delete_message,
-                            storyboardTypeLabel(entry.type), entry.event.startTime.toString()))
-                    .setNegativeButton(R.string.action_cancel, null)
-                    .setPositiveButton(R.string.storyboard_delete, (ignored, which) -> {
-                        EditorView.StoryboardApplyResult result =
-                                editorView.deleteStoryboardEvent(entry.type, entry.event);
-                        if (result != EditorView.StoryboardApplyResult.APPLIED) {
-                            showStoryboardApplyError(result);
-                            return;
-                        }
-                        selected[0] = null;
-                        refresh[0].run();
-                        showMessage(getString(R.string.storyboard_deleted));
-                    })
-                    .show();
-        });
-        glue.setOnClickListener(view -> {
-            StoryboardEntry entry = selected[0];
-            if (entry == null) return;
-            EditorView.StoryboardApplyResult result =
-                    editorView.glueStoryboardEvent(entry.type, entry.event);
-            if (result != EditorView.StoryboardApplyResult.APPLIED) {
-                showStoryboardApplyError(result);
-                return;
-            }
-            refresh[0].run();
-            showMessage(getString(R.string.storyboard_glued));
-        });
-        split.setOnClickListener(view -> {
-            StoryboardEntry entry = selected[0];
-            if (entry == null) return;
-            EditorView.StoryboardApplyResult result = editorView.splitStoryboardEvent(
-                    entry.type, entry.event, editorView.getCurrentBeatTime());
-            if (result != EditorView.StoryboardApplyResult.APPLIED) {
-                showStoryboardApplyError(result);
-                return;
-            }
-            refresh[0].run();
-            showMessage(getString(R.string.storyboard_split_applied));
-        });
-        close.setOnClickListener(view -> dialog.dismiss());
-        refresh[0].run();
-        showEditorWindow(dialog, null, 0.94f, 0.96f);
+        host.workbench().switchTab(1);
     }
 
     private void chooseStoryboardType(StoryboardTypeAction action) {
-        StoryboardEventType[] types = StoryboardEventType.values();
+        StoryboardEventType[] types = StoryboardEventType.editableTypes();
         String[] labels = new String[types.length];
         for (int index = 0; index < types.length; index++) {
             labels[index] = storyboardTypeLabel(types[index]);
@@ -240,7 +65,7 @@ final class StoryboardDialogSection extends EditorDialogSection {
                 .show();
     }
 
-    private void showStoryboardEventForm(StoryboardEventType type,
+    public void showStoryboardEventForm(StoryboardEventType type,
                                          ExtendedLineEvents.TimedEvent source,
                                          boolean creating, Runnable afterSave) {
         ScrollView scrollView = new ScrollView(this);
@@ -264,15 +89,21 @@ final class StoryboardDialogSection extends EditorDialogSection {
                 editorView.getCurrentBeatTime().toString()));
 
         boolean numeric = type.isNumeric();
-        EditText startValue = addField(content,
+        TextView startValue = type == StoryboardEventType.COLOR
+                ? ColorPickerButton.addTo(content, getString(R.string.storyboard_start_value),
+                        ((ExtendedLineEvents.ColorEvent) source).startRgb, false)
+                : addField(content,
                 getString(R.string.storyboard_start_value),
                 storyboardStartValue(source), numeric);
-        EditText endValue = addField(content,
+        TextView endValue = type == StoryboardEventType.COLOR
+                ? ColorPickerButton.addTo(content, getString(R.string.storyboard_end_value),
+                        ((ExtendedLineEvents.ColorEvent) source).endRgb, false)
+                : addField(content,
                 getString(R.string.storyboard_end_value),
                 storyboardEndValue(source), numeric);
         if (type == StoryboardEventType.TEXT) {
-            configureStoryboardTextField(startValue);
-            configureStoryboardTextField(endValue);
+            configureStoryboardTextField((EditText) startValue);
+            configureStoryboardTextField((EditText) endValue);
         }
         CheckBox locked = addCheckBox(content, R.string.field_event_locked,
                 storyboardValuesEqual(source));
@@ -317,9 +148,10 @@ final class StoryboardDialogSection extends EditorDialogSection {
         endValue.setEnabled(!locked.isChecked());
         refreshEasing.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
                 .setTitle(getString(creating ? R.string.storyboard_new_title
                         : R.string.storyboard_edit_title, storyboardTypeLabel(type)))
+                .selectionProperties(creating ? null : source, 1)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_apply, null)
@@ -359,6 +191,7 @@ final class StoryboardDialogSection extends EditorDialogSection {
                             return;
                         }
                         dialog.dismiss();
+                        editorView.selectStoryboardEvent(type, creating ? edited : source);
                         afterSave.run();
                         showMessage(getString(creating ? R.string.storyboard_created
                                 : R.string.storyboard_saved));
@@ -399,18 +232,18 @@ final class StoryboardDialogSection extends EditorDialogSection {
 
     private void readStoryboardValues(StoryboardEventType type,
                                       ExtendedLineEvents.TimedEvent event,
-                                      EditText startValue, EditText endValue,
+                                      TextView startValue, TextView endValue,
                                       boolean locked) {
         if (event instanceof ExtendedLineEvents.NumericEvent) {
             ExtendedLineEvents.NumericEvent numeric =
                     (ExtendedLineEvents.NumericEvent) event;
-            numeric.start = parseDouble(startValue);
-            numeric.end = locked ? numeric.start : parseDouble(endValue);
+            numeric.start = parseDouble((EditText) startValue);
+            numeric.end = locked ? numeric.start : parseDouble((EditText) endValue);
         } else if (event instanceof ExtendedLineEvents.ColorEvent) {
             ExtendedLineEvents.ColorEvent color = (ExtendedLineEvents.ColorEvent) event;
-            color.startRgb = parseRgb(startValue.getText().toString());
+            color.startRgb = ((ColorPickerButton) startValue).getColor() & 0xffffff;
             color.endRgb = locked ? color.startRgb
-                    : parseRgb(endValue.getText().toString());
+                    : ((ColorPickerButton) endValue).getColor() & 0xffffff;
         } else if (event instanceof ExtendedLineEvents.TextEvent) {
             ExtendedLineEvents.TextEvent text = (ExtendedLineEvents.TextEvent) event;
             text.start = startValue.getText().toString();

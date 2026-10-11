@@ -55,6 +55,7 @@ public final class PropertyEditCommand {
         target.size = source.size;
         target.speed = source.speed;
         target.type = source.type;
+        target.hitSound = source.hitSound;
         target.visibleTime = source.visibleTime;
         target.yOffset = source.yOffset;
         target.hasTint = source.hasTint;

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.xpe.mobile.project.ProjectBrowserDialogTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-10T12:13:15" hostname="localhost" time="0.306">
+  <properties/>
+  <testcase name="projectActionRowsHaveEqualVisibleGapsAndButtonsHaveCenteredContent" classname="com.xpe.mobile.project.ProjectBrowserDialogTest" time="0.144"/>
+  <testcase name="projectsTitleAndAllThreeHeaderButtonsShareTheSameVerticalCenter" classname="com.xpe.mobile.project.ProjectBrowserDialogTest" time="0.121"/>
+  <testcase name="removeButtonEdgesMatchTheOuterEdgesOfBothTwoButtonRows" classname="com.xpe.mobile.project.ProjectBrowserDialogTest" time="0.041"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

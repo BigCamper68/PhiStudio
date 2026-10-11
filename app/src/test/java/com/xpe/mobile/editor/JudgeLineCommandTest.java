@@ -88,6 +88,38 @@ public final class JudgeLineCommandTest {
     }
 
     @Test
+    public void hudBindingsSurviveSaveUndoRedoAndCanBeRemoved() throws Exception {
+        JudgeLine target = JudgeLine.fromJson(new JSONObject()
+                .put("attachUI", "score").put("futureData", 42));
+        EditHistory history = new EditHistory(10);
+        for (com.xpe.mobile.model.AttachedUiElement element
+                : com.xpe.mobile.model.AttachedUiElement.values()) {
+            JudgeLine before = target.copyProperties();
+            JudgeLine edited = target.copyProperties();
+            edited.attachUi = element;
+            history.execute(JudgeLineCommand.edit(target, before, edited));
+            assertSame(element, JudgeLine.fromJson(target.toJson()).attachUi);
+            assertEquals(42, target.toJson().getInt("futureData"));
+            history.undo();
+            assertSame(before.attachUi, JudgeLine.fromJson(target.toJson()).attachUi);
+            history.redo();
+            assertSame(element, JudgeLine.fromJson(target.toJson()).attachUi);
+        }
+        JudgeLine edited = target.copyProperties();
+        edited.attachUi = null;
+        history.execute(JudgeLineCommand.edit(target, target.copyProperties(), edited));
+        assertEquals(false, target.toJson().has("attachUI"));
+        history.undo();
+        assertSame(com.xpe.mobile.model.AttachedUiElement.LEVEL,
+                JudgeLine.fromJson(target.toJson()).attachUi);
+        JudgeLine fresh = new JudgeLine();
+        fresh.attachUi = com.xpe.mobile.model.AttachedUiElement.COMBO_NUMBER;
+        assertEquals("comboNumber", fresh.toJson().getString("attachUI"));
+        JudgeLine future = JudgeLine.fromJson(new JSONObject().put("attachUI", "futureHud"));
+        assertEquals("futureHud", future.toJson().getString("attachUI"));
+    }
+
+    @Test
     public void addAtIndexRemapsExistingReferencesAndUndoRestoresThem() {
         ChartDocument chart = new ChartDocument();
         chart.judgeLines.add(new JudgeLine());

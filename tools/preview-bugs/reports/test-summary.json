@@ -1,0 +1,24 @@
+{
+  "counts": {
+    "tests": 678,
+    "skipped": 12,
+    "failures": 0,
+    "errors": 0,
+    "passed": 666
+  },
+  "skippedTests": [
+    "com.xpe.mobile.packageio.AspectRatioChartRegressionTest.reportedSectionsMatchPrprLocalProjection",
+    "com.xpe.mobile.packageio.AspectRatioChartRegressionTest.oblivionHoldPairsKeepTheirAuthoredRelativeYAcrossAspects",
+    "com.xpe.mobile.audio.CustomHitSoundMixerTest.actualAconsmaRoutesAll43PerNoteOverridesLikePrpr",
+    "com.xpe.mobile.packageio.ChartBackgroundDimTest.actualOblivionManifestRetainsItsAuthoredDim",
+    "com.xpe.mobile.model.ReferenceChartRoundTripTest.suppliedChartsRoundTripWithStableCounts",
+    "com.xpe.mobile.audio.ScheduledHitSoundMixerTest.suppliedSpamHitsLandOnExactMusicFramesAfterSeek",
+    "com.xpe.mobile.packageio.PackageHitSoundCatalogTest.actualAconsmaExportPreservesItsThreeSoundFilesAndEditedNote",
+    "com.xpe.mobile.audio.PcmOutputSetupTest.suppliedArchiveAudioFormatsUseCorrectOutputSetup",
+    "com.xpe.mobile.packageio.ReferencePackageConversionTest.suppliedLargeGalaxyChartSavesReloadsAndEvaluatesRepeatedly",
+    "com.xpe.mobile.packageio.ReferencePackageConversionTest.suppliedOfficialAndPecPackagesConvertToRpe",
+    "com.xpe.mobile.preview.LargeChartBenchmarkTest.suppliedCharts",
+    "com.xpe.mobile.audio.HitSoundStreamMixerTest.suppliedAntineutrinoSpamEndsWithinSampleLength"
+  ],
+  "excludedDesktopGraphicsTests": 21
+}

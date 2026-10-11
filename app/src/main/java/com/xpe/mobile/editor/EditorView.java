@@ -19,6 +19,7 @@ import java.util.List;
 
 public final class EditorView extends EditorChromeView {
     private final ScaleGestureDetector scaleDetector;
+    private boolean storyboardBoxGesture;
 
     public EditorView(Context context) {
         super(context);
@@ -34,11 +35,13 @@ public final class EditorView extends EditorChromeView {
 
             @Override
             public boolean onScale(ScaleGestureDetector detector) {
-                pixelsPerBeat = clamp(pixelsPerBeat * detector.getScaleFactor(), 38f * density, 280f * density);
+                scaleTimeline(detector.getScaleFactor());
                 invalidate();
                 return true;
             }
         });
+        // Android enables double-tap-and-drag "quick scale" by default. Only pinch should zoom.
+        scaleDetector.setQuickScaleEnabled(false);
     }
 
     @Override
@@ -103,6 +106,7 @@ public final class EditorView extends EditorChromeView {
         }
 
         if (!isInEditor(y)) return true;
+        if (x >= editorSplitX() && workbenchTab == 2) return true;
         gestureStartX = x;
         gestureStartY = y;
         gestureLastY = y;
@@ -110,10 +114,16 @@ public final class EditorView extends EditorChromeView {
         float bottom = getHeight() - bottomBarHeight();
 
         if (tool == Tool.SELECT && rectangleSelectionMode == RectangleSelectionMode.ADD) {
+            storyboardBoxGesture = workbenchTab == 1 && x >= split;
+            if (storyboardBoxGesture) {
+                selectedNote = null; selectedNotes.clear();
+                selectedEvent = null; selectedEvents.clear();
+            }
             gestureMode = GestureMode.RECT_SELECT;
             selectionRectangle = new RectF(x, y, x, y);
             return true;
         }
+        if (x >= split && workbenchTab == 1) return storyboardTimeline.down(x, y);
 
         if (tool == Tool.HOLD && x < split) {
             gestureMode = GestureMode.HOLD_PREVIEW;
@@ -188,6 +198,7 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void cancelActiveGesture() {
+        if (storyboardTimeline != null) storyboardTimeline.cancel();
         finishPlaybackScrub();
         gestureMode = GestureMode.NONE;
         previewEventType = null;
@@ -201,6 +212,7 @@ public final class EditorView extends EditorChromeView {
     private boolean handleMove(float x, float y) {
         float bottom = getHeight() - bottomBarHeight();
         if (Math.abs(y - gestureStartY) > 3f * density || Math.abs(x - gestureStartX) > 3f * density) movedDuringGesture = true;
+        if (storyboardTimeline.active()) return storyboardTimeline.move(x, y);
         if (gestureMode == GestureMode.SEEK_BAR) {
             updatePlaybackSeek(x);
             invalidate();
@@ -230,7 +242,7 @@ public final class EditorView extends EditorChromeView {
                 invalidate();
             }
         } else if (gestureMode == GestureMode.RECT_SELECT && selectionRectangle != null) {
-            selectionRectangle.right = x;
+            selectionRectangle.right = rectangleX(x);
             selectionRectangle.bottom = y;
             invalidate();
         }
@@ -238,6 +250,7 @@ public final class EditorView extends EditorChromeView {
     }
 
     private boolean handleUp(float x, float y) {
+        if (storyboardTimeline.active()) return storyboardTimeline.up(x, y);
         float split = editorSplitX();
         float bottom = getHeight() - bottomBarHeight();
         if (gestureMode == GestureMode.SEEK_BAR) {
@@ -274,12 +287,12 @@ public final class EditorView extends EditorChromeView {
             }
         } else if (gestureMode == GestureMode.RECT_SELECT) {
             if (selectionRectangle != null) {
-                selectionRectangle.right = x;
+                selectionRectangle.right = rectangleX(x);
                 selectionRectangle.bottom = y;
                 if (movedDuringGesture) {
                     applyRectangleSelection(selectionRectangle, split, bottom);
                     maybeAutoCopySelection();
-                } else if (addSelectionAt(x, y, split, bottom)) {
+                } else if (addSelectionAt(rectangleX(x), y, split, bottom)) {
                     maybeAutoCopySelection();
                 } else {
                     clearSelection();
@@ -288,8 +301,9 @@ public final class EditorView extends EditorChromeView {
             selectionRectangle = null;
         } else if (gestureMode == GestureMode.PAN) {
             if (!movedDuringGesture && !previewMode) {
-                currentBeat = Math.max(0.0, snapBeat(yToBeat(y, timelineY(bottom))));
-                clearSelection();
+                boolean clearing = clearTimelineSelectionOnTap();
+                if (!clearing && settings.tapToSeek)
+                    currentBeat = Math.max(0.0, snapBeat(yToBeat(y, timelineY(bottom))));
             }
             finishPlaybackScrub();
         }
@@ -779,6 +793,9 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void deleteSelection() {
+        if (workbenchTab == 1 && storyboardTimeline.selected() != null) {
+            storyboardTimeline.delete(); return;
+        }
         if (selectionCount() > 1) {
             deleteMultipleSelection();
             return;
@@ -1186,6 +1203,13 @@ public final class EditorView extends EditorChromeView {
         selectedEvent = null;
         selectedNotes.clear();
         selectedEvents.clear();
+        if (storyboardTimeline != null) storyboardTimeline.clearSelection();
+    }
+
+    private float rectangleX(float x) {
+        if (workbenchTab != 1) return x;
+        return storyboardBoxGesture ? Math.max(editorSplitX(), x)
+                : Math.min(editorSplitX() - .001f, x);
     }
 
     private boolean addSelectionAt(float x, float y, float split, float bottom) {
@@ -1194,6 +1218,7 @@ public final class EditorView extends EditorChromeView {
             if (note == null) return false;
             selectedNotes.add(note);
         } else {
+            if (workbenchTab == 1) return storyboardTimeline.addSelectionAt(x, y);
             LineEvent event = findEventAt(x, y, split, bottom);
             if (event == null) return false;
             updateRectangleEventSelection(event, true);
@@ -1222,7 +1247,9 @@ public final class EditorView extends EditorChromeView {
                 }
             }
         }
-        if (bounds.right >= split) {
+        if (bounds.right >= split && workbenchTab == 1) {
+            storyboardTimeline.selectRectangle(bounds, add);
+        } else if (bounds.right >= split && workbenchTab == 0) {
             float columnWidth = Math.max(1f, (getWidth() - split) / EventType.values().length);
             for (EventType type : EventType.values()) {
                 float left = split + type.ordinal() * columnWidth;
@@ -1254,7 +1281,11 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void copySelection() {
+        if (workbenchTab == 1 && storyboardTimeline.selected() != null) {
+            storyboardTimeline.copy(); invalidate(); return;
+        }
         clipboard = ChartClipboard.copy(selectedNotesForClipboard(), selectedEventsForClipboard());
+        storyboardTimeline.deactivateClipboard();
         if (clipboard.isEmpty()) {
             if (callback != null) callback.showMessage(getResources().getString(R.string.clipboard_empty_selection));
             return;
@@ -1265,6 +1296,10 @@ public final class EditorView extends EditorChromeView {
     }
 
     private void maybeAutoCopySelection() {
+        if (settings.autoMoveToClipboard && workbenchTab == 1
+                && storyboardTimeline.selectionCount() > 1) {
+            storyboardTimeline.copy(); return;
+        }
         if (!settings.autoMoveToClipboard || selectionCount() <= 1) return;
         ChartClipboard.Snapshot snapshot = ChartClipboard.copy(
                 selectedNotesForClipboard(), selectedEventsForClipboard());
@@ -1273,6 +1308,10 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void cutSelection() {
+        if (workbenchTab == 1 && storyboardTimeline.selected() != null) {
+            storyboardTimeline.cut(); return;
+        }
+        storyboardTimeline.deactivateClipboard();
         List<Note> notes = selectedNotesForClipboard();
         List<LineEvent> events = selectedEventsForClipboard();
         ChartClipboard.Snapshot snapshot = ChartClipboard.copy(notes, events);
@@ -1320,6 +1359,9 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void pasteClipboard(boolean mirrorNotes) {
+        if (workbenchTab == 1 && storyboardTimeline.hasClipboard()) {
+            storyboardTimeline.paste(); return;
+        }
         BeatTime anchor = BeatTime.fromDouble(Math.max(0.0, snapBeat(currentBeat)), subdivision);
         ChartClipboard.Operation operation = ChartClipboard.preparePaste(clipboard,
                 currentLine(), currentLayer(), eventLayerIndex, anchor, mirrorNotes, xyBindingEnabled);

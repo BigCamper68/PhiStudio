@@ -88,11 +88,13 @@ public final class EventLayer {
             throws JSONException {
         if (first == null || first.startTime == null
                 || first.startTime.compareTo(BeatTime.zero()) <= 0) return;
+        // Preserve the authored first spatial/alpha keyframe and its pre-roll. Adding a
+        // zero/default prefix here moves future fake notes to the origin on export.
+        if (baseLayer && (isSpatial(type) || type == EventType.ALPHA)) return;
 
         // Phira/RPE Anim starts evaluating from the first keyframe even before its timestamp.
-        // A delayed nonlinear first event therefore extrapolates backwards and can produce
-        // thousands of degrees of rotation. Materialize the value PhiStudio already uses
-        // before that event: the base-layer default, or zero for additive layers.
+        // Additive layers retain their neutral zero prefix; base speed tracks
+        // retain their defaults. Base spatial/alpha tracks are handled above.
         LineEvent prefix = new LineEvent();
         prefix.type = type;
         prefix.startTime = BeatTime.zero();
@@ -101,6 +103,10 @@ public final class EventLayer {
         prefix.end = prefix.start;
         prefix.easingType = 1;
         target.put(prefix.toJson());
+    }
+
+    public static boolean isSpatial(EventType type) {
+        return type == EventType.MOVE_X || type == EventType.MOVE_Y || type == EventType.ROTATE;
     }
 
     public boolean isNullPlaceholder() {

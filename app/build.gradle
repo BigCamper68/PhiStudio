@@ -22,8 +22,8 @@ android {
         applicationId 'com.xpe.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 40
-        versionName '1.0.3'
+        versionCode 71
+        versionName '1.0.4'
     }
 
     signingConfigs {
@@ -54,6 +54,7 @@ android {
     }
 
     testOptions {
+        unitTests.includeAndroidResources = true
         unitTests.all {
             maxHeapSize = project.findProperty('unitTestMaxHeap') ?: '2g'
         }
@@ -62,5 +63,6 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
     testImplementation 'org.json:json:20240303'
 }

@@ -45,13 +45,20 @@ import com.xpe.mobile.project.ProjectBrowserDialog;
 import com.xpe.mobile.project.ProjectRecord;
 import com.xpe.mobile.project.ProjectThumbnailLoader;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
+import com.xpe.mobile.preview.PreviewShaderLoader;
+import com.xpe.mobile.preview.ShaderTimeline;
+import com.xpe.mobile.shadereditor.ShaderDocument;
+import com.xpe.mobile.shadereditor.ShaderWorkspace;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -117,6 +124,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     private static final int SAVE_PACKAGE = 1005;
     private static final int SELECT_NEW_PROJECT_AUDIO = 1006;
     private static final int SELECT_NEW_PROJECT_ILLUSTRATION = 1007;
+    private static final int OPEN_SHADER = 1008;
     private static final class NewProjectDraft {
         AlertDialog dialog;
         EditText name;
@@ -133,6 +141,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     private EditorView editorView;
+    private WorkbenchView workbench;
     private EditorDialogController editorDialogs;
     private EditorAudioController audioController;
     private ChartPackage currentPackage;
@@ -148,15 +157,20 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     private NewProjectDraft newProjectDraft;
     private int illustrationLoadGeneration;
     private EditorSettings editorSettings;
+    private ShaderDocument shaderDocument;
+    private ChartPackage shaderPackage;
+    private ShaderEditorView shaderEditor;
+    private int shaderGeneration;
+    private Runnable pendingShaderPreview;
     private final Runnable scheduledAutosave = new Runnable() {
         @Override
         public void run() {
             if (editorSettings == null || !editorSettings.autosaveEnabled) return;
             try {
                 ChartDocument chart = editorView == null ? null : editorView.getChart();
-                if (chart != null && editorView.isChartDirty() && !editorView.isPlaying()) {
+                if (chart != null && (editorView.isChartDirty() || shadersDirty()) && !editorView.isPlaying()) {
                     if (currentPackage != null && currentProjectId != null) {
-                        PackageWorkspaceWriter.writeChart(currentPackage, chart);
+                        saveCurrentProject();
                     } else {
                         ChartIo.writeAutosave(MainActivity.this, chart);
                     }
@@ -177,6 +191,8 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         editorView = new EditorView(this);
+        workbench = new WorkbenchView(this, editorView, this::createWorkbenchMenu);
+        workbench.setShaderOpener(this::openShaderEditor);
         editorView.setCallback(this);
         editorSettings = EditorSettingsStore.load(getPreferences(MODE_PRIVATE));
         editorView.applySettings(editorSettings);
@@ -206,6 +222,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         audioController.applySettings(editorSettings);
         editorDialogs = new EditorDialogController(this, editorView,
                 new EditorDialogController.Host() {
+                    @Override public WorkbenchView workbench() { return workbench; }
                     @Override
                     public EditorSettings editorSettings() {
                         return editorSettings;
@@ -237,11 +254,22 @@ public final class MainActivity extends Activity implements EditorView.Callback 
                     }
 
                     @Override
+                    public List<String> hitSoundChoices() {
+                        return com.xpe.mobile.packageio.PackageHitSoundCatalog.choices(currentPackage);
+                    }
+
+                    @Override
+                    public boolean isHitSoundAvailable(String reference) {
+                        return com.xpe.mobile.packageio.PackageHitSoundCatalog.isAvailable(currentPackage, reference);
+                    }
+
+                    @Override
                     public void showMessage(String message) {
                         MainActivity.this.showMessage(message);
                     }
                 });
-        setContentView(editorView);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        setContentView(workbench);
         projectLibrary = new ProjectLibrary(new File(getFilesDir(), "project-library"));
         projectThumbnails = new ProjectThumbnailLoader(
                 new File(getCacheDir(), "project-thumbnails"));
@@ -343,63 +371,47 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     @Override
-    public void requestMainMenu() {
-        int pad = dp(10);
-        LinearLayout columns = new LinearLayout(this);
-        columns.setOrientation(LinearLayout.HORIZONTAL);
-        columns.setPadding(pad, dp(2), pad, dp(6));
+    public void requestMainMenu() { workbench.showMenu(); }
 
-        ScrollView projectScroll = new ScrollView(this);
-        projectScroll.setFillViewport(true);
-        LinearLayout projectActions = new LinearLayout(this);
-        projectActions.setOrientation(LinearLayout.VERTICAL);
-        projectActions.setPadding(0, 0, dp(6), 0);
-        projectScroll.addView(projectActions);
-        columns.addView(projectScroll, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.0f));
+    private View createWorkbenchMenu() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.VERTICAL);
+        actions.setPadding(dp(10), dp(4), dp(10), dp(12));
+        scroll.addView(actions);
+        addMenuSection(actions, R.string.menu_section_projects);
+        addWorkbenchTool(actions, getString(R.string.menu_projects), () -> showProjectLibrary(false));
+        addWorkbenchTool(actions, getString(R.string.menu_import_package), this::requestPackageOpen);
+        addWorkbenchTool(actions, getString(R.string.menu_export_package), this::requestPackageSave);
+        addMenuSection(actions, R.string.menu_section_chart);
+        addWorkbenchTool(actions, getString(R.string.menu_metadata), this::requestEditMetadata);
+        addWorkbenchTool(actions, getString(R.string.menu_bpm), this::requestEditBpmList);
+        addWorkbenchTool(actions, getString(R.string.menu_lines), this::requestManageLines);
+        addWorkbenchTool(actions, getString(R.string.menu_curve_notes), this::showCurveNotes);
+        addWorkbenchTool(actions, getString(R.string.menu_complex_move), this::showComplexMove);
+        addWorkbenchTool(actions, getString(R.string.menu_settings), this::showSettings);
+        addWorkbenchTool(actions, getString(R.string.menu_diagnostics), this::showChartDiagnostics);
+        return scroll;
+    }
 
-        ScrollView chartScroll = new ScrollView(this);
-        chartScroll.setFillViewport(true);
-        LinearLayout chartActions = new LinearLayout(this);
-        chartActions.setOrientation(LinearLayout.VERTICAL);
-        chartActions.setPadding(dp(6), 0, 0, 0);
-        chartScroll.addView(chartActions);
-        columns.addView(chartScroll, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1.0f));
+    private void addWorkbenchTool(LinearLayout parent, String label, Runnable action) {
+        Button button = WorkbenchView.button(this, label);
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setPadding(dp(12), 0, dp(8), 0);
+        button.setBackgroundResource(R.drawable.phistudio_menu_button);
+        parent.addView(button, new LinearLayout.LayoutParams(-1, dp(44)));
+        button.setOnClickListener(view -> action.run());
+    }
 
-        addMenuSection(projectActions, R.string.menu_section_projects);
-        Button projects = addMenuButton(projectActions, R.string.menu_projects);
-        Button importPackage = addMenuButton(projectActions, R.string.menu_import_package);
-        Button exportPackage = addMenuButton(projectActions, R.string.menu_export_package);
+    @Override
+    public void requestStoryboardProperties(com.xpe.mobile.model.StoryboardEventType type,
+            com.xpe.mobile.model.ExtendedLineEvents.TimedEvent event, boolean creating) {
+        editorDialogs.showStoryboardProperties(type, event, creating);
+    }
 
-        addMenuSection(chartActions, R.string.menu_section_chart);
-        Button metadata = addMenuButton(chartActions, R.string.menu_metadata);
-        Button bpmList = addMenuButton(chartActions, R.string.menu_bpm);
-        Button lineList = addMenuButton(chartActions, R.string.menu_lines);
-        Button storyboard = addMenuButton(chartActions, R.string.menu_storyboard);
-        Button curveNotes = addMenuButton(chartActions, R.string.menu_curve_notes);
-        Button complexMove = addMenuButton(chartActions, R.string.menu_complex_move);
-        Button settings = addMenuButton(chartActions, R.string.menu_settings);
-        Button diagnostics = addMenuButton(chartActions, R.string.menu_diagnostics);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.menu_title)
-                .setView(columns)
-                .setNegativeButton(R.string.action_cancel, null)
-                .create();
-        projects.setOnClickListener(view -> runMenuAction(dialog,
-                () -> showProjectLibrary(false)));
-        importPackage.setOnClickListener(view -> runMenuAction(dialog, this::requestPackageOpen));
-        exportPackage.setOnClickListener(view -> runMenuAction(dialog, this::requestPackageSave));
-        metadata.setOnClickListener(view -> runMenuAction(dialog, this::requestEditMetadata));
-        bpmList.setOnClickListener(view -> runMenuAction(dialog, this::requestEditBpmList));
-        lineList.setOnClickListener(view -> runMenuAction(dialog, this::requestManageLines));
-        storyboard.setOnClickListener(view -> runMenuAction(dialog, this::showStoryboardEditor));
-        curveNotes.setOnClickListener(view -> runMenuAction(dialog, this::showCurveNotes));
-        complexMove.setOnClickListener(view -> runMenuAction(dialog, this::showComplexMove));
-        settings.setOnClickListener(view -> runMenuAction(dialog, this::showSettings));
-        diagnostics.setOnClickListener(view -> runMenuAction(dialog, this::showChartDiagnostics));
-        showEditorWindow(dialog, null);
+    @Override public void onBackPressed() {
+        if (workbench != null && workbench.back()) return;
+        super.onBackPressed();
     }
 
     private void showStoryboardEditor() {
@@ -669,6 +681,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
                             }, fallback -> {
                         if (active) {
                             currentPackage = null;
+                            audioController.setHitSoundPackage(null);
                             currentPackageSourceUri = null;
                             currentProjectId = null;
                             currentProjectName = null;
@@ -851,6 +864,16 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     @Override
+    public void configureHitSounds(HitSoundTimeline timeline, long chartOffsetMs, long packageOffsetMs) {
+        if (audioController != null) audioController.configureHitSounds(timeline, chartOffsetMs, packageOffsetMs);
+    }
+
+    @Override
+    public boolean schedulesHitSounds() {
+        return audioController != null && audioController.schedulesHitSounds();
+    }
+
+    @Override
     public void startAudio(long positionMs, float speed) {
         if (audioController != null) audioController.start(positionMs, speed);
     }
@@ -890,6 +913,10 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
+        if (requestCode == OPEN_SHADER) {
+            importShader(uri, data);
+            return;
+        }
         if (requestCode == SELECT_NEW_PROJECT_AUDIO
                 || requestCode == SELECT_NEW_PROJECT_ILLUSTRATION) {
             acceptNewProjectAsset(requestCode, uri, data);
@@ -911,6 +938,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
                                 return;
                             }
                             currentPackage = null;
+                            audioController.setHitSoundPackage(null);
                             currentPackageSourceUri = null;
                             currentProjectId = null;
                             currentProjectName = null;
@@ -961,6 +989,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
                     showMessage(getString(R.string.package_source_overwrite_blocked));
                     return;
                 }
+                saveCurrentProject();
                 AndroidPackageIo.exportPackage(getContentResolver(), uri, getCacheDir(),
                         currentPackage, editorView.getChart());
                 showMessage(getString(R.string.package_exported, currentPackage.getProjectName()));
@@ -989,11 +1018,11 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         super.onPause();
         pauseAudio();
         ChartDocument chart = editorView.getChart();
-        if (chart != null && editorView.isChartDirty()
+        if (chart != null && (editorView.isChartDirty() || shadersDirty())
                 && editorSettings != null && editorSettings.autosaveEnabled) {
             try {
                 if (currentPackage != null && currentProjectId != null) {
-                    PackageWorkspaceWriter.writeChart(currentPackage, chart);
+                    saveCurrentProject();
                 } else {
                     ChartIo.writeAutosave(this, chart);
                 }
@@ -1006,6 +1035,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
 
     @Override
     protected void onDestroy() {
+        clearShaderSession();
         illustrationLoadGeneration++;
         if (mainHandler != null) mainHandler.removeCallbacks(scheduledAutosave);
         if (projectBrowser != null) projectBrowser.dismiss();
@@ -1205,6 +1235,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
                                  String localName) {
         editorView.stopPlayback();
         currentPackage = chartPackage;
+        audioController.setHitSoundPackage(chartPackage);
         currentProjectId = projectId;
         currentProjectName = localName;
         currentPackageSourceUri = sourceUri;
@@ -1230,9 +1261,11 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     private void loadEditorIllustration(ChartPackage chartPackage) {
+        if (shaderPackage != chartPackage) clearShaderSession();
         int generation = ++illustrationLoadGeneration;
         editorView.setBackgroundIllustration(null);
         editorView.setPreviewLineTextures(null);
+        editorView.setPreviewShaders(ShaderTimeline.EMPTY);
         File illustration = chartPackage == null ? null : chartPackage.getIllustrationFile();
         Set<String> textureNames = new LinkedHashSet<>();
         if (chartPackage != null && chartPackage.getChart() != null) {
@@ -1241,26 +1274,41 @@ public final class MainActivity extends Activity implements EditorView.Callback 
             }
         }
         boolean hasIllustration = illustration != null && illustration.isFile();
-        if (!hasIllustration && textureNames.isEmpty()) return;
         int targetWidth = Math.max(1, Math.round(
                 getResources().getDisplayMetrics().widthPixels * 0.70f));
         int targetHeight = Math.max(1, getResources().getDisplayMetrics().heightPixels);
         try {
             previewExecutor.execute(() -> {
-                Bitmap bitmap = hasIllustration ? EditorBackgroundDecoder.decode(
+                EditorBackgroundDecoder.Background background = hasIllustration ? EditorBackgroundDecoder.decodeForPreview(
                         illustration, targetWidth, targetHeight) : null;
                 Map<String, PreviewTextureDecoder.Texture> lineTextures = chartPackage == null
                         ? Collections.emptyMap() : PreviewTextureDecoder.decode(
                         chartPackage.getWorkspace(), textureNames);
+                ShaderTimeline loadedShaders;
+                String shaderError;
+                try {
+                    loadedShaders = PreviewShaderLoader.load(chartPackage, getAssets());
+                    shaderError = null;
+                } catch (IOException exception) {
+                    loadedShaders = ShaderTimeline.EMPTY;
+                    shaderError = safeMessage(exception);
+                }
+                ShaderTimeline shaders = loadedShaders;
+                String error = shaderError;
                 mainHandler.post(() -> {
                     if (generation != illustrationLoadGeneration
                             || isFinishing() || isDestroyed()) {
-                        if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+                        if (background != null) background.recycle();
                         PreviewTextureDecoder.recycleAll(lineTextures);
                         return;
                     }
-                    editorView.setBackgroundIllustration(bitmap);
+                    editorView.setBackgroundIllustration(background == null ? null : background.original,
+                            background == null ? null : background.blurred);
                     editorView.setPreviewLineTextures(lineTextures);
+                    if (shaderDocument != null && shaderPackage == chartPackage) {
+                        scheduleShaderPreview();
+                    } else editorView.setPreviewShaders(shaders);
+                    if (error != null) showMessage(getString(R.string.preview_shader_error, error));
                 });
             });
         } catch (RuntimeException exception) {
@@ -1269,19 +1317,146 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     private void clearEditorIllustration() {
+        clearShaderSession();
         illustrationLoadGeneration++;
         if (editorView != null) {
             editorView.setBackgroundIllustration(null);
             editorView.setPreviewLineTextures(null);
+            editorView.setPreviewShaders(ShaderTimeline.EMPTY);
         }
     }
 
     private void saveCurrentProject() throws IOException {
+        if (shadersDirty()) {
+            String snapshot = shaderDocument.json();
+            ShaderWorkspace.save(currentPackage, snapshot);
+            shaderDocument.markSaved(snapshot);
+            if (shaderEditor != null) shaderEditor.invalidatePreview();
+        }
         if (currentPackage != null && currentProjectId != null
                 && editorView.getChart() != null && editorView.isChartDirty()) {
             PackageWorkspaceWriter.writeChart(currentPackage, editorView.getChart());
             editorView.markChartSaved();
         }
+    }
+
+    private boolean shadersDirty() {
+        return shaderDocument != null && shaderPackage == currentPackage && shaderDocument.dirty();
+    }
+
+    private void clearShaderSession() {
+        if (workbench != null) workbench.clearShaderEditor();
+        shaderGeneration++;
+        if (mainHandler != null && pendingShaderPreview != null) mainHandler.removeCallbacks(pendingShaderPreview);
+        pendingShaderPreview = null;
+        shaderDocument = null;
+        shaderEditor = null;
+        shaderPackage = null;
+    }
+
+    private void openShaderEditor() {
+        if (currentPackage == null) {
+            showMessage(getString(R.string.package_required));
+            return;
+        }
+        try {
+            if (shaderPackage != currentPackage || shaderDocument == null) {
+                clearShaderSession();
+                ChartPackage pack = currentPackage;
+                shaderDocument = new ShaderDocument(ShaderWorkspace.read(pack), editorView.getChart(),
+                        name -> PreviewShaderLoader.source(pack.getWorkspace(), getAssets(), name));
+                shaderPackage = pack;
+                shaderEditor = new ShaderEditorView(this, editorView, shaderDocument, new ShaderEditorView.Host() {
+                    public void changed() { scheduleShaderPreview(); }
+                    public void importShader() {
+                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("*/*");
+                        startActivityForResult(intent, OPEN_SHADER);
+                    }
+                    public void save() { requestProjectSave(); }
+                });
+                scheduleShaderPreview();
+            }
+            workbench.showShaders(shaderEditor);
+        } catch (Exception exception) {
+            showMessage("Shaders: " + safeMessage(exception));
+        }
+    }
+
+    private void scheduleShaderPreview() {
+        if (shaderDocument == null || previewExecutor == null || previewExecutor.isShutdown()) return;
+        final int generation = ++shaderGeneration;
+        final String snapshot = shaderDocument.json();
+        final Map<String,String> sources = shaderDocument.sourceSnapshot();
+        if (pendingShaderPreview != null) mainHandler.removeCallbacks(pendingShaderPreview);
+        pendingShaderPreview = () -> previewExecutor.execute(() -> {
+            try {
+                ShaderTimeline timeline = ShaderTimeline.parse(snapshot, name -> {
+                    String source = sources.get(name);
+                    if (source == null) throw new IOException("Shader unavailable: " + name);
+                    return source;
+                });
+                mainHandler.post(() -> {
+                    if (generation != shaderGeneration || isDestroyed() || isFinishing()) return;
+                    editorView.updatePreviewShaders(timeline);
+                    if (shaderEditor != null) shaderEditor.invalidatePreview();
+                });
+            } catch (Exception exception) {
+                mainHandler.post(() -> {
+                    if (generation == shaderGeneration && shaderEditor != null)
+                        shaderEditor.error(safeMessage(exception));
+                });
+            }
+        });
+        mainHandler.postDelayed(pendingShaderPreview, 75);
+    }
+
+    private void importShader(Uri uri, Intent data) {
+        if (shaderDocument == null || shaderPackage != currentPackage) return;
+        final ShaderDocument document = shaderDocument;
+        final ChartPackage pack = shaderPackage;
+        try {
+            takeReadPermission(uri, data);
+            previewExecutor.execute(() -> {
+                try {
+                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                    try (InputStream stream = getContentResolver().openInputStream(uri)) {
+                        if (stream == null) throw new IOException("Cannot read GLSL");
+                        byte[] buffer = new byte[8192];
+                        int length;
+                        while ((length = stream.read(buffer)) != -1) {
+                            if (bytes.size() + length > 1024 * 1024) throw new IOException("GLSL exceeds 1 MB");
+                            bytes.write(buffer, 0, length);
+                        }
+                    }
+                    String raw = bytes.toString(StandardCharsets.UTF_8.name());
+                    final String source = raw.startsWith("\ufeff") ? raw.substring(1) : raw;
+                    if (!source.matches("(?s).*\\bvoid\\s+main\\s*\\(.*")) throw new IOException("GLSL requires void main()");
+                    String filename = AndroidPackageIo.displayName(getContentResolver(), uri);
+                    String stem = (filename == null ? "import" : filename).replaceAll("[^\\p{L}\\p{N}._-]", "_");
+                    if (stem.toLowerCase(Locale.ROOT).endsWith(".glsl")) stem = stem.substring(0, stem.length() - 5);
+                    if (stem.isEmpty()) stem = "import";
+                    if (stem.length() > 64) stem = stem.substring(0, 64);
+                    final String path = "shaders/" + stem + "-" + UUID.randomUUID().toString().substring(0, 8) + ".glsl";
+                    mainHandler.post(() -> {
+                        if (document != shaderDocument || pack != currentPackage || isDestroyed()) return;
+                        try {
+                            ShaderWorkspace.write(pack, path, source);
+                            pack.registerShaderResource(path);
+                            document.registerSource("/" + path, source);
+                            document.add("/" + path, editorView.shaderEditorSeconds());
+                            shaderEditor.imported();
+                        } catch (Exception exception) { shaderEditor.error(safeMessage(exception)); }
+                    });
+                } catch (Exception exception) {
+                    mainHandler.post(() -> {
+                        if (document == shaderDocument && shaderEditor != null)
+                            shaderEditor.error(safeMessage(exception));
+                    });
+                }
+            });
+        } catch (Exception exception) { shaderEditor.error(safeMessage(exception)); }
     }
 
     private void loadAudio(Uri uri, boolean remember) throws IOException {

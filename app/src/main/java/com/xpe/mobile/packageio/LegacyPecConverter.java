@@ -225,33 +225,40 @@ final class LegacyPecConverter {
 
     private static void buildCommands(List<PecCommand> source, List<LineEvent> target,
                                       EventType type) {
-        source.sort(Comparator.comparingDouble((PecCommand value) -> value.start)
+        // prpr parse/pec.rs sanitize_events orders by END, then START. A point
+        // inside a transition therefore supplies its initial value and clips its start.
+        source.sort(Comparator.comparingDouble((PecCommand value) -> value.end)
+                .thenComparingDouble(value -> value.start)
                 .thenComparingInt(value -> value.sequence));
-        double state = LineEvent.defaultValue(type);
+        List<PecCommand> sanitized = new ArrayList<>();
         double occupiedUntil = Double.NEGATIVE_INFINITY;
-        for (int index = 0; index < source.size(); index++) {
-            PecCommand command = source.get(index);
-            double start = Math.max(0.0, command.start);
+        for (PecCommand command : source) {
+            double start = Math.max(Math.max(0.0, command.start), occupiedUntil);
+            double end = Math.max(start, command.end);
+            sanitized.add(new PecCommand(start, end, command.target,
+                    command.easing, command.transition && end > start, command.sequence));
+            occupiedUntil = end;
+        }
+        double state = LineEvent.defaultValue(type);
+        for (int index = 0; index < sanitized.size(); index++) {
+            PecCommand command = sanitized.get(index);
+            double start = command.start;
             if (!command.transition) {
                 state = command.target;
-                boolean followedAtSameBeat = index + 1 < source.size()
-                        && close(source.get(index + 1).start, command.start);
+                // A point consumed by the next event is represented by that event's
+                // start value, not by an artificial overlapping one-microbeat event.
+                boolean followedAtSameBeat = index + 1 < sanitized.size()
+                        && beat(sanitized.get(index + 1).start).equals(beat(start));
                 if (!followedAtSameBeat) {
-                    LineEvent point = event(type, start, start + MIN_DURATION,
-                            state, state, 1);
-                    addMerged(target, point);
-                    occupiedUntil = Math.max(occupiedUntil, point.endTime.toDouble());
+                    addMerged(target, event(type, start, start + MIN_DURATION,
+                            state, state, 1));
                 }
                 continue;
             }
-
-            start = Math.max(start, occupiedUntil);
             double end = Math.max(start + MIN_DURATION, command.end);
-            LineEvent transition = event(type, start, end,
-                    state, command.target, command.easing);
-            addMerged(target, transition);
+            addMerged(target, event(type, start, end,
+                    state, command.target, command.easing));
             state = command.target;
-            occupiedUntil = end;
         }
     }
 
