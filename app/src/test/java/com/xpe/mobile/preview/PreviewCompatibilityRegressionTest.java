@@ -71,7 +71,9 @@ public final class PreviewCompatibilityRegressionTest {
         Bitmap caps = render(Collections.singletonList(line("line.png", 0, 1, 1,
                 Collections.singletonList(tail))), Collections.emptyMap());
         assertEquals(0, opaquePixels(caps, 910, 565, 100, 80));
-        assertTrue(opaquePixels(caps, 880, 675, 160, 45) > 0);
+        int tailY = (int) (caps.getHeight() / 2.0
+                - tail.endDistance * PreviewCoordinates.scaleY(caps.getHeight()));
+        assertTrue(opaquePixels(caps, 880, tailY, 160, 45) > 0);
         caps.recycle();
     }
 
