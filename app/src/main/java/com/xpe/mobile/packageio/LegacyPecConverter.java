@@ -5,6 +5,7 @@ import com.xpe.mobile.model.BpmChange;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.EventLayer;
 import com.xpe.mobile.model.EventType;
+import com.xpe.mobile.model.ExtendedLineEvents;
 import com.xpe.mobile.model.JudgeLine;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
@@ -199,6 +200,10 @@ final class LegacyPecConverter {
 
         LineBuilder(int id) {
             line.name = "Line " + id;
+            // prpr PEC uses 3.91/6; RPE normal-line scaleX events carry a .5 factor.
+            ExtendedLineEvents.NumericEvent width = new ExtendedLineEvents.NumericEvent();
+            width.start = width.end = 3.91 / 3.0;
+            line.extended.scaleXEvents.add(width);
             line.notes.clear();
             line.eventLayers.clear();
             line.eventLayers.add(layer);

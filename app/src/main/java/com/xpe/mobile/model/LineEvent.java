@@ -205,6 +205,11 @@ public final class LineEvent {
                 sourceEasingType, t, easingLeft, easingRight);
     }
 
+    /** Original renderer metadata; editing speed remains linear. */
+    public int sourceSpeedEasing() {
+        return raw == null ? 1 : raw.optInt("easingType", 1);
+    }
+
     public static double defaultValue(EventType type) {
         switch (type) {
             case ALPHA: return 255.0;

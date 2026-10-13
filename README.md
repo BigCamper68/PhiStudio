@@ -23,6 +23,8 @@ bundled Windows executables.
 - Import and conversion of RPE, official Phigros and legacy PEC charts.
 - Local project library with explicit Save and package export.
 - Native audio-synchronized preview.
+- Offline MP4 export through Menu → Projects: PhiStudio rendering and shaders,
+  H.264/AAC, resolution/FPS/bitrate, music/hit volumes, time range and HUD controls.
 - Hardware Canvas to external GL textures for shader playback, without full-frame CPU bitmap uploads.
 - Shaders workbench: Preview on the left, vertical effects/keyframe timeline on the right, parameters below.
 - prpr GLSL presets/imports, typed uniforms/color picker, 29 named easings, independent FX BPM, Undo/Redo and project/package persistence.
@@ -47,6 +49,41 @@ The project requires JDK 17 and Android SDK 35.
 ```
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+Release builds use the existing PhiStudio signing certificate. Set
+`PHISTUDIO_KEYSTORE_PATH` (PKCS12), `PHISTUDIO_KEYSTORE_PASSWORD`,
+`PHISTUDIO_KEY_ALIAS` and `PHISTUDIO_KEY_PASSWORD`, then run
+`./gradlew clean testDebugUnitTest lintRelease assembleRelease`.
+Without these variables Gradle produces an unsigned release APK.
+Keep keystores and passwords outside the repository.
+
+The release workflow publishes **PhiStudio 1.0.5** as tag `v1.0.5` after a
+push to `main`, using the existing Actions signing secrets. It attaches the
+signed APK, a source archive and SHA-256 checksums. Release notes are stored in
+`.github/release-notes/v1.0.5.md`.
+
+See [architecture](ARCHITECTURE.md), [rendering compatibility](docs/rendering-parity.md)
+and [release validation](docs/validation.md) for implementation and test details.
+
+## Video export
+
+Open a chart and choose **Menu → Projects → Export chart to MP4**. The export
+uses the current chart and shader drafts. Set resolution (including custom sizes
+and the player preset), 30/60 FPS, bitrate, start/end in seconds, audio volumes,
+shaders and HUD. Rendering pauses editor playback and runs offline; performance
+does not change the video's timing. Keep PhiStudio open until it finishes.
+
+After rendering, select a destination in Android's file picker. Cancelling the
+picker keeps the completed MP4 available from the export button for the rest of
+the session. Music and hit sounds use the preview's chart/package offsets and
+hit-sound settings, including custom hit sounds. A selected time range retains
+hit-sound tails that cross its start; audio after the song ends is silent.
+
+Export uses the device's Android H.264 encoder. Unsupported size/FPS/bitrate
+combinations produce an error suggesting a smaller preset. Temporary storage is
+needed for decoded PCM, intermediate tracks and the final MP4. A failing chart
+shader or missing custom hit sound produces an export error; their respective
+switches allow an export without that feature.
 
 ## Installation
 

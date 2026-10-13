@@ -1,176 +1,99 @@
 package com.xpe.mobile;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
-import android.text.InputType;
-import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
-import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.Toast;
-
-import com.xpe.mobile.editor.EditorBackgroundDecoder;
-import com.xpe.mobile.editor.EditorView;
 import com.xpe.mobile.audio.EditorAudioController;
 import com.xpe.mobile.audio.HitSoundTimeline;
-import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.config.EditorSettings;
-import com.xpe.mobile.config.EditorSettingsStore;
-import com.xpe.mobile.config.ShortcutChord;
+import com.xpe.mobile.editor.EditorView;
+import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.model.ChartDocument;
-import com.xpe.mobile.model.JudgeLine;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
-import com.xpe.mobile.packageio.AndroidPackageIo;
 import com.xpe.mobile.packageio.ChartPackage;
-import com.xpe.mobile.packageio.PackageException;
-import com.xpe.mobile.packageio.PackageWorkspaceWriter;
-import com.xpe.mobile.packageio.ProjectWorkspaceCreator;
-import com.xpe.mobile.project.ProjectLibrary;
 import com.xpe.mobile.project.ProjectBrowserDialog;
-import com.xpe.mobile.project.ProjectRecord;
+import com.xpe.mobile.project.ProjectLibrary;
 import com.xpe.mobile.project.ProjectThumbnailLoader;
-import com.xpe.mobile.preview.PreviewTextureDecoder;
-import com.xpe.mobile.preview.PreviewShaderLoader;
-import com.xpe.mobile.preview.ShaderTimeline;
 import com.xpe.mobile.shadereditor.ShaderDocument;
-import com.xpe.mobile.shadereditor.ShaderWorkspace;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Locale;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity implements EditorView.Callback {
-    private interface ProjectTask<T> {
+    private final MainActivityResults mainActivityResults = new MainActivityResults(this);
+    final MainFileActions mainFileActions = new MainFileActions(this);
+    final MainVideoExport mainVideoExport = new MainVideoExport(this);
+    private final MainScreenSetup mainScreenSetup = new MainScreenSetup(this);
+
+    final MainMenuUi mainMenuUi = new MainMenuUi(this);
+    final MainPreviewResources mainPreviewResources = new MainPreviewResources(this);
+    final MainProjectActions mainProjectActions = new MainProjectActions(this);
+    final MainProjectSession mainProjectSession = new MainProjectSession(this);
+    final MainShaderSession mainShaderSession = new MainShaderSession(this);
+    final MainShortcuts mainShortcuts = new MainShortcuts(this);
+    final NewProjectDialog newProjectDialog = new NewProjectDialog(this);
+
+    interface ProjectTask<T> {
         T run() throws Exception;
     }
 
-    private interface ProjectSuccess<T> {
+    interface ProjectSuccess<T> {
         void accept(T value);
     }
 
-    private interface ProjectFailure {
+    interface ProjectFailure {
         void accept(Exception exception);
     }
 
-    private static final class ImportedProject {
-        final String id;
-        final ChartPackage chartPackage;
-        final String name;
+    static final int OPEN_CHART = 1001;
+    static final int SAVE_CHART = 1002;
+    static final int OPEN_AUDIO = 1003;
+    static final int OPEN_PACKAGE = 1004;
+    static final int SAVE_PACKAGE = 1005;
+    static final int SELECT_NEW_PROJECT_AUDIO = 1006;
+    static final int SELECT_NEW_PROJECT_ILLUSTRATION = 1007;
+    static final int OPEN_SHADER = 1008;
+    static final int SAVE_VIDEO = 1009;
 
-        ImportedProject(String id, ChartPackage chartPackage, String name) {
-            this.id = id;
-            this.chartPackage = chartPackage;
-            this.name = name;
-        }
-    }
-
-    private static final class InitialContent {
-        final ProjectLibrary.OpenResult project;
-        final ChartDocument fallbackChart;
-        final boolean autosave;
-        final Exception libraryWarning;
-        final boolean memoryWarning;
-
-        private InitialContent(ProjectLibrary.OpenResult project, ChartDocument fallbackChart,
-                               boolean autosave, Exception libraryWarning,
-                               boolean memoryWarning) {
-            this.project = project;
-            this.fallbackChart = fallbackChart;
-            this.autosave = autosave;
-            this.libraryWarning = libraryWarning;
-            this.memoryWarning = memoryWarning;
-        }
-
-        static InitialContent project(ProjectLibrary.OpenResult value) {
-            return new InitialContent(value, null, false, null, false);
-        }
-
-        static InitialContent fallback(ChartDocument chart, boolean autosave,
-                                       Exception warning, boolean memoryWarning) {
-            return new InitialContent(null, chart, autosave, warning, memoryWarning);
-        }
-    }
-
-    private static final int OPEN_CHART = 1001;
-    private static final int SAVE_CHART = 1002;
-    private static final int OPEN_AUDIO = 1003;
-    private static final int OPEN_PACKAGE = 1004;
-    private static final int SAVE_PACKAGE = 1005;
-    private static final int SELECT_NEW_PROJECT_AUDIO = 1006;
-    private static final int SELECT_NEW_PROJECT_ILLUSTRATION = 1007;
-    private static final int OPEN_SHADER = 1008;
-    private static final class NewProjectDraft {
-        AlertDialog dialog;
-        EditText name;
-        EditText composer;
-        EditText charter;
-        EditText level;
-        EditText bpm;
-        TextView audioStatus;
-        TextView illustrationStatus;
-        Uri audioUri;
-        Uri illustrationUri;
-        String audioExtension;
-        String illustrationExtension;
-    }
-
-    private EditorView editorView;
-    private WorkbenchView workbench;
-    private EditorDialogController editorDialogs;
-    private EditorAudioController audioController;
-    private ChartPackage currentPackage;
-    private Uri currentPackageSourceUri;
-    private ProjectLibrary projectLibrary;
-    private String currentProjectId;
-    private String currentProjectName;
-    private ProjectThumbnailLoader projectThumbnails;
-    private ProjectBrowserDialog projectBrowser;
-    private ExecutorService projectExecutor;
-    private ExecutorService previewExecutor;
-    private Handler mainHandler;
-    private NewProjectDraft newProjectDraft;
-    private int illustrationLoadGeneration;
-    private EditorSettings editorSettings;
-    private ShaderDocument shaderDocument;
-    private ChartPackage shaderPackage;
-    private ShaderEditorView shaderEditor;
-    private int shaderGeneration;
-    private Runnable pendingShaderPreview;
+    EditorView editorView;
+    WorkbenchView workbench;
+    EditorDialogController editorDialogs;
+    EditorAudioController audioController;
+    ChartPackage currentPackage;
+    Uri currentPackageSourceUri;
+    ProjectLibrary projectLibrary;
+    String currentProjectId;
+    String currentProjectName;
+    ProjectThumbnailLoader projectThumbnails;
+    ProjectBrowserDialog projectBrowser;
+    ExecutorService projectExecutor;
+    ExecutorService previewExecutor;
+    Handler mainHandler;
+    NewProjectDraft newProjectDraft;
+    int illustrationLoadGeneration;
+    EditorSettings editorSettings;
+    ShaderDocument shaderDocument;
+    ChartPackage shaderPackage;
+    ShaderEditorView shaderEditor;
+    int shaderGeneration;
+    Runnable pendingShaderPreview;
     private final Runnable scheduledAutosave = new Runnable() {
         @Override
         public void run() {
             if (editorSettings == null || !editorSettings.autosaveEnabled) return;
             try {
                 ChartDocument chart = editorView == null ? null : editorView.getChart();
-                if (chart != null && (editorView.isChartDirty() || shadersDirty()) && !editorView.isPlaying()) {
+                if (chart != null && (editorView.isChartDirty() || mainShaderSession.shadersDirty()) && !editorView.isPlaying()) {
                     if (currentPackage != null && currentProjectId != null) {
-                        saveCurrentProject();
+                        mainProjectSession.saveCurrentProject();
                     } else {
                         ChartIo.writeAutosave(MainActivity.this, chart);
                     }
@@ -187,172 +110,27 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
-        editorView = new EditorView(this);
-        workbench = new WorkbenchView(this, editorView, this::createWorkbenchMenu);
-        workbench.setShaderOpener(this::openShaderEditor);
-        editorView.setCallback(this);
-        editorSettings = EditorSettingsStore.load(getPreferences(MODE_PRIVATE));
-        editorView.applySettings(editorSettings);
-        mainHandler = new Handler(Looper.getMainLooper());
-        audioController = new EditorAudioController(this, mainHandler,
-                new EditorAudioController.Listener() {
-                    @Override
-                    public void onAudioStateChanged() {
-                        editorView.audioStateChanged();
-                    }
-
-                    @Override
-                    public void onAudioCompleted() {
-                        editorView.audioCompleted();
-                    }
-
-                    @Override
-                    public void showMessage(String message) {
-                        MainActivity.this.showMessage(message);
-                    }
-
-                    @Override
-                    public boolean isHostUnavailable() {
-                        return isFinishing() || isDestroyed();
-                    }
-                });
-        audioController.applySettings(editorSettings);
-        editorDialogs = new EditorDialogController(this, editorView,
-                new EditorDialogController.Host() {
-                    @Override public WorkbenchView workbench() { return workbench; }
-                    @Override
-                    public EditorSettings editorSettings() {
-                        return editorSettings;
-                    }
-
-                    @Override
-                    public void applyEditorSettings(EditorSettings settings) {
-                        editorSettings = settings;
-                        EditorSettingsStore.save(
-                                getPreferences(MODE_PRIVATE), editorSettings);
-                        editorView.applySettings(editorSettings);
-                        applyAudioVolume();
-                        scheduleAutosave();
-                    }
-
-                    @Override
-                    public long packageOffsetMs() {
-                        return currentPackageOffsetMs();
-                    }
-
-                    @Override
-                    public long audioDurationMs() {
-                        return MainActivity.this.audioDurationMs();
-                    }
-
-                    @Override
-                    public void onLineAppearanceChanged() {
-                        if (currentPackage != null) loadEditorIllustration(currentPackage);
-                    }
-
-                    @Override
-                    public List<String> hitSoundChoices() {
-                        return com.xpe.mobile.packageio.PackageHitSoundCatalog.choices(currentPackage);
-                    }
-
-                    @Override
-                    public boolean isHitSoundAvailable(String reference) {
-                        return com.xpe.mobile.packageio.PackageHitSoundCatalog.isAvailable(currentPackage, reference);
-                    }
-
-                    @Override
-                    public void showMessage(String message) {
-                        MainActivity.this.showMessage(message);
-                    }
-                });
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        setContentView(workbench);
-        projectLibrary = new ProjectLibrary(new File(getFilesDir(), "project-library"));
-        projectThumbnails = new ProjectThumbnailLoader(
-                new File(getCacheDir(), "project-thumbnails"));
-        projectBrowser = new ProjectBrowserDialog(this, projectLibrary, projectThumbnails);
-        projectExecutor = newSingleThreadExecutor("phistudio-project-io");
-        previewExecutor = newSingleThreadExecutor("phistudio-preview-prepare");
-        scheduleAutosave();
-        hideSystemUi();
-        loadInitialChart();
+        mainScreenSetup.onCreate(savedInstanceState);
     }
 
     @Override
     public void requestOpen() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/json");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/json", "text/plain", "application/octet-stream"});
-        startActivityForResult(intent, OPEN_CHART);
+        mainFileActions.requestOpen();
     }
 
     @Override
     public void requestSave() {
-        ChartDocument chart = editorView.getChart();
-        if (chart == null) return;
-        String suggested = sanitizeFileName(chart.id.isEmpty() ? chart.name : chart.id) + ".json";
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/json");
-        intent.putExtra(Intent.EXTRA_TITLE, suggested);
-        startActivityForResult(intent, SAVE_CHART);
+        mainFileActions.requestSave();
     }
 
     @Override
     public void requestProjectSave() {
-        if (currentPackage == null || currentProjectId == null || editorView.getChart() == null) {
-            showMessage(getString(R.string.project_save_required));
-            return;
-        }
-        try {
-            saveCurrentProject();
-            showMessage(getString(R.string.shortcut_project_saved));
-        } catch (IOException exception) {
-            showMessage(getString(R.string.project_library_error, safeMessage(exception)));
-        }
+        mainFileActions.requestProjectSave();
     }
 
     @Override
     public void requestAudio() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("audio/*");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"audio/mpeg", "audio/ogg", "audio/wav", "audio/x-wav", "audio/*"});
-        startActivityForResult(intent, OPEN_AUDIO);
-    }
-
-    private void requestPackageOpen() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                "application/zip", "application/x-zip-compressed", "application/octet-stream"
-        });
-        startActivityForResult(intent, OPEN_PACKAGE);
-    }
-
-    private void requestPackageSave() {
-        if (currentPackage == null || editorView.getChart() == null) {
-            showMessage(getString(R.string.package_required));
-            return;
-        }
-        try {
-            saveCurrentProject();
-        } catch (IOException exception) {
-            showMessage(getString(R.string.package_export_failed, safeMessage(exception)));
-            return;
-        }
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
-        intent.putExtra(Intent.EXTRA_TITLE,
-                sanitizeFileName(currentProjectName == null
-                        ? currentPackage.getProjectName() : currentProjectName) + ".zip");
-        startActivityForResult(intent, SAVE_PACKAGE);
+        mainFileActions.requestAudio();
     }
 
     @Override
@@ -371,36 +149,12 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     }
 
     @Override
-    public void requestMainMenu() { workbench.showMenu(); }
-
-    private View createWorkbenchMenu() {
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.VERTICAL);
-        actions.setPadding(dp(10), dp(4), dp(10), dp(12));
-        scroll.addView(actions);
-        addMenuSection(actions, R.string.menu_section_projects);
-        addWorkbenchTool(actions, getString(R.string.menu_projects), () -> showProjectLibrary(false));
-        addWorkbenchTool(actions, getString(R.string.menu_import_package), this::requestPackageOpen);
-        addWorkbenchTool(actions, getString(R.string.menu_export_package), this::requestPackageSave);
-        addMenuSection(actions, R.string.menu_section_chart);
-        addWorkbenchTool(actions, getString(R.string.menu_metadata), this::requestEditMetadata);
-        addWorkbenchTool(actions, getString(R.string.menu_bpm), this::requestEditBpmList);
-        addWorkbenchTool(actions, getString(R.string.menu_lines), this::requestManageLines);
-        addWorkbenchTool(actions, getString(R.string.menu_curve_notes), this::showCurveNotes);
-        addWorkbenchTool(actions, getString(R.string.menu_complex_move), this::showComplexMove);
-        addWorkbenchTool(actions, getString(R.string.menu_settings), this::showSettings);
-        addWorkbenchTool(actions, getString(R.string.menu_diagnostics), this::showChartDiagnostics);
-        return scroll;
+    public void requestMainMenu() {
+        mainMenuUi.requestMainMenu();
     }
 
-    private void addWorkbenchTool(LinearLayout parent, String label, Runnable action) {
-        Button button = WorkbenchView.button(this, label);
-        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        button.setPadding(dp(12), 0, dp(8), 0);
-        button.setBackgroundResource(R.drawable.phistudio_menu_button);
-        parent.addView(button, new LinearLayout.LayoutParams(-1, dp(44)));
-        button.setOnClickListener(view -> action.run());
+    View createWorkbenchMenu() {
+        return mainMenuUi.createWorkbenchMenu();
     }
 
     @Override
@@ -418,7 +172,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         editorDialogs.showStoryboardEditor();
     }
 
-    private void showSettings() {
+    void showSettings() {
         editorDialogs.showSettings();
     }
 
@@ -432,410 +186,15 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         editorDialogs.showEventClone();
     }
 
-    private void showComplexMove() {
+    void showComplexMove() {
         editorDialogs.showComplexMove();
     }
 
-    private void showCurveNotes() {
+    void showCurveNotes() {
         editorDialogs.showCurveNotes();
     }
 
-    private void showProjectLibrary(boolean startup) {
-        runProjectTask(R.string.project_library_loading,
-                projectLibrary::discoverWorkspaces,
-                discovery -> projectBrowser.show(discovery, startup,
-                        new ProjectBrowserDialog.Callback() {
-                            @Override
-                            public void onCreateRequested() {
-                                showCreateProjectDialog();
-                            }
-
-                            @Override
-                            public void onImportRequested() {
-                                requestPackageOpen();
-                            }
-
-                            @Override
-                            public void onOpen(ProjectRecord project) {
-                                openLibraryProject(project, true, false);
-                            }
-
-                            @Override
-                            public void onRename(ProjectRecord project) {
-                                showRenameProject(project);
-                            }
-
-                            @Override
-                            public void onDuplicate(ProjectRecord project) {
-                                duplicateProject(project);
-                            }
-
-                            @Override
-                            public void onExport(ProjectRecord project) {
-                                openLibraryProject(project, false, true);
-                            }
-
-                            @Override
-                            public void onRemove(ProjectRecord project) {
-                                confirmRemoveProject(project);
-                            }
-
-                            @Override
-                            public void onIssueAction(ProjectLibrary.WorkspaceIssue issue) {
-                                handleWorkspaceIssue(issue);
-                            }
-                        }));
-    }
-
-    private void showCreateProjectDialog() {
-        NewProjectDraft draft = new NewProjectDraft();
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout content = createDialogContent(scroll);
-        draft.name = addField(content, getString(R.string.project_create_name), "", false);
-        draft.composer = addField(content, getString(R.string.project_create_composer), "", false);
-        draft.charter = addField(content, getString(R.string.project_create_charter), "", false);
-        draft.level = addField(content, getString(R.string.project_create_level), "", false);
-        draft.bpm = addField(content, getString(R.string.project_create_bpm), "120", true);
-
-        Button audioButton = new Button(this);
-        audioButton.setText(R.string.project_create_audio);
-        audioButton.setAllCaps(false);
-        content.addView(audioButton, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        draft.audioStatus = new TextView(this);
-        draft.audioStatus.setText(R.string.project_create_audio_none);
-        draft.audioStatus.setTextSize(12f);
-        draft.audioStatus.setPadding(0, 0, 0, dp(8));
-        content.addView(draft.audioStatus);
-
-        Button illustrationButton = new Button(this);
-        illustrationButton.setText(R.string.project_create_illustration);
-        illustrationButton.setAllCaps(false);
-        content.addView(illustrationButton, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        draft.illustrationStatus = new TextView(this);
-        draft.illustrationStatus.setText(R.string.project_create_illustration_none);
-        draft.illustrationStatus.setTextSize(12f);
-        content.addView(draft.illustrationStatus);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.project_create_title)
-                .setView(scroll)
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.project_create_action, null)
-                .create();
-        draft.dialog = dialog;
-        newProjectDraft = draft;
-        audioButton.setOnClickListener(view -> requestNewProjectAsset(true));
-        illustrationButton.setOnClickListener(view -> requestNewProjectAsset(false));
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> createProjectFromDraft(draft)));
-        dialog.setOnDismissListener(ignored -> {
-            if (newProjectDraft == draft) newProjectDraft = null;
-        });
-        dialog.show();
-    }
-
-    private void requestNewProjectAsset(boolean audio) {
-        if (newProjectDraft == null) return;
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType(audio ? "audio/*" : "image/*");
-        startActivityForResult(intent, audio
-                ? SELECT_NEW_PROJECT_AUDIO : SELECT_NEW_PROJECT_ILLUSTRATION);
-    }
-
-    private void createProjectFromDraft(NewProjectDraft draft) {
-        if (draft == null || draft != newProjectDraft) return;
-        if (draft.audioUri == null || draft.audioExtension == null
-                || draft.illustrationUri == null || draft.illustrationExtension == null) {
-            showMessage(getString(R.string.project_create_assets_required));
-            return;
-        }
-        final ProjectWorkspaceCreator.Spec spec;
-        try {
-            String name = draft.name.getText().toString().trim();
-            double bpm = Double.parseDouble(draft.bpm.getText().toString().trim());
-            spec = new ProjectWorkspaceCreator.Spec(
-                    UUID.randomUUID().toString(), name,
-                    draft.composer.getText().toString(),
-                    draft.charter.getText().toString(),
-                    draft.level.getText().toString(), bpm,
-                    draft.audioExtension, draft.illustrationExtension);
-            saveCurrentProject();
-        } catch (IllegalArgumentException | IOException exception) {
-            showMessage(getString(R.string.project_create_invalid));
-            return;
-        }
-
-        Uri selectedAudio = draft.audioUri;
-        Uri selectedIllustration = draft.illustrationUri;
-        draft.dialog.dismiss();
-        newProjectDraft = null;
-        long now = System.currentTimeMillis();
-        runProjectTask(R.string.project_creating, () -> {
-            File workspace = projectLibrary.workspaceForNewProject(spec.projectId);
-            boolean indexed = false;
-            try (InputStream audioInput = openRequiredInput(selectedAudio);
-                 InputStream illustrationInput = openRequiredInput(selectedIllustration)) {
-                ChartPackage created = new ProjectWorkspaceCreator().create(
-                        workspace, spec, audioInput, illustrationInput);
-                projectLibrary.addImportedProject(spec.projectId, created, now);
-                indexed = true;
-                return projectLibrary.openProject(spec.projectId, now);
-            } catch (Exception exception) {
-                try {
-                    if (indexed) projectLibrary.removeProject(spec.projectId);
-                    else if (workspace.exists()) projectLibrary.removeUnindexedWorkspace(spec.projectId);
-                } catch (Exception cleanupFailure) {
-                    exception.addSuppressed(cleanupFailure);
-                }
-                throw exception;
-            }
-        }, opened -> {
-            activatePackage(opened.getChartPackage(), spec.projectId, null,
-                    opened.getRecord().getName());
-            showMessage(getString(R.string.project_created, opened.getRecord().getName()));
-        });
-    }
-
-    private InputStream openRequiredInput(Uri uri) throws IOException {
-        if (uri == null) throw new IOException("Required project asset was not selected");
-        InputStream input = getContentResolver().openInputStream(uri);
-        if (input == null) throw new IOException("Unable to open selected project asset");
-        return input;
-    }
-
-    private void acceptNewProjectAsset(int requestCode, Uri uri, Intent data) {
-        NewProjectDraft draft = newProjectDraft;
-        if (draft == null || draft.dialog == null || !draft.dialog.isShowing()) return;
-        takeReadPermission(uri, data);
-        String displayName = AndroidPackageIo.displayName(getContentResolver(), uri);
-        boolean audio = requestCode == SELECT_NEW_PROJECT_AUDIO;
-        String extension = resolveAssetExtension(uri, displayName, audio);
-        if (extension == null) {
-            showMessage(getString(R.string.project_create_asset_unsupported,
-                    getString(audio ? R.string.project_create_asset_audio
-                            : R.string.project_create_asset_illustration)));
-            return;
-        }
-        if (audio) {
-            draft.audioUri = uri;
-            draft.audioExtension = extension;
-            draft.audioStatus.setText(getString(R.string.project_create_selected, displayName));
-        } else {
-            draft.illustrationUri = uri;
-            draft.illustrationExtension = extension;
-            draft.illustrationStatus.setText(getString(
-                    R.string.project_create_selected, displayName));
-        }
-    }
-
-    private String resolveAssetExtension(Uri uri, String displayName, boolean audio) {
-        String lowerName = displayName == null ? "" : displayName.toLowerCase(Locale.ROOT);
-        int dot = lowerName.lastIndexOf('.');
-        String extension = dot >= 0 && dot + 1 < lowerName.length()
-                ? lowerName.substring(dot + 1) : "";
-        if (audio) {
-            if (extension.matches("ogg|mp3|wav|flac|m4a|aac")) return extension;
-        } else if (extension.matches("png|jpg|jpeg|webp|bmp")) {
-            return extension;
-        }
-
-        String mime = getContentResolver().getType(uri);
-        if (mime == null) return null;
-        String normalized = mime.toLowerCase(Locale.ROOT);
-        if (audio) {
-            if (normalized.equals("audio/mpeg")) return "mp3";
-            if (normalized.equals("audio/ogg")) return "ogg";
-            if (normalized.equals("audio/wav") || normalized.equals("audio/x-wav")) return "wav";
-            if (normalized.equals("audio/flac")) return "flac";
-            if (normalized.equals("audio/mp4") || normalized.equals("audio/x-m4a")) return "m4a";
-            if (normalized.equals("audio/aac")) return "aac";
-        } else {
-            if (normalized.equals("image/png")) return "png";
-            if (normalized.equals("image/jpeg")) return "jpg";
-            if (normalized.equals("image/webp")) return "webp";
-            if (normalized.equals("image/bmp")) return "bmp";
-        }
-        return null;
-    }
-
-    private void confirmRemoveProject(ProjectRecord project) {
-        confirmRemoveIndexedProject(project.getId(), project.getName());
-    }
-
-    private void confirmRemoveIndexedProject(String projectId, String projectName) {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.project_remove_title)
-                .setMessage(getString(R.string.project_remove_message, projectName))
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.project_action_remove, (dialog, which) -> {
-                    boolean active = projectId.equals(currentProjectId);
-                    runProjectTask(R.string.project_removing,
-                            () -> {
-                                InitialContent fallback = active
-                                        ? readFallbackContent(null, false) : null;
-                                projectLibrary.removeProject(projectId);
-                                return fallback;
-                            }, fallback -> {
-                        if (active) {
-                            currentPackage = null;
-                            audioController.setHitSoundPackage(null);
-                            currentPackageSourceUri = null;
-                            currentProjectId = null;
-                            currentProjectName = null;
-                            releaseAudio();
-                            activateFallbackContent(fallback);
-                        }
-                        showMessage(getString(R.string.project_removed, projectName));
-                        showProjectLibrary(false);
-                    });
-                })
-                .show();
-    }
-
-    private void openLibraryProject(ProjectRecord project, boolean notify, boolean exportAfterOpen) {
-        try {
-            saveCurrentProject();
-        } catch (IOException exception) {
-            showMessage(getString(R.string.project_library_error, safeMessage(exception)));
-            return;
-        }
-        runProjectTask(R.string.project_opening,
-                () -> projectLibrary.openProject(project.getId(), System.currentTimeMillis()),
-                opened -> {
-                    activatePackage(opened.getChartPackage(), project.getId(), null,
-                            opened.getRecord().getName());
-                    if (notify) showMessage(getString(
-                            R.string.project_opened, opened.getRecord().getName()));
-                    if (exportAfterOpen) requestPackageSave();
-                });
-    }
-
-    private void showRenameProject(ProjectRecord project) {
-        EditText input = new EditText(this);
-        input.setText(project.getName());
-        input.setSingleLine(true);
-        input.setSelectAllOnFocus(true);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.project_rename_title)
-                .setView(input)
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.project_action_rename, null)
-                .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> {
-                    try {
-                        ProjectLibrary.State state = projectLibrary.renameProject(
-                                project.getId(), input.getText().toString());
-                        ProjectRecord renamed = state.find(project.getId());
-                        if (project.getId().equals(currentProjectId) && renamed != null) {
-                            currentProjectName = renamed.getName();
-                            editorView.setProjectName(currentProjectName);
-                        }
-                        dialog.dismiss();
-                        showMessage(getString(R.string.project_renamed,
-                                renamed == null ? input.getText().toString().trim() : renamed.getName()));
-                        showProjectLibrary(false);
-                    } catch (IOException exception) {
-                        showMessage(getString(R.string.project_library_error, safeMessage(exception)));
-                    }
-                }));
-        dialog.show();
-    }
-
-    private void duplicateProject(ProjectRecord project) {
-        try {
-            saveCurrentProject();
-        } catch (IOException exception) {
-            showMessage(getString(R.string.project_library_error, safeMessage(exception)));
-            return;
-        }
-        String newId = UUID.randomUUID().toString();
-        runProjectTask(R.string.project_duplicating,
-                () -> projectLibrary.duplicateProject(
-                        project.getId(), newId, System.currentTimeMillis()), duplicated -> {
-                    activatePackage(duplicated.getChartPackage(), newId, null,
-                            duplicated.getRecord().getName());
-                    showMessage(getString(R.string.project_duplicated,
-                            duplicated.getRecord().getName()));
-                });
-    }
-
-    private void handleWorkspaceIssue(ProjectLibrary.WorkspaceIssue issue) {
-        if (issue.isIndexed()) {
-            confirmRemoveIndexedProject(issue.getProjectId(), issue.getDisplayName());
-        } else if (issue.getStatus() == ProjectLibrary.WorkspaceStatus.RECOVERABLE) {
-            runProjectTask(R.string.project_recovering,
-                    () -> projectLibrary.recoverOrphan(
-                            issue.getProjectId(), System.currentTimeMillis()), recovered -> {
-                        activatePackage(recovered.getChartPackage(), recovered.getRecord().getId(),
-                                null, recovered.getRecord().getName());
-                        showMessage(getString(R.string.project_recovered,
-                                recovered.getRecord().getName()));
-                    });
-        } else {
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.project_recovery_remove_title)
-                    .setMessage(getString(R.string.project_recovery_remove_message,
-                            issue.getDisplayName(), issue.getMessage()))
-                    .setNegativeButton(R.string.action_cancel, null)
-                    .setPositiveButton(R.string.project_recovery_remove, (dialog, which) ->
-                            runProjectTask(R.string.project_removing,
-                                    () -> projectLibrary.removeUnindexedWorkspace(
-                                            issue.getProjectId()), state -> {
-                                        showMessage(getString(R.string.project_recovery_removed,
-                                                issue.getDisplayName()));
-                                        showProjectLibrary(false);
-                                    }))
-                    .show();
-        }
-    }
-
-    private <T> void runProjectTask(int messageResource, ProjectTask<T> task,
-                                    ProjectSuccess<T> success) {
-        runProjectTask(messageResource, task, success, exception -> showMessage(getString(
-                R.string.project_library_error, safeMessage(exception))));
-    }
-
-    private <T> void runProjectTask(int messageResource, ProjectTask<T> task,
-                                    ProjectSuccess<T> success, ProjectFailure failure) {
-        AlertDialog progress = new AlertDialog.Builder(this)
-                .setMessage(messageResource)
-                .setCancelable(false)
-                .create();
-        progress.show();
-        try {
-            projectExecutor.execute(() -> {
-                try {
-                    T result = task.run();
-                    mainHandler.post(() -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        progress.dismiss();
-                        success.accept(result);
-                    });
-                } catch (Exception exception) {
-                    mainHandler.post(() -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        progress.dismiss();
-                        failure.accept(exception);
-                    });
-                } catch (OutOfMemoryError error) {
-                    mainHandler.post(() -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        progress.dismiss();
-                        showMessage(getString(R.string.project_memory_error));
-                    });
-                }
-            });
-        } catch (RuntimeException exception) {
-            progress.dismiss();
-            showMessage(getString(R.string.project_library_error, safeMessage(exception)));
-        }
-    }
-
-    private void showChartDiagnostics() {
+    void showChartDiagnostics() {
         editorDialogs.showChartDiagnostics();
     }
 
@@ -911,106 +270,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
-        if (requestCode == OPEN_SHADER) {
-            importShader(uri, data);
-            return;
-        }
-        if (requestCode == SELECT_NEW_PROJECT_AUDIO
-                || requestCode == SELECT_NEW_PROJECT_ILLUSTRATION) {
-            acceptNewProjectAsset(requestCode, uri, data);
-            return;
-        }
-        try {
-            if (requestCode == OPEN_CHART) {
-                takeReadPermission(uri, data);
-                saveCurrentProject();
-                editorView.stopPlayback();
-                String displayName = AndroidPackageIo.displayName(getContentResolver(), uri);
-                runProjectTask(R.string.project_importing,
-                        () -> ChartIo.readChart(getContentResolver(), uri), imported -> {
-                            try {
-                                projectLibrary.clearCurrentProject();
-                            } catch (IOException exception) {
-                                showMessage(getString(R.string.project_library_error,
-                                        safeMessage(exception)));
-                                return;
-                            }
-                            currentPackage = null;
-                            audioController.setHitSoundPackage(null);
-                            currentPackageSourceUri = null;
-                            currentProjectId = null;
-                            currentProjectName = null;
-                            editorView.setChart(imported);
-                            editorView.markChartDirty();
-                            clearEditorIllustration();
-                            editorView.setProjectName(displayName);
-                            showMessage(getString(R.string.chart_imported));
-                        }, exception -> showMessage(getString(
-                                R.string.file_error, safeMessage(exception))));
-            } else if (requestCode == SAVE_CHART) {
-                ChartIo.writeChart(getContentResolver(), uri, editorView.getChart());
-                showMessage("Chart exported");
-            } else if (requestCode == OPEN_AUDIO) {
-                takeReadPermission(uri, data);
-                loadAudio(uri, true);
-            } else if (requestCode == OPEN_PACKAGE) {
-                takeReadPermission(uri, data);
-                saveCurrentProject();
-                String projectId = UUID.randomUUID().toString();
-                File workspace = projectLibrary.workspaceForNewProject(projectId);
-                runProjectTask(R.string.project_importing, () -> {
-                    ChartPackage imported = AndroidPackageIo.importPackage(
-                            getContentResolver(), uri, workspace);
-                    projectLibrary.addImportedProject(
-                            projectId, imported, System.currentTimeMillis());
-                    ProjectRecord record = projectLibrary.load().find(projectId);
-                    String name = record == null
-                            ? imported.getProjectName() : record.getName();
-                    return new ImportedProject(projectId, imported, name);
-                }, imported -> {
-                    activatePackage(imported.chartPackage, imported.id, uri, imported.name);
-                    showMessage(getString(R.string.package_imported,
-                            imported.chartPackage.getProjectName()));
-                }, exception -> {
-                    int message = exception instanceof PackageException
-                            && ((PackageException) exception).getRetainedWorkspace() != null
-                            ? R.string.package_import_failed_retained
-                            : R.string.package_import_failed;
-                    showMessage(getString(message, safeMessage(exception)));
-                });
-            } else if (requestCode == SAVE_PACKAGE) {
-                if (currentPackage == null) {
-                    showMessage(getString(R.string.package_required));
-                    return;
-                }
-                if (currentPackageSourceUri != null && currentPackageSourceUri.equals(uri)) {
-                    showMessage(getString(R.string.package_source_overwrite_blocked));
-                    return;
-                }
-                saveCurrentProject();
-                AndroidPackageIo.exportPackage(getContentResolver(), uri, getCacheDir(),
-                        currentPackage, editorView.getChart());
-                showMessage(getString(R.string.package_exported, currentPackage.getProjectName()));
-            }
-        } catch (PackageException exception) {
-            if (requestCode == OPEN_PACKAGE) {
-                int message = exception.getRetainedWorkspace() == null
-                        ? R.string.package_import_failed : R.string.package_import_failed_retained;
-                showMessage(getString(message, safeMessage(exception)));
-            } else {
-                showMessage(getString(R.string.package_export_failed, safeMessage(exception)));
-            }
-        } catch (Exception exception) {
-            if (requestCode == OPEN_PACKAGE) {
-                showMessage(getString(R.string.package_import_failed, safeMessage(exception)));
-            } else if (requestCode == SAVE_PACKAGE) {
-                showMessage(getString(R.string.package_export_failed, safeMessage(exception)));
-            } else {
-                showMessage(getString(R.string.file_error, safeMessage(exception)));
-            }
-        }
+        mainActivityResults.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -1018,11 +278,11 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         super.onPause();
         pauseAudio();
         ChartDocument chart = editorView.getChart();
-        if (chart != null && (editorView.isChartDirty() || shadersDirty())
+        if (chart != null && (editorView.isChartDirty() || mainShaderSession.shadersDirty())
                 && editorSettings != null && editorSettings.autosaveEnabled) {
             try {
                 if (currentPackage != null && currentProjectId != null) {
-                    saveCurrentProject();
+                    mainProjectSession.saveCurrentProject();
                 } else {
                     ChartIo.writeAutosave(this, chart);
                 }
@@ -1035,7 +295,8 @@ public final class MainActivity extends Activity implements EditorView.Callback 
 
     @Override
     protected void onDestroy() {
-        clearShaderSession();
+        mainVideoExport.close();
+        mainShaderSession.clearShaderSession();
         illustrationLoadGeneration++;
         if (mainHandler != null) mainHandler.removeCallbacks(scheduledAutosave);
         if (projectBrowser != null) projectBrowser.dismiss();
@@ -1063,39 +324,39 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
                 && editorSettings != null && !(getCurrentFocus() instanceof EditText)) {
-            if (matchesShortcut(event, editorSettings.shortcutSave)) {
-                saveFromShortcut();
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutSave)) {
+                mainShortcuts.saveFromShortcut();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutUndo)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutUndo)) {
                 editorView.performUndo();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutRedo)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutRedo)) {
                 editorView.performRedo();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutCopy)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutCopy)) {
                 editorView.performCopy();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutCut)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutCut)) {
                 editorView.performCut();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutMirrorPaste)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutMirrorPaste)) {
                 editorView.performPaste(true);
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutPaste)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutPaste)) {
                 editorView.performPaste(false);
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutDelete)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutDelete)) {
                 editorView.performDeleteSelection();
                 return true;
             }
-            if (matchesShortcut(event, editorSettings.shortcutPlayPause)) {
+            if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutPlayPause)) {
                 editorView.performTogglePlay();
                 return true;
             }
@@ -1103,52 +364,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         return super.dispatchKeyEvent(event);
     }
 
-    private void saveFromShortcut() {
-        requestProjectSave();
-    }
-
-    private boolean matchesShortcut(KeyEvent event, String text) {
-        final ShortcutChord chord;
-        try {
-            chord = ShortcutChord.parse(text);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
-        return event.isCtrlPressed() == chord.control
-                && event.isAltPressed() == chord.alt
-                && event.isShiftPressed() == chord.shift
-                && event.getKeyCode() == shortcutKeyCode(chord.key);
-    }
-
-    private static int shortcutKeyCode(String key) {
-        if (key.length() == 1) {
-            char value = key.charAt(0);
-            if (value >= 'A' && value <= 'Z') return KeyEvent.KEYCODE_A + value - 'A';
-            if (value >= '0' && value <= '9') return KeyEvent.KEYCODE_0 + value - '0';
-        }
-        switch (key) {
-            case "SPACE": return KeyEvent.KEYCODE_SPACE;
-            case "DELETE": return KeyEvent.KEYCODE_FORWARD_DEL;
-            case "BACKSPACE": return KeyEvent.KEYCODE_DEL;
-            case "ENTER": return KeyEvent.KEYCODE_ENTER;
-            case "ESC": return KeyEvent.KEYCODE_ESCAPE;
-            case "LEFT": return KeyEvent.KEYCODE_DPAD_LEFT;
-            case "RIGHT": return KeyEvent.KEYCODE_DPAD_RIGHT;
-            case "UP": return KeyEvent.KEYCODE_DPAD_UP;
-            case "DOWN": return KeyEvent.KEYCODE_DPAD_DOWN;
-            case "PAGEUP": return KeyEvent.KEYCODE_PAGE_UP;
-            case "PAGEDOWN": return KeyEvent.KEYCODE_PAGE_DOWN;
-            case "HOME": return KeyEvent.KEYCODE_MOVE_HOME;
-            case "END": return KeyEvent.KEYCODE_MOVE_END;
-            default:
-                if (key.matches("F(?:[1-9]|1[0-2])")) {
-                    return KeyEvent.KEYCODE_F1 + Integer.parseInt(key.substring(1)) - 1;
-                }
-                return KeyEvent.KEYCODE_UNKNOWN;
-        }
-    }
-
-    private void scheduleAutosave() {
+    void scheduleAutosave() {
         if (mainHandler == null) return;
         mainHandler.removeCallbacks(scheduledAutosave);
         if (editorSettings == null || !editorSettings.autosaveEnabled) return;
@@ -1157,335 +373,15 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         mainHandler.postDelayed(scheduledAutosave, delay);
     }
 
-    private void applyAudioVolume() {
+    void applyAudioVolume() {
         if (audioController != null) audioController.applySettings(editorSettings);
     }
 
-    private void loadInitialChart() {
-        runProjectTask(R.string.project_library_loading, this::readInitialContent,
-                content -> {
-                    if (content.memoryWarning) {
-                        showMessage(getString(R.string.project_memory_error));
-                    } else if (content.libraryWarning != null) {
-                        showMessage(getString(R.string.project_library_error,
-                                safeMessage(content.libraryWarning)));
-                    }
-                    if (content.project != null) {
-                        ProjectLibrary.OpenResult opened = content.project;
-                        activatePackage(opened.getChartPackage(), opened.getRecord().getId(),
-                                null, opened.getRecord().getName());
-                    } else {
-                        activateFallbackContent(content);
-                    }
-                    showProjectLibrary(true);
-                }, exception -> {
-                    showMessage("Unable to load initial chart: " + safeMessage(exception));
-                    showProjectLibrary(true);
-                });
-    }
-
-    private InitialContent readInitialContent() throws IOException {
-        Exception libraryWarning = null;
-        boolean memoryWarning = false;
-        try {
-            ProjectLibrary.State state = projectLibrary.load();
-            String currentId = state.getCurrentProjectId();
-            if (currentId != null) {
-                ProjectLibrary.OpenResult opened = projectLibrary.openProject(
-                        currentId, System.currentTimeMillis());
-                return InitialContent.project(opened);
-            }
-        } catch (Exception exception) {
-            libraryWarning = exception;
-        } catch (OutOfMemoryError error) {
-            memoryWarning = true;
-        }
-        return readFallbackContent(libraryWarning, memoryWarning);
-    }
-
-    private InitialContent readFallbackContent(Exception libraryWarning,
-                                               boolean memoryWarning) throws IOException {
-        try {
-            return InitialContent.fallback(
-                    ChartIo.readAutosave(this), true, libraryWarning, memoryWarning);
-        } catch (Exception | OutOfMemoryError noAutosave) {
-            try {
-                return InitialContent.fallback(
-                        ChartIo.readAsset(this, "demo_chart.json"),
-                        false, libraryWarning, memoryWarning);
-            } catch (Exception | OutOfMemoryError demoFailure) {
-                IOException failure = new IOException("Unable to load demo chart", demoFailure);
-                failure.addSuppressed(noAutosave);
-                if (libraryWarning != null) failure.addSuppressed(libraryWarning);
-                throw failure;
-            }
-        }
-    }
-
-    private void activateFallbackContent(InitialContent content) {
-        clearEditorIllustration();
-        editorView.setChart(content.fallbackChart);
-        editorView.setProjectName(getString(content.autosave
-                ? R.string.project_autosave : R.string.project_demo));
-        if (content.autosave) showMessage("Autosave restored");
-        restoreAudioReference();
-    }
-
-    private void activatePackage(ChartPackage chartPackage, String projectId, Uri sourceUri,
-                                 String localName) {
-        editorView.stopPlayback();
-        currentPackage = chartPackage;
-        audioController.setHitSoundPackage(chartPackage);
-        currentProjectId = projectId;
-        currentProjectName = localName;
-        currentPackageSourceUri = sourceUri;
-        editorView.setChart(chartPackage.getChart());
-        editorView.setPackageOffsetMs(chartPackage.getManifestOffsetMs());
-        editorView.setUseRpe170Speed(chartPackage.isUseRpe170Speed());
-        editorView.setProjectName(localName == null ? chartPackage.getProjectName() : localName);
-        loadEditorIllustration(chartPackage);
-        getPreferences(MODE_PRIVATE).edit().remove("audio_uri").apply();
-        File packageAudio = chartPackage.getAudioFile();
-        if (packageAudio != null && packageAudio.isFile()) {
-            try {
-                loadAudio(Uri.fromFile(packageAudio), false);
-            } catch (IOException exception) {
-                releaseAudio();
-                editorView.audioStateChanged();
-                showMessage(getString(R.string.project_audio_unavailable, safeMessage(exception)));
-            }
-        } else {
-            releaseAudio();
-            editorView.audioStateChanged();
-        }
-    }
-
-    private void loadEditorIllustration(ChartPackage chartPackage) {
-        if (shaderPackage != chartPackage) clearShaderSession();
-        int generation = ++illustrationLoadGeneration;
-        editorView.setBackgroundIllustration(null);
-        editorView.setPreviewLineTextures(null);
-        editorView.setPreviewShaders(ShaderTimeline.EMPTY);
-        File illustration = chartPackage == null ? null : chartPackage.getIllustrationFile();
-        Set<String> textureNames = new LinkedHashSet<>();
-        if (chartPackage != null && chartPackage.getChart() != null) {
-            for (JudgeLine line : chartPackage.getChart().judgeLines) {
-                if (line != null && line.texture != null) textureNames.add(line.texture);
-            }
-        }
-        boolean hasIllustration = illustration != null && illustration.isFile();
-        int targetWidth = Math.max(1, Math.round(
-                getResources().getDisplayMetrics().widthPixels * 0.70f));
-        int targetHeight = Math.max(1, getResources().getDisplayMetrics().heightPixels);
-        try {
-            previewExecutor.execute(() -> {
-                EditorBackgroundDecoder.Background background = hasIllustration ? EditorBackgroundDecoder.decodeForPreview(
-                        illustration, targetWidth, targetHeight) : null;
-                Map<String, PreviewTextureDecoder.Texture> lineTextures = chartPackage == null
-                        ? Collections.emptyMap() : PreviewTextureDecoder.decode(
-                        chartPackage.getWorkspace(), textureNames);
-                ShaderTimeline loadedShaders;
-                String shaderError;
-                try {
-                    loadedShaders = PreviewShaderLoader.load(chartPackage, getAssets());
-                    shaderError = null;
-                } catch (IOException exception) {
-                    loadedShaders = ShaderTimeline.EMPTY;
-                    shaderError = safeMessage(exception);
-                }
-                ShaderTimeline shaders = loadedShaders;
-                String error = shaderError;
-                mainHandler.post(() -> {
-                    if (generation != illustrationLoadGeneration
-                            || isFinishing() || isDestroyed()) {
-                        if (background != null) background.recycle();
-                        PreviewTextureDecoder.recycleAll(lineTextures);
-                        return;
-                    }
-                    editorView.setBackgroundIllustration(background == null ? null : background.original,
-                            background == null ? null : background.blurred);
-                    editorView.setPreviewLineTextures(lineTextures);
-                    if (shaderDocument != null && shaderPackage == chartPackage) {
-                        scheduleShaderPreview();
-                    } else editorView.setPreviewShaders(shaders);
-                    if (error != null) showMessage(getString(R.string.preview_shader_error, error));
-                });
-            });
-        } catch (RuntimeException exception) {
-            // The project remains usable without a decoded illustration.
-        }
-    }
-
-    private void clearEditorIllustration() {
-        clearShaderSession();
-        illustrationLoadGeneration++;
-        if (editorView != null) {
-            editorView.setBackgroundIllustration(null);
-            editorView.setPreviewLineTextures(null);
-            editorView.setPreviewShaders(ShaderTimeline.EMPTY);
-        }
-    }
-
-    private void saveCurrentProject() throws IOException {
-        if (shadersDirty()) {
-            String snapshot = shaderDocument.json();
-            ShaderWorkspace.save(currentPackage, snapshot);
-            shaderDocument.markSaved(snapshot);
-            if (shaderEditor != null) shaderEditor.invalidatePreview();
-        }
-        if (currentPackage != null && currentProjectId != null
-                && editorView.getChart() != null && editorView.isChartDirty()) {
-            PackageWorkspaceWriter.writeChart(currentPackage, editorView.getChart());
-            editorView.markChartSaved();
-        }
-    }
-
-    private boolean shadersDirty() {
-        return shaderDocument != null && shaderPackage == currentPackage && shaderDocument.dirty();
-    }
-
-    private void clearShaderSession() {
-        if (workbench != null) workbench.clearShaderEditor();
-        shaderGeneration++;
-        if (mainHandler != null && pendingShaderPreview != null) mainHandler.removeCallbacks(pendingShaderPreview);
-        pendingShaderPreview = null;
-        shaderDocument = null;
-        shaderEditor = null;
-        shaderPackage = null;
-    }
-
-    private void openShaderEditor() {
-        if (currentPackage == null) {
-            showMessage(getString(R.string.package_required));
-            return;
-        }
-        try {
-            if (shaderPackage != currentPackage || shaderDocument == null) {
-                clearShaderSession();
-                ChartPackage pack = currentPackage;
-                shaderDocument = new ShaderDocument(ShaderWorkspace.read(pack), editorView.getChart(),
-                        name -> PreviewShaderLoader.source(pack.getWorkspace(), getAssets(), name));
-                shaderPackage = pack;
-                shaderEditor = new ShaderEditorView(this, editorView, shaderDocument, new ShaderEditorView.Host() {
-                    public void changed() { scheduleShaderPreview(); }
-                    public void importShader() {
-                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("*/*");
-                        startActivityForResult(intent, OPEN_SHADER);
-                    }
-                    public void save() { requestProjectSave(); }
-                });
-                scheduleShaderPreview();
-            }
-            workbench.showShaders(shaderEditor);
-        } catch (Exception exception) {
-            showMessage("Shaders: " + safeMessage(exception));
-        }
-    }
-
-    private void scheduleShaderPreview() {
-        if (shaderDocument == null || previewExecutor == null || previewExecutor.isShutdown()) return;
-        final int generation = ++shaderGeneration;
-        final String snapshot = shaderDocument.json();
-        final Map<String,String> sources = shaderDocument.sourceSnapshot();
-        if (pendingShaderPreview != null) mainHandler.removeCallbacks(pendingShaderPreview);
-        pendingShaderPreview = () -> previewExecutor.execute(() -> {
-            try {
-                ShaderTimeline timeline = ShaderTimeline.parse(snapshot, name -> {
-                    String source = sources.get(name);
-                    if (source == null) throw new IOException("Shader unavailable: " + name);
-                    return source;
-                });
-                mainHandler.post(() -> {
-                    if (generation != shaderGeneration || isDestroyed() || isFinishing()) return;
-                    editorView.updatePreviewShaders(timeline);
-                    if (shaderEditor != null) shaderEditor.invalidatePreview();
-                });
-            } catch (Exception exception) {
-                mainHandler.post(() -> {
-                    if (generation == shaderGeneration && shaderEditor != null)
-                        shaderEditor.error(safeMessage(exception));
-                });
-            }
-        });
-        mainHandler.postDelayed(pendingShaderPreview, 75);
-    }
-
-    private void importShader(Uri uri, Intent data) {
-        if (shaderDocument == null || shaderPackage != currentPackage) return;
-        final ShaderDocument document = shaderDocument;
-        final ChartPackage pack = shaderPackage;
-        try {
-            takeReadPermission(uri, data);
-            previewExecutor.execute(() -> {
-                try {
-                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                    try (InputStream stream = getContentResolver().openInputStream(uri)) {
-                        if (stream == null) throw new IOException("Cannot read GLSL");
-                        byte[] buffer = new byte[8192];
-                        int length;
-                        while ((length = stream.read(buffer)) != -1) {
-                            if (bytes.size() + length > 1024 * 1024) throw new IOException("GLSL exceeds 1 MB");
-                            bytes.write(buffer, 0, length);
-                        }
-                    }
-                    String raw = bytes.toString(StandardCharsets.UTF_8.name());
-                    final String source = raw.startsWith("\ufeff") ? raw.substring(1) : raw;
-                    if (!source.matches("(?s).*\\bvoid\\s+main\\s*\\(.*")) throw new IOException("GLSL requires void main()");
-                    String filename = AndroidPackageIo.displayName(getContentResolver(), uri);
-                    String stem = (filename == null ? "import" : filename).replaceAll("[^\\p{L}\\p{N}._-]", "_");
-                    if (stem.toLowerCase(Locale.ROOT).endsWith(".glsl")) stem = stem.substring(0, stem.length() - 5);
-                    if (stem.isEmpty()) stem = "import";
-                    if (stem.length() > 64) stem = stem.substring(0, 64);
-                    final String path = "shaders/" + stem + "-" + UUID.randomUUID().toString().substring(0, 8) + ".glsl";
-                    mainHandler.post(() -> {
-                        if (document != shaderDocument || pack != currentPackage || isDestroyed()) return;
-                        try {
-                            ShaderWorkspace.write(pack, path, source);
-                            pack.registerShaderResource(path);
-                            document.registerSource("/" + path, source);
-                            document.add("/" + path, editorView.shaderEditorSeconds());
-                            shaderEditor.imported();
-                        } catch (Exception exception) { shaderEditor.error(safeMessage(exception)); }
-                    });
-                } catch (Exception exception) {
-                    mainHandler.post(() -> {
-                        if (document == shaderDocument && shaderEditor != null)
-                            shaderEditor.error(safeMessage(exception));
-                    });
-                }
-            });
-        } catch (Exception exception) { shaderEditor.error(safeMessage(exception)); }
-    }
-
-    private void loadAudio(Uri uri, boolean remember) throws IOException {
-        if (audioController == null) throw new IOException("Audio controller is unavailable");
-        audioController.load(uri);
-        if (remember) {
-            getPreferences(MODE_PRIVATE).edit().putString("audio_uri", uri.toString()).apply();
-        }
-    }
-
-    private void restoreAudioReference() {
-        String stored = getPreferences(MODE_PRIVATE).getString("audio_uri", "");
-        if (stored.isEmpty()) return;
-        try {
-            loadAudio(Uri.parse(stored), false);
-        } catch (Exception ignored) {
-            getPreferences(MODE_PRIVATE).edit().remove("audio_uri").apply();
-        }
-    }
-
-    private void releaseAudio() {
-        if (audioController != null) audioController.clearSource();
-    }
-
-    private long currentPackageOffsetMs() {
+    long currentPackageOffsetMs() {
         return currentPackage == null ? 0L : currentPackage.getManifestOffsetMs();
     }
 
-    private void takeReadPermission(Uri uri, Intent data) {
+    void takeReadPermission(Uri uri, Intent data) {
         if ((data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0) return;
         try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -1494,87 +390,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         }
     }
 
-    private void addMenuSection(LinearLayout parent, int textResource) {
-        TextView title = new TextView(this);
-        title.setText(textResource);
-        title.setTextSize(16f);
-        title.setPadding(dp(4), dp(4), dp(4), dp(6));
-        parent.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-    }
-
-    private Button addMenuButton(LinearLayout parent, int textResource) {
-        Button button = new Button(this);
-        button.setText(textResource);
-        button.setAllCaps(false);
-        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        button.setMinHeight(dp(48));
-        button.setBackgroundResource(R.drawable.phistudio_menu_button);
-        parent.addView(button, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        return button;
-    }
-
-    private void runMenuAction(AlertDialog menu, Runnable action) {
-        menu.dismiss();
-        action.run();
-    }
-
-    private void showEditorWindow(AlertDialog dialog, Runnable afterShow) {
-        showEditorWindow(dialog, afterShow, 0.72f, 0.78f);
-    }
-
-    private void showEditorWindow(AlertDialog dialog, Runnable afterShow,
-                                  float widthFraction, float heightFraction) {
-        dialog.setOnShowListener(ignored -> {
-            Window window = dialog.getWindow();
-            if (window != null) {
-                int width = getResources().getDisplayMetrics().widthPixels;
-                int height = getResources().getDisplayMetrics().heightPixels;
-                window.setLayout((int) (width * widthFraction),
-                        (int) (height * heightFraction));
-                window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-            }
-            if (afterShow != null) afterShow.run();
-        });
-        dialog.show();
-    }
-
-    private LinearLayout createDialogContent(ScrollView scrollView) {
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(18);
-        content.setPadding(pad, pad, pad, pad);
-        scrollView.addView(content);
-        return content;
-    }
-
-    private EditText addField(LinearLayout parent, String label, String value, boolean numeric) {
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(14f);
-        title.setPadding(0, dp(8), 0, dp(3));
-        parent.addView(title);
-
-        EditText field = new EditText(this);
-        field.setText(value);
-        field.setSingleLine(true);
-        field.setSelectAllOnFocus(true);
-        field.setGravity(Gravity.CENTER_VERTICAL);
-        if (numeric) {
-            field.setInputType(InputType.TYPE_CLASS_NUMBER
-                    | InputType.TYPE_NUMBER_FLAG_DECIMAL
-                    | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        }
-        parent.addView(field, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        return field;
-    }
-
-    private void hideSystemUi() {
+    void hideSystemUi() {
         // Resolve the controller through an installed DecorView. Some OEM PhoneWindow
         // implementations dereference a null DecorView when Window#getInsetsController()
         // is called before setContentView(), crashing the activity during startup.
@@ -1596,21 +412,21 @@ public final class MainActivity extends Activity implements EditorView.Callback 
         }
     }
 
-    private int dp(int value) {
+    int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
-    private static String sanitizeFileName(String value) {
+    static String sanitizeFileName(String value) {
         String safe = value == null ? "chart" : value.trim().replaceAll("[\\\\/:*?\"<>|]", "_");
         return safe.isEmpty() ? "chart" : safe;
     }
 
-    private static String safeMessage(Exception exception) {
+    static String safeMessage(Exception exception) {
         String message = exception.getMessage();
         return message == null || message.trim().isEmpty() ? exception.getClass().getSimpleName() : message;
     }
 
-    private static ExecutorService newSingleThreadExecutor(String name) {
+    static ExecutorService newSingleThreadExecutor(String name) {
         return Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, name);
             thread.setDaemon(true);

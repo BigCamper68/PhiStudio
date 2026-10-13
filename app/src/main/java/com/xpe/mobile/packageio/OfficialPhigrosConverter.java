@@ -81,14 +81,14 @@ final class OfficialPhigrosConverter {
                 double startY;
                 double endY;
                 if (version == 1) {
-                    startX = (Math.round(finite(event.getDouble("start"), "move X") / 1000.0)
+                    startX = ((long) (finite(event.getDouble("start"), "move X") / 1000.0)
                             / 880.0 - 0.5) * 1350.0;
-                    endX = (Math.round(finite(event.getDouble("end"), "move X") / 1000.0)
+                    endX = ((long) (finite(event.getDouble("end"), "move X") / 1000.0)
                             / 880.0 - 0.5) * 1350.0;
                     startY = (positiveRemainder(event.getDouble("start"), 1000.0)
-                            / 530.0 - 0.5) * 900.0;
+                            / 520.0 - 0.5) * 900.0;
                     endY = (positiveRemainder(event.getDouble("end"), 1000.0)
-                            / 530.0 - 0.5) * 900.0;
+                            / 520.0 - 0.5) * 900.0;
                 } else {
                     startX = (finite(event.getDouble("start"), "move X") - 0.5) * 1350.0;
                     endX = (finite(event.getDouble("end"), "move X") - 0.5) * 1350.0;
@@ -134,7 +134,7 @@ final class OfficialPhigrosConverter {
             note.startTime = beat(start);
             note.endTime = beat(officialType == 3
                     ? Math.max(start + MIN_DURATION, start + hold) : start);
-            note.positionX = finite(value.optDouble("positionX", 0.0), "note X") * 75.0;
+            note.positionX = finite(value.optDouble("positionX", 0.0), "note X") * (675.0 * 18.0 / 160.0);
             note.speed = officialType == 3
                     ? 1.0 : finite(value.optDouble("speed", 1.0), "note speed");
             line.notes.add(note);

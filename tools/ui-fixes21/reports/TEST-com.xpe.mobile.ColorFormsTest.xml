@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.xpe.mobile.ColorFormsTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-10T10:46:24" hostname="localhost" time="6.077">
-  <properties/>
-  <testcase name="settingsUsesPaletteAndCommitsRgbOnly" classname="com.xpe.mobile.ColorFormsTest" time="4.62"/>
-  <testcase name="storyboardStartAndEndColorsApplyAndUndo" classname="com.xpe.mobile.ColorFormsTest" time="0.504"/>
-  <testcase name="shaderRgbaUsesPaletteForConstantAndBothAnimationEndpoints" classname="com.xpe.mobile.ColorFormsTest" time="0.952"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

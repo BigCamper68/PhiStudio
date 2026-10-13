@@ -77,6 +77,15 @@ public final class ChartPackage {
         this.manifests = Collections.unmodifiableList(new ArrayList<>(manifests));
         if (chart.backgroundDim == null) chart.backgroundDim = manifestBackgroundDim();
         // Phira reads this flag from ChartInfo (YAML), never from RPE META.
+        chart.noteUniformScale = false;
+        for (PackageManifest manifest : manifests) {
+            if (manifest.getKind() != PackageManifest.Kind.YAML) continue;
+            String flag = manifest.get("noteUniformScale");
+            if (flag == null) continue;
+            int comment = flag.indexOf('#');
+            chart.noteUniformScale = Boolean.parseBoolean((comment < 0 ? flag : flag.substring(0, comment)).trim());
+            break;
+        }
         chart.useAttachUiFix = false;
         for (PackageManifest manifest : manifests) {
             if (manifest.getKind() != PackageManifest.Kind.YAML) continue;

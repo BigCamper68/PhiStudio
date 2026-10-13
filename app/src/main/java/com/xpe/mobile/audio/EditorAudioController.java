@@ -45,6 +45,7 @@ public final class EditorAudioController implements AutoCloseable {
     private PcmAudioPlayer pcmAudioPlayer;
     private Future<?> audioDecodeTask;
     private File decodedPcmFile;
+    private Uri sourceUri;
     private EditorSettings settings = new EditorSettings();
     private HitSoundTimeline timeline = HitSoundTimeline.empty();
     private long audioOffsetMs;
@@ -190,6 +191,7 @@ public final class EditorAudioController implements AutoCloseable {
         if (closed) throw new IOException("Audio controller is closed");
         if (uri == null) throw new IOException("Audio source is missing");
         clearSource();
+        sourceUri = uri;
         final int generation = ++audioLoadGeneration;
         File output = File.createTempFile("phistudio-audio-", ".pcm", activity.getCacheDir());
         decodedPcmFile = output;
@@ -237,6 +239,7 @@ public final class EditorAudioController implements AutoCloseable {
     }
 
     public void clearSource() {
+        sourceUri = null;
         hitSoundStartGate.cancel();
         audioLoadGeneration++;
         if (hitSoundPlayer != null) hitSoundPlayer.stop();
@@ -253,6 +256,8 @@ public final class EditorAudioController implements AutoCloseable {
             decodedPcmFile = null;
         }
     }
+
+    public Uri sourceUri() { return sourceUri; }
 
     @Override public void close() {
         if (closed) return;

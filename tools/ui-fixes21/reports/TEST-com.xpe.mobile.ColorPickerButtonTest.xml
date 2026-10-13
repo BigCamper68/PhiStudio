@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.xpe.mobile.ColorPickerButtonTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-10T10:46:30" hostname="localhost" time="0.401">
-  <properties/>
-  <testcase name="rgbPaletteUsesTouchAndPreservesOpaqueRgb" classname="com.xpe.mobile.ColorPickerButtonTest" time="0.151"/>
-  <testcase name="paletteDialogIsCenteredAndCancelDoesNotCommit" classname="com.xpe.mobile.ColorPickerButtonTest" time="0.25"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

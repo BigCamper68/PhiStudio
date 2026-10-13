@@ -64,9 +64,7 @@ public final class EventLayer {
                 continue;
             }
             JSONArray array = new JSONArray();
-            if (addCompatibilityPrefix) {
-                appendCompatibilityPrefix(array, type, values.get(0), baseLayer);
-            }
+            // Preserve authored pre-roll. Synthetic prefixes change prpr playback on save.
             for (LineEvent event : values) array.put(event.toJson());
             object.put(type.jsonKey, array);
         }
@@ -81,28 +79,6 @@ public final class EventLayer {
     Object toJsonValue(boolean baseLayer) throws JSONException {
         if (sourceNull && count() == 0) return JSONObject.NULL;
         return toJson(baseLayer);
-    }
-
-    private static void appendCompatibilityPrefix(JSONArray target, EventType type,
-                                                   LineEvent first, boolean baseLayer)
-            throws JSONException {
-        if (first == null || first.startTime == null
-                || first.startTime.compareTo(BeatTime.zero()) <= 0) return;
-        // Preserve the authored first spatial/alpha keyframe and its pre-roll. Adding a
-        // zero/default prefix here moves future fake notes to the origin on export.
-        if (baseLayer && (isSpatial(type) || type == EventType.ALPHA)) return;
-
-        // Phira/RPE Anim starts evaluating from the first keyframe even before its timestamp.
-        // Additive layers retain their neutral zero prefix; base speed tracks
-        // retain their defaults. Base spatial/alpha tracks are handled above.
-        LineEvent prefix = new LineEvent();
-        prefix.type = type;
-        prefix.startTime = BeatTime.zero();
-        prefix.endTime = first.startTime;
-        prefix.start = baseLayer ? LineEvent.defaultValue(type) : 0.0;
-        prefix.end = prefix.start;
-        prefix.easingType = 1;
-        target.put(prefix.toJson());
     }
 
     public static boolean isSpatial(EventType type) {

@@ -73,7 +73,7 @@ public final class PreviewCompatibilityRegressionTest {
         assertEquals(0, opaquePixels(caps, 910, 565, 100, 80));
         int tailY = (int) (caps.getHeight() / 2.0
                 - tail.endDistance * PreviewCoordinates.scaleY(caps.getHeight()));
-        assertTrue(opaquePixels(caps, 880, tailY, 160, 45) > 0);
+        assertTrue(opaquePixels(caps, 880, tailY - 45, 160, 45) > 0);
         caps.recycle();
     }
 

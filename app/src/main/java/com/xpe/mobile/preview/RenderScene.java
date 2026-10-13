@@ -14,8 +14,15 @@ public final class RenderScene {
     public final long chartTimeMs;
     public final List<RenderLine> lines;
     public final HudState hud;
+    final Map<Integer, PaintHistory> paintHistories;
 
     RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud) {
+        this(beat, chartTimeMs, lines, hud, Collections.emptyMap());
+    }
+
+    RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud,
+                Map<Integer, PaintHistory> paintHistories) {
+        this.paintHistories = Collections.unmodifiableMap(new java.util.HashMap<>(paintHistories));
         this.beat = beat;
         this.chartTimeMs = chartTimeMs;
         this.lines = Collections.unmodifiableList(lines);
@@ -85,6 +92,8 @@ public final class RenderScene {
         public final double endDistance;
         public final boolean above;
         public final double size;
+        public final double sizeY;
+        public final double yOffset;
         public final int alpha;
         public final boolean fake;
         public final boolean multiHit;
@@ -94,6 +103,15 @@ public final class RenderScene {
         RenderNote(NoteType type, double x, double startDistance, double endDistance,
                    boolean above, double size, int alpha, boolean fake, boolean multiHit,
                    boolean holdHeadVisible, int colorRgb) {
+            this(type, x, startDistance, endDistance, above, size, alpha, fake, multiHit,
+                    holdHeadVisible, colorRgb, 1.0, 0.0);
+        }
+
+        RenderNote(NoteType type, double x, double startDistance, double endDistance,
+                   boolean above, double size, int alpha, boolean fake, boolean multiHit,
+                   boolean holdHeadVisible, int colorRgb, double sizeY, double yOffset) {
+            this.sizeY = sizeY;
+            this.yOffset = yOffset;
             this.type = type;
             this.x = x;
             this.startDistance = startDistance;
@@ -124,6 +142,7 @@ public final class RenderScene {
         public final double progress;
         public final int colorRgb;
         public final int seed;
+        public final int alpha;
 
         HitEffect(double worldX, double worldY, double lineX, double lineY,
                   double progress, int colorRgb, int seed) {
@@ -134,6 +153,13 @@ public final class RenderScene {
         HitEffect(double worldX, double worldY, double lineX, double lineY,
                   double localX, double localY, double rotationDegrees,
                   double progress, int colorRgb, int seed) {
+            this(worldX, worldY, lineX, lineY, localX, localY, rotationDegrees,
+                    progress, colorRgb, seed, 225);
+        }
+
+        HitEffect(double worldX, double worldY, double lineX, double lineY,
+                  double localX, double localY, double rotationDegrees,
+                  double progress, int colorRgb, int seed, int alpha) {
             this.worldX = worldX;
             this.worldY = worldY;
             this.lineX = lineX;
@@ -144,6 +170,7 @@ public final class RenderScene {
             this.progress = progress;
             this.colorRgb = colorRgb;
             this.seed = seed;
+            this.alpha = alpha;
         }
     }
 

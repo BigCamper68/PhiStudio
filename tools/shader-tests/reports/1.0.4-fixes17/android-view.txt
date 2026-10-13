@@ -1,1 +1,0 @@
-PASS actual PreviewShaderView: 50 frame/time pairs, three resizes, hide/reset, cancelled seek, EGL/Surface shutdown

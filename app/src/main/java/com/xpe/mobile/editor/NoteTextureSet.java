@@ -66,6 +66,13 @@ public final class NoteTextureSet {
         return HIT_EFFECT_ROWS;
     }
 
+    /** Only for an independently owned texture set, such as an offline export. */
+    public void recycle() {
+        for (Bitmap bitmap : normal.values()) bitmap.recycle();
+        for (Bitmap bitmap : multiHit.values()) bitmap.recycle();
+        hitEffect.recycle();
+    }
+
     private static Bitmap decode(Resources resources, int resourceId) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inScaled = false;

@@ -98,13 +98,13 @@ public final class EventDragCommandTest {
         assertEquals(1, speed.easingType);
         JSONObject line = new JSONObject(chart.toJsonString())
                 .getJSONArray("judgeLineList").getJSONObject(0);
-        // Base spatial events preserve their pre-roll; speed keeps its default prefix.
+        // Export preserves authored spatial and speed events without synthetic prefixes.
         assertEquals(1, line.getJSONArray("eventLayers").getJSONObject(0)
                 .getJSONArray("moveXEvents").length());
         JSONObject exportedMove = line.getJSONArray("eventLayers").getJSONObject(0)
                 .getJSONArray("moveXEvents").getJSONObject(0);
         JSONObject exportedSpeed = line.getJSONArray("eventLayers").getJSONObject(0)
-                .getJSONArray("speedEvents").getJSONObject(1);
+                .getJSONArray("speedEvents").getJSONObject(0);
         assertEquals(77, exportedMove.getInt("futureEventData"));
         assertEquals(88, exportedSpeed.getInt("futureSpeedData"));
         assertEquals(1, exportedMove.getJSONArray("startTime").getInt(0));

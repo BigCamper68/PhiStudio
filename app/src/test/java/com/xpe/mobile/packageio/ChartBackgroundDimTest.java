@@ -23,6 +23,15 @@ public final class ChartBackgroundDimTest {
         // Unknown authored META values are preserved but not interpreted as ChartInfo.
         assertTrue(new org.json.JSONObject(chart.toJsonString()).getJSONObject("META").getBoolean("useAttachUiFix"));
     }
+    @Test public void uniformNoteScaleComesFromYamlOnly() throws Exception {
+        ChartDocument chart = ChartDocument.fromJson("{}");
+        new ChartPackage(new File("unused"), "chart.zip", "chart", "chart.json",
+                null, null, 0, false, chart, Collections.emptyList(), List.of(PackageManifest.parse(
+                "info.yml", PackageManifest.Kind.YAML, "noteUniformScale: true # enabled\n")));
+        assertTrue(chart.noteUniformScale);
+        assertFalse(new org.json.JSONObject(chart.toJsonString()).getJSONObject("META").has("noteUniformScale"));
+    }
+
     @Test public void packageUsesYamlDimAndFallsBackForOrdinaryRpePackages() {
         assertEquals(.1,chartPackage(List.of(PackageManifest.parse("info.yml",
                 PackageManifest.Kind.YAML,"backgroundDim: 0.1\n"))).getBackgroundDim(),0);

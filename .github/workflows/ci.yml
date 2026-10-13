@@ -30,15 +30,19 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 
       - name: Name APK artifact
+        id: apk
         shell: bash
         run: |
           set -euo pipefail
-          cp app/build/outputs/apk/debug/app-debug.apk PhiStudio-1.0.3-phira-fix-debug.apk
+          version="$(sed -n "s/^[[:space:]]*versionName[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" app/build.gradle | head -n 1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "PhiStudio-${version}-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: PhiStudio-1.0.3-phira-fix-debug
-          path: PhiStudio-1.0.3-phira-fix-debug.apk
+          name: PhiStudio-${{ steps.apk.outputs.version }}-debug
+          path: PhiStudio-${{ steps.apk.outputs.version }}-debug.apk
           if-no-files-found: error
           retention-days: 30

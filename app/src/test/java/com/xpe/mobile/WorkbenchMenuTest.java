@@ -32,7 +32,7 @@ public class WorkbenchMenuTest {
             assertFalse(child instanceof EditText);
             if (child instanceof Button) labels.add(((Button) child).getText().toString());
         }
-        int[] expected = {R.string.menu_projects, R.string.menu_import_package, R.string.menu_export_package,
+        int[] expected = {R.string.menu_projects, R.string.menu_import_package, R.string.menu_export_package, R.string.menu_export_video,
                 R.string.menu_metadata, R.string.menu_bpm, R.string.menu_lines,
                 R.string.menu_curve_notes, R.string.menu_complex_move, R.string.menu_settings, R.string.menu_diagnostics};
         assertEquals(expected.length, labels.size());

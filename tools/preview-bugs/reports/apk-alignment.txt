@@ -1,2 +1,0 @@
-zipalign -c -P 16 4 PhiStudio-1.0.4-fixes20-release.apk
-Exit code: 0

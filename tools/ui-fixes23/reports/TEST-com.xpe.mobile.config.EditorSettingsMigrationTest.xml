@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.xpe.mobile.config.EditorSettingsMigrationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-10T18:38:33" hostname="localhost" time="0.005">
-  <properties/>
-  <testcase name="tapToSeekDefaultsOffAndSurvivesCopySaveAndReload" classname="com.xpe.mobile.config.EditorSettingsMigrationTest" time="0.004"/>
-  <testcase name="obsoleteWidthCannotResetExistingSettingsAndHighlightPersists" classname="com.xpe.mobile.config.EditorSettingsMigrationTest" time="0.001"/>
-  <testcase name="newDefaultsAndLegacyDefaultsMigrateButCustomValuesSurvive" classname="com.xpe.mobile.config.EditorSettingsMigrationTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

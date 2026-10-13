@@ -1,13 +1,11 @@
 package com.xpe.mobile.model;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /** Typed, editable and lossless view of RPE judge-line extended/storyboard events. */
 public final class ExtendedLineEvents {
@@ -68,6 +66,12 @@ public final class ExtendedLineEvents {
 
     public boolean isModified() {
         return !modified.isEmpty();
+    }
+
+    /** An explicitly empty channel still selects Paint/Text/GIF in prpr. */
+    public boolean hasChannel(StoryboardEventType type) {
+        return !events(type).isEmpty() || (raw != null && !modified.contains(type)
+                && raw.optJSONArray(type.jsonKey) != null);
     }
 
     public int count() {
@@ -360,8 +364,8 @@ public final class ExtendedLineEvents {
         public static ColorEvent fromJson(JSONObject object) throws JSONException {
             ColorEvent event = new ColorEvent();
             event.readTiming(object);
-            event.startRgb = readRgb(object.optJSONArray("start"), 0xFFFFFF);
-            event.endRgb = readRgb(object.optJSONArray("end"), event.startRgb);
+            event.startRgb = StoryboardColorTween.readRgb(object.optJSONArray("start"), 0xFFFFFF);
+            event.endRgb = StoryboardColorTween.readRgb(object.optJSONArray("end"), event.startRgb);
             return event;
         }
 
@@ -374,8 +378,8 @@ public final class ExtendedLineEvents {
 
         @Override
         void writeValues(JSONObject object) throws JSONException {
-            object.put("start", writeRgb(startRgb));
-            object.put("end", writeRgb(endRgb));
+            object.put("start", StoryboardColorTween.writeRgb(startRgb));
+            object.put("end", StoryboardColorTween.writeRgb(endRgb));
         }
 
         @Override
@@ -387,32 +391,13 @@ public final class ExtendedLineEvents {
 
         public int valueAt(double beat) {
             double progress = progressAt(beat);
-            int red = interpolateChannel(startRgb >> 16, endRgb >> 16, progress);
-            int green = interpolateChannel(startRgb >> 8, endRgb >> 8, progress);
-            int blue = interpolateChannel(startRgb, endRgb, progress);
+            int red = StoryboardColorTween.interpolateChannel(startRgb >> 16, endRgb >> 16, progress);
+            int green = StoryboardColorTween.interpolateChannel(startRgb >> 8, endRgb >> 8, progress);
+            int blue = StoryboardColorTween.interpolateChannel(startRgb, endRgb, progress);
             return red << 16 | green << 8 | blue;
         }
 
-        private static int readRgb(JSONArray value, int fallback) {
-            if (value == null || value.length() < 3) return fallback;
-            return clampChannel(value.optInt(0, (fallback >> 16) & 0xff)) << 16
-                    | clampChannel(value.optInt(1, (fallback >> 8) & 0xff)) << 8
-                    | clampChannel(value.optInt(2, fallback & 0xff));
-        }
 
-        private static JSONArray writeRgb(int rgb) {
-            return new JSONArray().put((rgb >> 16) & 0xff)
-                    .put((rgb >> 8) & 0xff).put(rgb & 0xff);
-        }
-
-        private static int interpolateChannel(int start, int end, double progress) {
-            return clampChannel((int) Math.round((start & 0xff)
-                    + ((end & 0xff) - (start & 0xff)) * progress));
-        }
-
-        private static int clampChannel(int value) {
-            return Math.max(0, Math.min(255, value));
-        }
     }
 
     public static final class TextEvent extends TimedEvent {
@@ -449,69 +434,12 @@ public final class ExtendedLineEvents {
 
         public String valueAt(double beat) {
             if (beat >= endTime.toDouble()) return end;
-            return tween(start, end, clamp(progressAt(beat)));
+            return tween(start, end, StoryboardTextTween.clamp(progressAt(beat)));
         }
 
-        static String tween(String start, String end, double progress) {
-            String first = start == null ? "" : start;
-            String second = end == null ? "" : end;
-            if (first.contains("%P%") && second.contains("%P%")) {
-                String firstNumber = first.replace("%P%", "");
-                String secondNumber = second.replace("%P%", "");
-                if (progress >= 1.0) return secondNumber;
-                if (progress <= 0.0) return firstNumber;
-                double from = parseNumber(firstNumber);
-                double to = parseNumber(secondNumber);
-                double value = from + progress * (to - from);
-                boolean integers = isInteger(from) && isInteger(to);
-                return integers
-                        ? String.format(Locale.US, "%.0f", value)
-                        : String.format(Locale.US, "%.3f", value);
-            }
-            if (first.isEmpty() && second.isEmpty()) return "";
-            if (second.isEmpty()) {
-                String stripped = first.replace("%P%", "");
-                return tween("", stripped, 1.0 - progress);
-            }
-            if (first.isEmpty()) return takeCodePoints(second,
-                    (int) Math.round(progress * second.codePointCount(0, second.length())));
-            int firstLength = first.codePointCount(0, first.length());
-            int secondLength = second.codePointCount(0, second.length());
-            if (second.startsWith(first)) {
-                int count = firstLength
-                        + (int) Math.floor((secondLength - firstLength) * progress);
-                return takeCodePoints(second, count);
-            }
-            if (first.startsWith(second)) {
-                int count = secondLength
-                        + (int) Math.round((firstLength - secondLength) * (1.0 - progress));
-                return takeCodePoints(first, count);
-            }
-            return first.contains("%P%") ? first.replace("%P%", "") : first;
+        public static String tween(String start, String end, double progress) {
+            return StoryboardTextTween.tween(start, end, progress);
         }
 
-        private static String takeCodePoints(String value, int count) {
-            int available = value.codePointCount(0, value.length());
-            int safe = Math.max(0, Math.min(available, count));
-            return value.substring(0, value.offsetByCodePoints(0, safe));
-        }
-
-        private static double parseNumber(String value) {
-            try {
-                double parsed = Double.parseDouble(value);
-                return Double.isFinite(parsed) ? parsed : 0.0;
-            } catch (NumberFormatException ignored) {
-                return 0.0;
-            }
-        }
-
-        private static boolean isInteger(double value) {
-            return Math.rint(value) == value;
-        }
-
-        private static double clamp(double value) {
-            if (!Double.isFinite(value)) return 0.0;
-            return Math.max(0.0, Math.min(1.0, value));
-        }
     }
 }

@@ -47,7 +47,7 @@ public final class PreviewShaderView extends TextureView implements TextureView.
     public boolean submit(PreviewRenderer renderer, RenderScene scene, RectF viewport, RectF area,
                           Bitmap background, EditorSettings settings, int line, double dim,
                           ShaderTimeline timeline, double seconds) {
-        if (failed || timeline.effects.isEmpty()) { hidePreview(); return false; }
+        if (failed || !timeline.hasActive(seconds)) { hidePreview(); return false; }
         setVisibility(VISIBLE);
         Worker current = worker;
         if (current == null) return false;

@@ -25,6 +25,8 @@ public final class ChartDocument {
     public Double backgroundDim;
     /** Runtime Phira compatibility flag loaded from info.yml, not an RPE META field. */
     public boolean useAttachUiFix;
+    /** ChartInfo noteUniformScale; runtime package option, not chart data. */
+    public boolean noteUniformScale;
     public int offsetMs;
     public int rpeVersion = 123;
     public final List<BpmChange> bpmChanges = new ArrayList<>();

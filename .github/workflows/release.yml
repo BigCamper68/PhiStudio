@@ -88,7 +88,7 @@ jobs:
           keytool -list \
             -keystore "$keystore_path" \
             -storetype PKCS12 \
-            -storepass "$PHISTUDIO_KEYSTORE_PASSWORD" \
+            -storepass:env PHISTUDIO_KEYSTORE_PASSWORD \
             -alias "$PHISTUDIO_KEY_ALIAS" >/dev/null
           echo "PHISTUDIO_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
 
@@ -109,7 +109,9 @@ jobs:
           apk_name="PhiStudio-${RELEASE_VERSION}.apk"
           source_name="PhiStudio-${RELEASE_VERSION}-source.zip"
           test -s "$apk_source"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk_source"
+          signature_report="$RUNNER_TEMP/phistudio-apk-signature.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk_source" | tee "$signature_report"
+          grep -Fqx 'Signer #1 certificate SHA-256 digest: 0711ce5197d30d09c71630447f8898fa9f195da36387b3f9fe385a084798a9d2' "$signature_report"
           cp "$apk_source" "$apk_name"
           git archive --format=zip --prefix="PhiStudio-${RELEASE_VERSION}/" --output="$source_name" HEAD
           sha256sum "$apk_name" "$source_name" > SHA256SUMS.txt

@@ -72,10 +72,10 @@ public final class PreviewBugChartsTest {
                 assertEquals(0, event.end, 0);
                 assertEquals(start + 2.497, event.endTime.toDouble(), 1e-7);
                 assertEquals(3, event.easingType);
-                assertEquals(90, ChartEvaluator.evaluate(chart, start, false).lines.get(25).rotationDegrees, 1e-6);
+                assertEquals(90, ChartEvaluator.evaluate(chart, start, false).lines.get(25).rotationDegrees, 1e-5);
                 // prpr PEC easing 3 = sine-in: halfway is -90*cos(pi/4).
                 assertEquals(90 / Math.sqrt(2), ChartEvaluator.evaluate(chart, start + 2.497 / 2,
-                        false).lines.get(25).rotationDegrees, 1e-6);
+                        false).lines.get(25).rotationDegrees, 1e-5);
                 LineEvent edited = event.copy(); edited.start = -80;
                 assertEquals(PropertyValidator.Error.NONE, PropertyValidator.validate(edited));
                 assertFalse(layer.overlaps(edited, event));

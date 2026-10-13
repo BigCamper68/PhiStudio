@@ -8,7 +8,7 @@ import static org.junit.Assert.assertEquals;
 
 public final class RpeLayerCompatibilityTest {
     @Test
-    public void prefixesDelayedAdditiveRotationWithZero() throws Exception {
+    public void preservesDelayedAdditiveRotationWithoutSyntheticPrefix() throws Exception {
         JudgeLine line = new JudgeLine();
         LineEvent delayed = new LineEvent();
         delayed.type = EventType.ROTATE;
@@ -22,18 +22,17 @@ public final class RpeLayerCompatibilityTest {
         JSONArray exported = line.toJson().getJSONArray("eventLayers")
                 .getJSONObject(1).getJSONArray("rotateEvents");
 
-        assertEquals(2, exported.length());
-        JSONObject prefix = exported.getJSONObject(0);
-        assertBeat(prefix.getJSONArray("startTime"), 0, 0, 1);
-        assertBeat(prefix.getJSONArray("endTime"), 17, 1, 4);
-        assertEquals(0.0, prefix.getDouble("start"), 0.0);
-        assertEquals(0.0, prefix.getDouble("end"), 0.0);
-        assertEquals(1, prefix.getInt("easingType"));
-        assertEquals(-10.0, exported.getJSONObject(1).getDouble("end"), 0.0);
+        assertEquals(1, exported.length());
+        JSONObject authored = exported.getJSONObject(0);
+        assertBeat(authored.getJSONArray("startTime"), 17, 1, 4);
+        assertBeat(authored.getJSONArray("endTime"), 17, 1, 2);
+        assertEquals(0.0, authored.getDouble("start"), 0.0);
+        assertEquals(-10.0, authored.getDouble("end"), 0.0);
+        assertEquals(4, authored.getInt("easingType"));
     }
 
     @Test
-    public void preservesDelayedBaseAlphaAndPrefixesSpeed() throws Exception {
+    public void preservesDelayedBaseAlphaAndSpeed() throws Exception {
         JudgeLine line = new JudgeLine();
         EventLayer base = line.layer(0);
         base.events(EventType.ALPHA).clear();
@@ -52,8 +51,10 @@ public final class RpeLayerCompatibilityTest {
         assertBeat(alphaPrefix.getJSONArray("startTime"), 4, 0, 1);
         assertEquals(64.0, alphaPrefix.getDouble("start"), 0.0);
         assertEquals(0.0, alphaPrefix.getDouble("end"), 0.0);
-        assertEquals(10.0, speedPrefix.getDouble("start"), 0.0);
-        assertEquals(10.0, speedPrefix.getDouble("end"), 0.0);
+        assertEquals(1, exported.getJSONArray("speedEvents").length());
+        assertBeat(speedPrefix.getJSONArray("startTime"), 4, 0, 1);
+        assertEquals(8.0, speedPrefix.getDouble("start"), 0.0);
+        assertEquals(6.0, speedPrefix.getDouble("end"), 0.0);
     }
 
     private static LineEvent delayed(EventType type, int startBeat,

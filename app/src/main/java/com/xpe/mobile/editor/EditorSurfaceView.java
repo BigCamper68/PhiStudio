@@ -6,10 +6,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.View;
-
 import com.xpe.mobile.R;
 import com.xpe.mobile.audio.HitSoundTimeline;
 import com.xpe.mobile.config.EditorSettings;
@@ -20,15 +18,12 @@ import com.xpe.mobile.model.EventType;
 import com.xpe.mobile.model.JudgeLine;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
-import com.xpe.mobile.model.NoteType;
 import com.xpe.mobile.preview.PreviewRenderer;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,11 +35,17 @@ import java.util.Set;
  * independently.
  */
 abstract class EditorSurfaceView extends View {
+    private final EditorDrawingStyle editorDrawingStyle = new EditorDrawingStyle(this);
+
+    private final EditorEventPainter editorEventPainter = new EditorEventPainter(this);
+    private final EditorNotePainter editorNotePainter = new EditorNotePainter(this);
+    private final EditorTimelinePainter editorTimelinePainter = new EditorTimelinePainter(this);
+
     private ChartDocument multiHintChart;
     private long multiHintRevision = -1L;
     private Set<Note> multiHintNotes = Collections.emptySet();
 
-    private Set<Note> multiHintNotes() {
+    Set<Note> multiHintNotes() {
         if (!settings.highlightSimultaneousNotes) return Collections.emptySet();
         if (multiHintChart != chart || multiHintRevision != chart.revision()) {
             multiHintNotes = NoteMultiHintResolver.resolve(chart);
@@ -189,115 +190,42 @@ abstract class EditorSurfaceView extends View {
 
     protected final void drawNoteBackground(
             Canvas canvas, float left, float top, float right, float bottom) {
-        paint.setColor(Color.rgb(10, 14, 18));
-        canvas.drawRect(left, top, right, bottom, paint);
-        Bitmap illustration = backgroundIllustration;
-        if (illustration == null || illustration.isRecycled()) return;
-        RectF destination = new RectF(left, top, right, bottom);
-        CenterCropCalculator.Crop crop = CenterCropCalculator.calculate(
-                illustration.getWidth(), illustration.getHeight(),
-                destination.width(), destination.height());
-        Rect source = new Rect(crop.left, crop.top, crop.right, crop.bottom);
-        int save = canvas.save();
-        canvas.clipRect(destination);
-        backgroundPaint.setAlpha(settings.backgroundBrightness);
-        canvas.drawBitmap(illustration, source, destination, backgroundPaint);
-        canvas.restoreToCount(save);
+        editorTimelinePainter.drawNoteBackground(canvas, left, top, right, bottom);
     }
 
     protected final void prepareTimelineGridPaint() {
-        // The shared paint may still have the thicker judgment-line stroke from the last grid.
-        paint.setStyle(Paint.Style.FILL);
-        paint.setStrokeWidth(density);
+        editorTimelinePainter.prepareTimelineGridPaint();
     }
 
     protected final void drawNoteGrid(
             Canvas canvas, float left, float top, float right, float bottom) {
-        float centerY = timelineY(bottom);
-        prepareTimelineGridPaint();
-        TimelineGridRange.Range range = TimelineGridRange.visible(
-                currentBeat, centerY, top, bottom, pixelsPerBeat, subdivision);
-        for (int step = range.firstStep; step <= range.lastStep; step++) {
-            double beat = step / (double) subdivision;
-            float y = beatToY(beat, centerY);
-            if (y < top || y > bottom) continue;
-            boolean major = Math.floorMod(step, subdivision) == 0;
-            paint.setColor(major ? GRID_MAJOR : GRID_MINOR);
-            canvas.drawLine(left, y, right, y, paint);
-
-        }
-
-        drawTimelineBeatNumbers(canvas, left, top, left + 38f * density, bottom,
-                currentBeat, pixelsPerBeat, false);
-        for (int index = 0; index < verticalGridLines; index++) {
-            float x = VerticalGrid.screenX(index, verticalGridLines, left, right);
-            paint.setColor(index == verticalGridLines / 2
-                    ? Color.rgb(83, 101, 62) : GRID_MINOR);
-            canvas.drawLine(x, top, x, bottom, paint);
-        }
-
-        drawCurrentBeatLine(canvas, left, right, bottom);
+        editorTimelinePainter.drawNoteGrid(canvas, left, top, right, bottom);
     }
 
     protected final void drawCurrentBeatLine(Canvas canvas, float left, float right, float bottom) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setStrokeWidth(2.4f * density);
-        paint.setColor(Color.rgb((settings.lineColorRgb >> 16) & 0xff,
-                (settings.lineColorRgb >> 8) & 0xff, settings.lineColorRgb & 0xff));
-        float y = timelineY(bottom);
-        canvas.drawLine(left, y, right, y, paint);
+        editorTimelinePainter.drawCurrentBeatLine(canvas, left, right, bottom);
     }
 
     /** Common event-grid painter for Events and Shaders, in the caller's local coordinates. */
     public final void drawTimelineRows(Canvas canvas, float left, float top, float right,
                                       float bottom, double position, float scale, int divisions) {
-        float baseline = timelineY(bottom);
-        prepareTimelineGridPaint();
-        TimelineGridRange.Range range = TimelineGridRange.visible(
-                position, baseline, top, bottom, scale, divisions);
-        for (int step = range.firstStep; step <= range.lastStep; step++) {
-            float y = baseline - (float) (step / (double) divisions - position) * scale;
-            if (y < top || y > bottom) continue;
-            paint.setColor(Math.floorMod(step, divisions) == 0 ? GRID_MAJOR : GRID_MINOR);
-            canvas.drawLine(left, y, right, y, paint);
-        }
+        editorTimelinePainter.drawTimelineRows(canvas, left, top, right, bottom, position, scale, divisions);
     }
     /** Include text that intersects an edge even while its grid line is outside it. */
     public final void drawTimelineBeatNumbers(Canvas canvas, float left, float top, float right,
                                              float bottom, double position, float scale,
                                              boolean rightAligned) {
-        int save = canvas.save();
-        canvas.clipRect(left, top, right, bottom);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setTextSize(11f * density);
-        paint.setTextAlign(rightAligned ? Paint.Align.RIGHT : Paint.Align.LEFT);
-        paint.setColor(Color.LTGRAY);
-        float offset = 3f * density;
-        float ascent = paint.ascent(), descent = paint.descent();
-        float baseline = timelineY(bottom);
-        TimelineGridRange.Range labels = TimelineGridRange.visible(position, baseline,
-                top + offset - descent, bottom + offset - ascent, scale, 1);
-        for (int tick = labels.firstStep; tick <= labels.lastStep; tick++) {
-            float textY = baseline - (float) (tick - position) * scale - offset;
-            if (textY + descent >= top && textY + ascent <= bottom)
-                canvas.drawText(Integer.toString(tick), rightAligned ? right - 4f * density
-                        : left + 5f * density, textY, paint);
-        }
-        paint.setTextAlign(Paint.Align.LEFT);
-        canvas.restoreToCount(save);
+        editorTimelinePainter.drawTimelineBeatNumbers(canvas, left, top, right, bottom, position, scale, rightAligned);
     }
 
     public final void drawTimelineBaseline(Canvas canvas, float right, float bottom) {
-        drawCurrentBeatLine(canvas, 0, right, bottom);
+        editorTimelinePainter.drawTimelineBaseline(canvas, right, bottom);
     }
     public final void drawTimelineBlock(Canvas canvas, RectF rect, int color) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(color);
-        canvas.drawRoundRect(rect, 4f * density, 4f * density, paint);
+        editorTimelinePainter.drawTimelineBlock(canvas, rect, color);
     }
     public final void drawTimelineSelection(Canvas canvas, RectF rect, float startY, float endY) {
-        drawSelection(canvas, rect);
-        drawEventHandles(canvas, rect.centerX(), startY, endY, false);
+        editorTimelinePainter.drawTimelineSelection(canvas, rect, startY, endY);
     }
     public final float timelineScale() { return pixelsPerBeat; }
     public final double timelineScrollMultiplier() { return settings.timelineScrollSpeed; }
@@ -316,242 +244,55 @@ abstract class EditorSurfaceView extends View {
 
     protected final void drawEventGrid(
             Canvas canvas, float left, float top, float right, float bottom) {
-        drawTimelineRows(canvas, left, top, right, bottom, currentBeat, pixelsPerBeat, subdivision);
-
-        EventType[] types = EventType.values();
-        float width = (right - left) / types.length;
-        for (int index = 0; index <= types.length; index++) {
-            paint.setColor(Color.rgb(58, 67, 76));
-            canvas.drawLine(left + index * width, top, left + index * width, bottom, paint);
-        }
-        drawCurrentBeatLine(canvas, left, right, bottom);
+        editorTimelinePainter.drawEventGrid(canvas, left, top, right, bottom);
     }
 
     protected final void drawEventHeaders(Canvas canvas, float left, float top, float right) {
-        int save = canvas.save();
-        canvas.clipRect(left, top, right, top + 22f * density);
-        EventType[] types = EventType.values();
-        float width = (right - left) / types.length;
-        paint.setStyle(Paint.Style.FILL);
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(10.5f * density);
-        for (int index = 0; index < types.length; index++) {
-            paint.setColor(types[index] == selectedEventType && tool == Tool.EVENT
-                    ? ACCENT : Color.LTGRAY);
-            canvas.drawText(types[index].label, left + (index + .5f) * width,
-                    top + 17f * density, paint);
-        }
-        paint.setTextAlign(Paint.Align.LEFT);
-        canvas.restoreToCount(save);
+        editorTimelinePainter.drawEventHeaders(canvas, left, top, right);
     }
 
     protected final void drawNotes(
             Canvas canvas, float left, float top, float right, float bottom) {
-        float centerY = timelineY(bottom);
-        Set<Note> multiHitNotes = multiHintNotes();
-        for (Note note : currentLine().notes) {
-            boolean useMultiHit = multiHitNotes.contains(note);
-            BeatTime visibleStart = visibleNoteStart(note);
-            BeatTime visibleEnd = visibleNoteEnd(note);
-            float startY = beatToY(visibleStart.toDouble(), centerY);
-            float x = chartXToScreen(visibleNoteX(note), left, right);
-            float naturalWidth = (float) settings.noteWidthPixels * density
-                    * noteTextures.widthScale(useMultiHit);
-            float textureWidth = EditorNoteMetrics.width(naturalWidth, note.size);
-            RectF bounds;
-
-            if (note.type == NoteType.HOLD) {
-                float endY = beatToY(visibleEnd.toDouble(), centerY);
-                bounds = holdBounds(x, startY, endY, textureWidth);
-                if (bounds.bottom < top || bounds.top > bottom) continue;
-                drawHoldTexture(canvas, x, startY, endY, textureWidth, naturalWidth, useMultiHit, 255);
-            } else {
-                Bitmap bitmap = noteTextures.bitmap(note.type, useMultiHit);
-                float textureHeight = EditorNoteMetrics.height(naturalWidth,
-                        bitmap.getWidth(), bitmap.getHeight());
-                bounds = new RectF(x - textureWidth / 2f, startY - textureHeight / 2f,
-                        x + textureWidth / 2f, startY + textureHeight / 2f);
-                if (bounds.bottom < top || bounds.top > bottom) continue;
-                drawBitmap(canvas, bitmap, bounds, 255);
-            }
-
-            boolean selected = note == selectedNote || selectedNotes.contains(note);
-            boolean fakeOutline = note.fake && settings.showFakeNoteOutline;
-            RectF outline = bounds;
-            if ((selected || fakeOutline) && note.type != NoteType.HOLD) {
-                Bitmap tap = noteTextures.bitmap(NoteType.TAP, useMultiHit);
-                float tapHeight = EditorNoteMetrics.height(naturalWidth, tap.getWidth(), tap.getHeight());
-                outline = new RectF(x - textureWidth / 2f, startY - tapHeight / 2f,
-                        x + textureWidth / 2f, startY + tapHeight / 2f);
-            }
-            if (fakeOutline) {
-                strokePaint.setColor(Color.WHITE);
-                strokePaint.setStrokeWidth(1.5f * density);
-                canvas.drawRoundRect(outline, 5f * density, 5f * density, strokePaint);
-            }
-            if (selected) {
-                drawSelection(canvas, outline);
-                if (note == selectedNote && selectionCount() == 1
-                        && note.type == NoteType.HOLD) {
-                    drawHoldHandles(canvas, x, startY,
-                            beatToY(visibleEnd.toDouble(), centerY),
-                            noteDragValidation != NoteTouchOperation.Error.NONE);
-                }
-            }
-        }
+        editorNotePainter.drawNotes(canvas, left, top, right, bottom);
     }
 
     protected final RectF holdBounds(float x, float startY, float endY, float width) {
-        return new RectF(x - width / 2f, Math.min(startY, endY),
-                x + width / 2f, Math.max(startY, endY));
+        return editorNotePainter.holdBounds(x, startY, endY, width);
     }
 
     protected final void drawBitmap(
             Canvas canvas, Bitmap bitmap, RectF destination, int alpha) {
-        noteTexturePaint.setAlpha(alpha);
-        canvas.drawBitmap(bitmap, null, destination, noteTexturePaint);
+        editorNotePainter.drawBitmap(canvas, bitmap, destination, alpha);
     }
 
     protected final void drawHoldTexture(Canvas canvas, float x, float startY, float endY,
                                          float width, float naturalWidth, boolean useMultiHit, int alpha) {
-        Bitmap bitmap = noteTextures.bitmap(NoteType.HOLD, useMultiHit);
-        if (startY < endY) {
-            RectF destination = holdBounds(x, startY, endY, width);
-            drawBitmap(canvas, bitmap, destination, alpha);
-            return;
-        }
-
-        int tailPixels = noteTextures.holdTailPixels(useMultiHit);
-        int headPixels = noteTextures.holdHeadPixels(useMultiHit);
-        int bodyBottom = Math.max(tailPixels + 1, bitmap.getHeight() - headPixels);
-        float left = x - width / 2f;
-        float right = x + width / 2f;
-        float tailHeight = EditorNoteMetrics.height(naturalWidth, bitmap.getWidth(), tailPixels);
-        float headHeight = EditorNoteMetrics.height(naturalWidth, bitmap.getWidth(), headPixels);
-
-        noteTexturePaint.setAlpha(alpha);
-        canvas.drawBitmap(bitmap,
-                new Rect(0, tailPixels, bitmap.getWidth(), bodyBottom),
-                new RectF(left, endY, right, startY), noteTexturePaint);
-        canvas.drawBitmap(bitmap,
-                new Rect(0, 0, bitmap.getWidth(), tailPixels),
-                new RectF(left, endY, right, endY + tailHeight), noteTexturePaint);
-        canvas.drawBitmap(bitmap,
-                new Rect(0, bitmap.getHeight() - headPixels,
-                        bitmap.getWidth(), bitmap.getHeight()),
-                new RectF(left, startY - headHeight, right, startY), noteTexturePaint);
+        editorNotePainter.drawHoldTexture(canvas, x, startY, endY, width, naturalWidth, useMultiHit, alpha);
     }
 
     protected final void drawEvents(
             Canvas canvas, float left, float top, float right, float bottom) {
-        EventLayer layer = currentLayer();
-        EventType[] types = EventType.values();
-        float columnWidth = (right - left) / types.length;
-        float centerY = timelineY(bottom);
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(8.5f * density);
-
-        for (int typeIndex = 0; typeIndex < types.length; typeIndex++) {
-            EventType type = types[typeIndex];
-            for (LineEvent event : layer.events(type)) {
-                boolean draggedPreview = event == draggedEvent || event == draggedEventPair;
-                BeatTime visibleStart = draggedPreview && dragCandidateStart != null
-                        ? dragCandidateStart : event.startTime;
-                BeatTime visibleEnd = draggedPreview && dragCandidateEnd != null
-                        ? dragCandidateEnd : event.endTime;
-                float startY = beatToY(visibleStart.toDouble(), centerY);
-                float endY = beatToY(visibleEnd.toDouble(), centerY);
-                float rectTop = Math.min(startY, endY);
-                float rectBottom = Math.max(startY, endY);
-                if (rectBottom < top || rectTop > bottom) continue;
-                float x1 = left + typeIndex * columnWidth + 3f * density;
-                float x2 = left + (typeIndex + 1) * columnWidth - 3f * density;
-                if (rectBottom - rectTop < 6f * density) rectBottom = rectTop + 6f * density;
-                RectF rect = new RectF(x1, rectTop, x2, rectBottom);
-                boolean invalidDrag = draggedPreview
-                        && (dragValidation != EventDragValidator.Error.NONE
-                        || xyDragValidation != XYBindingValidator.Error.NONE);
-                drawTimelineBlock(canvas, rect, invalidDrag
-                        ? INVALID_PREVIEW : eventColor(type, event.linkGroup != 0));
-                if (settings.drawEventCurves) {
-                    drawEventEasingCurve(canvas, event, rect, invalidDrag);
-                }
-                if (settings.drawEventNumbers && rect.height() > 30f * density) {
-                    paint.setColor(Color.WHITE);
-                    paint.setTextSize(7.5f * density);
-                    canvas.drawText(compactValue(event.end), rect.centerX(),
-                            rect.top + 9f * density, paint);
-                    canvas.drawText(compactValue(event.start), rect.centerX(),
-                            rect.bottom - 3f * density, paint);
-                }
-                if (event == selectedEvent || selectedEvents.contains(event)) {
-                    drawSelection(canvas, rect);
-                    if (event == selectedEvent && selectionCount() == 1) {
-                        drawEventHandles(canvas, rect.centerX(), startY, endY, invalidDrag);
-                    }
-                }
-            }
-        }
-        paint.setTextAlign(Paint.Align.LEFT);
+        editorEventPainter.drawEvents(canvas, left, top, right, bottom);
     }
 
     protected final void drawEventEasingCurve(
             Canvas canvas, LineEvent event, RectF rect, boolean invalid) {
-        drawTimelineEasingCurve(canvas, rect, invalid, event == selectedEvent, event::easedProgressAt);
+        editorTimelinePainter.drawEventEasingCurve(canvas, event, rect, invalid);
     }
 
     public final void drawTimelineEasingCurve(Canvas canvas, RectF rect, boolean invalid,
                                                 boolean selected, java.util.function.DoubleUnaryOperator easing) {
-        float insetX = Math.min(5f * density, rect.width() * 0.14f);
-        float insetY = Math.min(4f * density, rect.height() * 0.12f);
-        float curveLeft = rect.left + insetX;
-        float curveRight = rect.right - insetX;
-        float curveTop = rect.top + insetY;
-        float curveBottom = rect.bottom - insetY;
-        if (curveRight <= curveLeft || curveBottom <= curveTop) return;
-
-        int samples = Math.max(10, Math.min(72,
-                Math.round((curveBottom - curveTop) / Math.max(2f * density, 1f))));
-        eventCurvePath.reset();
-        for (int index = 0; index <= samples; index++) {
-            double t = index / (double) samples;
-            double evaluated = easing.applyAsDouble(t);
-            float progress = Double.isFinite(evaluated)
-                    ? clamp((float) evaluated, -2f, 3f) : (float) t;
-            float x = curveLeft + progress * (curveRight - curveLeft);
-            float y = curveBottom - (float) t * (curveBottom - curveTop);
-            if (index == 0) eventCurvePath.moveTo(x, y);
-            else eventCurvePath.lineTo(x, y);
-        }
-
-        int save = canvas.save();
-        canvas.clipRect(rect);
-        strokePaint.setColor(invalid ? Color.WHITE : EVENT_EASING_CURVE);
-        strokePaint.setStrokeWidth((selected ? 2.6f : 2.1f) * density);
-        strokePaint.setStrokeCap(Paint.Cap.ROUND);
-        strokePaint.setStrokeJoin(Paint.Join.ROUND);
-        canvas.drawPath(eventCurvePath, strokePaint);
-        canvas.restoreToCount(save);
+        editorTimelinePainter.drawTimelineEasingCurve(canvas, rect, invalid, selected, easing);
     }
 
     protected final void drawEventHandles(
             Canvas canvas, float centerX, float startY, float endY, boolean invalidDrag) {
-        float radius = 9f * density;
-        paint.setColor(invalidDrag ? INVALID_PREVIEW : Color.WHITE);
-        canvas.drawCircle(centerX, startY, radius, paint);
-        canvas.drawCircle(centerX, endY, radius, paint);
-        paint.setColor(Color.rgb(25, 31, 38));
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(8f * density);
-        float baselineOffset = -(paint.ascent() + paint.descent()) / 2f;
-        canvas.drawText("S", centerX, startY + baselineOffset, paint);
-        canvas.drawText("E", centerX, endY + baselineOffset, paint);
-        paint.setTextAlign(Paint.Align.LEFT);
+        editorEventPainter.drawEventHandles(canvas, centerX, startY, endY, invalidDrag);
     }
 
     protected final void drawHoldHandles(
             Canvas canvas, float centerX, float startY, float endY, boolean invalidDrag) {
-        drawEventHandles(canvas, centerX, startY, endY, invalidDrag);
+        editorNotePainter.drawHoldHandles(canvas, centerX, startY, endY, invalidDrag);
     }
 
     protected final BeatTime visibleNoteStart(Note note) {
@@ -589,38 +330,12 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected final void drawSelectionRectangle(Canvas canvas) {
-        if (gestureMode != GestureMode.RECT_SELECT || selectionRectangle == null) return;
-        RectF bounds = normalized(selectionRectangle);
-        paint.setColor(withAlpha(ACCENT, 48));
-        canvas.drawRect(bounds, paint);
-        strokePaint.setColor(ACCENT);
-        strokePaint.setStrokeWidth(2f * density);
-        canvas.drawRect(bounds, strokePaint);
+        editorEventPainter.drawSelectionRectangle(canvas);
     }
 
     protected final void drawPlacementPreview(
             Canvas canvas, float split, float top, float bottom) {
-        if (gestureMode == GestureMode.HOLD_PREVIEW) {
-            float centerY = timelineY(bottom);
-            float x = chartXToScreen(screenToChartX(gestureStartX, 0f, split), 0f, split);
-            float startY = beatToY(previewStartBeat, centerY);
-            float endY = beatToY(previewEndBeat, centerY);
-            drawHoldTexture(canvas, x, startY, endY, 58f * density, 58f * density, false, 150);
-        } else if (gestureMode == GestureMode.EVENT_PREVIEW && previewEventType != null) {
-            EventType[] types = EventType.values();
-            int index = previewEventType.ordinal();
-            float width = (getWidth() - split) / types.length;
-            float centerY = timelineY(bottom);
-            RectF rect = new RectF(
-                    split + index * width + 3f * density,
-                    Math.min(beatToY(previewStartBeat, centerY),
-                            beatToY(previewEndBeat, centerY)),
-                    split + (index + 1) * width - 3f * density,
-                    Math.max(beatToY(previewStartBeat, centerY),
-                            beatToY(previewEndBeat, centerY)));
-            paint.setColor(withAlpha(eventColor(previewEventType, false), 145));
-            canvas.drawRoundRect(rect, 4f * density, 4f * density, paint);
-        }
+        editorEventPainter.drawPlacementPreview(canvas, split, top, bottom);
     }
 
     protected final JudgeLine currentLine() {
@@ -701,35 +416,15 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected static int clampAlpha(int alpha) {
-        return Math.max(0, Math.min(255, alpha));
+        return EditorDrawingStyle.clampAlpha(alpha);
     }
 
     protected int eventColor(EventType type, boolean linked) {
-        int color;
-        switch (type) {
-            case MOVE_X: color = Color.rgb(80, 188, 166); break;
-            case MOVE_Y: color = Color.rgb(77, 160, 205); break;
-            case ROTATE: color = Color.rgb(183, 114, 214); break;
-            case ALPHA: color = Color.rgb(224, 186, 83); break;
-            case SPEED: color = Color.rgb(225, 111, 104); break;
-            default: color = Color.GRAY; break;
-        }
-        if (!linked) return color;
-        return Color.rgb((Color.red(color) + 30) / 2,
-                (Color.green(color) + 40) / 2,
-                (Color.blue(color) + 90) / 2);
+        return editorDrawingStyle.eventColor(type, linked);
     }
 
     protected final String eventEasingLabel(LineEvent event) {
-        if (event.bezier && event.type != EventType.SPEED) {
-            return getResources().getString(R.string.controls_event_ease_custom);
-        }
-        int type = event.type == EventType.SPEED ? 1 : event.easingType;
-        if (type < 1 || type > easingEntries.length) {
-            return getResources().getString(R.string.controls_event_ease_unknown, type);
-        }
-        int index = Math.max(0, Math.min(easingEntries.length - 1, type - 1));
-        return easingEntries[index];
+        return editorDrawingStyle.eventEasingLabel(event);
     }
 
     protected final void drawSelection(Canvas canvas, RectF rect) {
@@ -742,98 +437,42 @@ abstract class EditorSurfaceView extends View {
     }
 
     protected static double eventStep(EventType type) {
-        switch (type) {
-            case ROTATE: return 0.25;
-            case SPEED: return 0.1;
-            default: return 10.0;
-        }
+        return EditorDrawingStyle.eventStep(type);
     }
 
     protected static double normalizeEventValue(EventType type, double value) {
-        if (type == EventType.ALPHA) return Math.max(-255.0, Math.min(255.0, value));
-        return value;
+        return EditorDrawingStyle.normalizeEventValue(type, value);
     }
 
     protected static void copyNoteFields(Note source, Note target) {
-        target.above = source.above;
-        target.alpha = source.alpha;
-        target.startTime = source.startTime;
-        target.endTime = source.endTime;
-        target.fake = source.fake;
-        target.positionX = source.positionX;
-        target.size = source.size;
-        target.speed = source.speed;
-        target.type = source.type;
-        target.visibleTime = source.visibleTime;
-        target.yOffset = source.yOffset;
-        target.hasTint = source.hasTint;
-        target.tintRgb = source.tintRgb;
-        target.hasHitEffectTint = source.hasHitEffectTint;
-        target.hitEffectTintRgb = source.hitEffectTintRgb;
-        target.judgeArea = source.judgeArea;
+        EditorFieldCopies.copyNoteFields(source, target);
     }
 
     protected static void copyEventFields(LineEvent source, LineEvent target) {
-        target.type = source.type;
-        target.startTime = source.startTime;
-        target.endTime = source.endTime;
-        target.start = source.start;
-        target.end = source.end;
-        target.easingType = source.easingType;
-        target.easingLeft = source.easingLeft;
-        target.easingRight = source.easingRight;
-        target.linkGroup = source.linkGroup;
-        target.bezier = source.bezier;
-        System.arraycopy(source.bezierPoints, 0, target.bezierPoints, 0,
-                source.bezierPoints.length);
+        EditorFieldCopies.copyEventFields(source, target);
     }
 
     protected static int withAlpha(int color, int alpha) {
-        return Color.argb(Math.max(0, Math.min(255, alpha)),
-                Color.red(color), Color.green(color), Color.blue(color));
+        return EditorDrawingStyle.withAlpha(color, alpha);
     }
 
     protected final String ellipsize(String text, float maximumWidth) {
-        if (text == null || maximumWidth <= 0f) return "";
-        if (paint.measureText(text) <= maximumWidth) return text;
-        String suffix = "…";
-        int end = text.length();
-        while (end > 0
-                && paint.measureText(text, 0, end) + paint.measureText(suffix) > maximumWidth) {
-            end--;
-        }
-        return end <= 0 ? suffix : text.substring(0, end) + suffix;
+        return editorDrawingStyle.ellipsize(text, maximumWidth);
     }
 
     protected final String ellipsizeFromEnd(String text, float maximumWidth) {
-        if (text == null || maximumWidth <= 0f) return "";
-        if (paint.measureText(text) <= maximumWidth) return text;
-        String prefix = "…";
-        int start = 0;
-        while (start < text.length()
-                && paint.measureText(text, start, text.length())
-                + paint.measureText(prefix) > maximumWidth) {
-            start++;
-        }
-        return start >= text.length() ? prefix : prefix + text.substring(start);
+        return editorDrawingStyle.ellipsizeFromEnd(text, maximumWidth);
     }
 
     protected static String compactValue(double value) {
-        if (Math.abs(value - Math.rint(value)) < 0.0001) {
-            return Long.toString(Math.round(value));
-        }
-        return String.format(Locale.US, "%.2f", value);
+        return EditorDrawingStyle.compactValue(value);
     }
 
     protected static String formatMillis(long milliseconds) {
-        long safe = Math.max(0L, milliseconds);
-        long minutes = safe / 60000L;
-        long seconds = (safe / 1000L) % 60L;
-        long millis = safe % 1000L;
-        return String.format(Locale.US, "%d:%02d.%03d", minutes, seconds, millis);
+        return EditorDrawingStyle.formatMillis(milliseconds);
     }
 
     protected static float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
+        return EditorDrawingStyle.clamp(value, min, max);
     }
 }
