@@ -15,9 +15,6 @@ import java.util.regex.Pattern;
 
 /** Updates only backgroundDim in a Phira manifest, preserving unrelated text verbatim. */
 final class BackgroundDimManifestWriter {
-    private static final Pattern DIM = Pattern.compile(
-            "(?im)^(\\ufeff?[ \\t]*backgroundDim[ \\t]*:[ \\t]*)([^\\r\\n]*)(\\r?$)");
-
     static String path(ChartPackage pack) {
         for (PackageManifest manifest : pack.getManifests()) {
             if (manifest.getKind() == PackageManifest.Kind.YAML) return manifest.getPath();
@@ -34,7 +31,10 @@ final class BackgroundDimManifestWriter {
         }
         // Do not change the package format for an unchanged/default dim.
         if (dim == ChartDocument.DEFAULT_BACKGROUND_DIM) return null;
-        return "name: " + JSONObject.quote(chart.name) + "\n"
+        return "name: " + JSONObject.quote(chart.getDisplayName()) + "\n"
+                + "level: " + JSONObject.quote(chart.getDisplayLevel()) + "\n"
+                + "composer: " + JSONObject.quote(chart.getDisplayComposer()) + "\n"
+                + "charter: " + JSONObject.quote(chart.getDisplayCharter()) + "\n"
                 + "chart: " + JSONObject.quote(pack.getChartPath()) + "\n"
                 + asset("music", pack.getAudioPath())
                 + asset("illustration", pack.getIllustrationPath())
@@ -48,12 +48,15 @@ final class BackgroundDimManifestWriter {
     }
 
     static String update(String original, double dim) {
-        Matcher matcher = DIM.matcher(original);
+        int rootIndent = PackageManifest.yamlRootIndent(original);
+        Pattern dimField = Pattern.compile("(?im)^(\\ufeff?[ \\t]{" + rootIndent
+                + "}backgroundDim[ \\t]*:[ \\t]*)([^\\r\\n]*)(\\r?$)");
+        Matcher matcher = dimField.matcher(original);
         if (!matcher.find()) {
             if (dim == ChartDocument.DEFAULT_BACKGROUND_DIM) return original;
             String newline = original.contains("\r\n") ? "\r\n" : "\n";
             return original + (original.isEmpty() || original.endsWith("\n") ? "" : newline)
-                    + "backgroundDim: " + Double.toString(dim) + newline;
+                    + " ".repeat(rootIndent) + "backgroundDim: " + Double.toString(dim) + newline;
         }
         // Keep exact original bytes when the scalar already equals the requested value.
         String scalar = matcher.group(2);

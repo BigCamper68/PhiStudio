@@ -33,6 +33,11 @@ __pycache__/
 *.pyc
 hs_err_pid*
 *.jfr
+.DS_Store
+*.log
+*.tmp
+*.bak
+*.swp
 
 # Release packages belong in GitHub Releases, outside the source tree.
 /PhiStudio-*.zip

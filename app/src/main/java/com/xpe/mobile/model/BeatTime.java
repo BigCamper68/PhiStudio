@@ -123,15 +123,24 @@ public final class BeatTime implements Comparable<BeatTime> {
     }
 
     public BeatTime plus(BeatTime other) {
-        long left = ((long) whole * denominator + numerator) * other.denominator;
-        long right = ((long) other.whole * other.denominator + other.numerator) * denominator;
-        return fromImproper(left + right, (long) denominator * other.denominator);
+        return combine(other, false);
     }
 
     public BeatTime minus(BeatTime other) {
-        long left = ((long) whole * denominator + numerator) * other.denominator;
-        long right = ((long) other.whole * other.denominator + other.numerator) * denominator;
-        return fromImproper(left - right, (long) denominator * other.denominator);
+        return combine(other, true);
+    }
+
+    private BeatTime combine(BeatTime other, boolean subtract) {
+        BigInteger leftDenominator = BigInteger.valueOf(denominator);
+        BigInteger rightDenominator = BigInteger.valueOf(other.denominator);
+        BigInteger left = BigInteger.valueOf(whole).multiply(leftDenominator)
+                .add(BigInteger.valueOf(numerator)).multiply(rightDenominator);
+        BigInteger right = BigInteger.valueOf(other.whole).multiply(rightDenominator)
+                .add(BigInteger.valueOf(other.numerator)).multiply(leftDenominator);
+        // Reduce before checking the stored int denominator. Large exact PEC fractions
+        // can have a representable sum even when the unreduced product overflows int.
+        return fromImproper(subtract ? left.subtract(right) : left.add(right),
+                leftDenominator.multiply(rightDenominator));
     }
 
     @Override

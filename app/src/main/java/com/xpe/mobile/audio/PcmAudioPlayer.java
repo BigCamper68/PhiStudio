@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Collections;
+import java.util.concurrent.locks.ReentrantLock;
 
 /** Sample-addressed music and hit playback with one output clock and atomic transport changes. */
 public final class PcmAudioPlayer {
@@ -34,6 +35,9 @@ public final class PcmAudioPlayer {
     }
 
     private final Object lock = new Object();
+    // A cancelled native creation may finish late. Keep its entire allocation/release
+    // lifetime separate from the UI lock, so a replacement never competes for its route.
+    private final ReentrantLock outputLifecycle = new ReentrantLock();
     private final PcmAudioAsset asset;
     private final Consumer<Runnable> post;
     private final Listener listener;
@@ -166,6 +170,28 @@ public final class PcmAudioPlayer {
 
     private void stream(int expected, long target, float speed, HitSoundTimeline schedule,
                         long offsetMs, PcmHitSound[] samples, Map<String,PcmHitSound> custom) {
+        try {
+            outputLifecycle.lockInterruptibly();
+            try {
+                // Waiting replacements can themselves be cancelled by another seek/start.
+                if (isCurrent(expected)) streamCurrent(expected, target, speed, schedule,
+                        offsetMs, samples, custom);
+            } finally {
+                outputLifecycle.unlock();
+            }
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        } finally {
+            synchronized (lock) {
+                if (worker == Thread.currentThread()) worker = null;
+            }
+        }
+    }
+
+    private void streamCurrent(int expected, long target, float speed, HitSoundTimeline schedule,
+                        long offsetMs, PcmHitSound[] samples, Map<String,PcmHitSound> custom) {
+        // There is nothing to stream at EOF, even if this device currently has no audio route.
+        if (target >= asset.totalFrames) { complete(expected); return; }
         Output output = null;
         try (RandomAccessFile input = new RandomAccessFile(asset.file, "r")) {
             try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO); }
@@ -281,8 +307,8 @@ public final class PcmAudioPlayer {
             if (released || generation != expected) return;
             playRequested = false;
         }
-        String message = exception.getMessage() == null
-                ? exception.getClass().getSimpleName() : exception.getMessage();
+        String message = AudioErrorMessages.describe(exception) + " ("
+                + asset.sampleRate + " Hz, " + asset.channelCount + " ch)";
         post.accept(() -> {
             synchronized (lock) {
                 if (released || generation != expected) return;

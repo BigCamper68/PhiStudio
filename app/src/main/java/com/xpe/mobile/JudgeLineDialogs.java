@@ -2,7 +2,6 @@ package com.xpe.mobile;
 
 import android.app.AlertDialog;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -58,9 +57,6 @@ final class JudgeLineDialogs {
         TextView propertiesSummary = new TextView(delegateOwner);
         propertiesSummary.setTextSize(13f);
         details.addView(propertiesSummary);
-        View spacer = new View(delegateOwner);
-        details.addView(spacer, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
 
         LinearLayout firstActions = new LinearLayout(delegateOwner);
         firstActions.setOrientation(LinearLayout.HORIZONTAL);

@@ -8,9 +8,20 @@ import com.xpe.mobile.editor.EditorSurfaceView.GestureMode;
 /** EditorPlayback responsibilities extracted from EditorChromeView. */
 final class EditorPlayback {
     private final EditorChromeView delegateOwner;
+    private final PlaybackTimeCursor timeCursor = new PlaybackTimeCursor();
 
     EditorPlayback(EditorChromeView delegateOwner) {
         this.delegateOwner = delegateOwner;
+    }
+
+    double currentSeconds() {
+        return timeCursor.seconds(delegateOwner.chart, delegateOwner.currentBeat);
+    }
+
+    void setCurrentSeconds(double seconds) {
+        if (delegateOwner.chart != null) {
+            delegateOwner.currentBeat = timeCursor.beatAtSeconds(delegateOwner.chart, seconds);
+        }
     }
 
     void togglePlay() {
@@ -56,13 +67,13 @@ final class EditorPlayback {
                 delegateOwner.playing = false;
                 delegateOwner.editorPlayback.clearHitSoundPlayback();
             } else {
-                delegateOwner.currentBeat = Math.max(0.0, delegateOwner.chart.audioMillisToBeat(
-                        delegateOwner.callback.audioPositionMs(), delegateOwner.packageOffsetMs));
+                setCurrentSeconds((delegateOwner.callback.audioPositionMs()
+                        - (double) delegateOwner.chart.offsetMs - delegateOwner.packageOffsetMs) / 1000.0);
                 delegateOwner.editorPlayback.dispatchHitSounds();
             }
         } else {
             long delta = Math.max(0L, now - delegateOwner.lastFrameMs);
-            delegateOwner.currentBeat += delta * delegateOwner.playbackSpeed / 60000.0 * delegateOwner.chart.bpmAt(delegateOwner.currentBeat);
+            setCurrentSeconds(currentSeconds() + delta * delegateOwner.playbackSpeed / 1000.0);
             delegateOwner.editorPlayback.dispatchHitSounds();
         }
         delegateOwner.lastFrameMs = now;
@@ -110,7 +121,8 @@ final class EditorPlayback {
         double fraction = PlaybackScrubMapper.fractionForX(
                 x, delegateOwner.playbackSeekBounds.left, delegateOwner.playbackSeekBounds.right);
         long position = PlaybackScrubMapper.positionForFraction(fraction, duration);
-        delegateOwner.currentBeat = Math.max(0.0, delegateOwner.chart.audioMillisToBeat(position, delegateOwner.packageOffsetMs));
+        setCurrentSeconds((position - (double) delegateOwner.chart.offsetMs
+                - delegateOwner.packageOffsetMs) / 1000.0);
     }
 
     final void finishPlaybackScrub() {

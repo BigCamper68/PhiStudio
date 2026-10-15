@@ -22,7 +22,7 @@ final class EditorPreviewUi {
         if (delegateOwner.chart == null || area.isEmpty()) return;
         if (delegateOwner.playing) delegateOwner.advancePlayback();
         if (delegateOwner.playing && !delegateOwner.playbackScrubbing && loopEnd > loopStart && delegateOwner.shaderEditorSeconds() >= loopEnd) delegateOwner.shaderEditorSeek(loopStart);
-        RenderScene scene = ChartEvaluator.evaluate(delegateOwner.chart, delegateOwner.currentBeat, delegateOwner.settings.highlightSimultaneousNotes,
+        RenderScene scene = ChartEvaluator.evaluateAtSeconds(delegateOwner.chart, delegateOwner.shaderEditorSeconds(), delegateOwner.settings.highlightSimultaneousNotes,
                 delegateOwner.callback == null ? -1L : delegateOwner.callback.audioDurationMs(), delegateOwner.useRpe170Speed,
                 delegateOwner.settings.playerWidth / (double) delegateOwner.settings.playerHeight, delegateOwner.previewPlayback);
         PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(area.left, area.top,
@@ -35,8 +35,8 @@ final class EditorPreviewUi {
     }
 
     void drawPreview(Canvas canvas) {
-        RenderScene scene = ChartEvaluator.evaluate(
-                delegateOwner.chart, delegateOwner.currentBeat, delegateOwner.settings.highlightSimultaneousNotes,
+        RenderScene scene = ChartEvaluator.evaluateAtSeconds(
+                delegateOwner.chart, delegateOwner.shaderEditorSeconds(), delegateOwner.settings.highlightSimultaneousNotes,
                 delegateOwner.callback == null ? -1L : delegateOwner.callback.audioDurationMs(),
                 delegateOwner.useRpe170Speed, delegateOwner.settings.playerWidth / (double) delegateOwner.settings.playerHeight, delegateOwner.previewPlayback);
         float barHeight = 25f * delegateOwner.density;
@@ -49,7 +49,7 @@ final class EditorPreviewUi {
                 (float) fitted.right, (float) fitted.bottom);
         boolean submitted = delegateOwner.shaderView != null && delegateOwner.shaderView.submit(delegateOwner.previewRenderer, scene,
                 viewport, previewArea, delegateOwner.blurredBackgroundIllustration, delegateOwner.settings, delegateOwner.lineIndex,
-                delegateOwner.chart.getBackgroundDim(), delegateOwner.previewShaders, delegateOwner.chart.beatToSeconds(delegateOwner.currentBeat));
+                delegateOwner.chart.getBackgroundDim(), delegateOwner.previewShaders, delegateOwner.shaderEditorSeconds());
         if (!submitted) delegateOwner.previewRenderer.draw(canvas, scene, viewport, previewArea,
                 delegateOwner.blurredBackgroundIllustration, delegateOwner.settings, delegateOwner.lineIndex, delegateOwner.chart.getBackgroundDim());
         delegateOwner.editorToolbarUi.drawToolbar(canvas);
@@ -100,8 +100,8 @@ final class EditorPreviewUi {
 
     void drawEditorGameplayBackground(Canvas canvas, float left, float top,
                                               float right, float bottom) {
-        RenderScene scene = ChartEvaluator.evaluate(
-                delegateOwner.chart, delegateOwner.currentBeat, delegateOwner.settings.highlightSimultaneousNotes,
+        RenderScene scene = ChartEvaluator.evaluateAtSeconds(
+                delegateOwner.chart, delegateOwner.shaderEditorSeconds(), delegateOwner.settings.highlightSimultaneousNotes,
                 delegateOwner.callback == null ? -1L : delegateOwner.callback.audioDurationMs(),
                 delegateOwner.useRpe170Speed, delegateOwner.settings.playerWidth / (double) delegateOwner.settings.playerHeight, delegateOwner.previewPlayback);
         PreviewViewportCalculator.Result fitted = PreviewViewportCalculator.fit(

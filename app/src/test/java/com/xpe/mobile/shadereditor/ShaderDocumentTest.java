@@ -135,6 +135,31 @@ public class ShaderDocumentTest {
         assertFalse(doc.canUndo());
     }
     @Test
+    public void overlappingAnimationEditsRetainSourceOrderAndRejectedEditsKeepRedo() throws Exception {
+        ShaderDocument doc = original();
+        doc.selected = 0;
+        String initial = doc.json();
+        JSONArray overlap = new JSONArray(
+            "[{\"startTime\":[1,0,1],\"endTime\":[4,0,1],\"start\":0,\"end\":3,\"easingType\":1},"
+                + "{\"startTime\":[2,0,1],\"endTime\":[3,0,1],\"start\":10,\"end\":20,\"easingType\":1}]");
+        doc.value("power", overlap);
+        String edited = doc.json();
+        assertEquals(overlap.toString(), doc.selected().getJSONObject("vars").getJSONArray("power").toString());
+        assertEquals(1.5, doc.compile(edited).effects.get(0).uniforms.get("power").at(2.5)[0], 1e-6);
+        doc.undo();
+        assertEquals(initial, doc.json());
+        assertFalse(doc.canUndo());
+        assertTrue(doc.canRedo());
+        JSONArray reversed = new JSONArray(
+            "[{\"startTime\":[3,0,1],\"endTime\":[1,0,1],\"start\":0,\"end\":1,\"easingType\":1}]");
+        rejects(() -> doc.value("power", reversed));
+        assertEquals(initial, doc.json());
+        assertFalse(doc.canUndo());
+        assertTrue(doc.canRedo());
+        doc.redo();
+        assertEquals(edited, doc.json());
+    }
+    @Test
     public void defaultsExposeOnlyUserUniformsAndColorsUseBytes() throws Exception {
         ShaderDocument doc = fresh();
         doc.add("noise", 0);

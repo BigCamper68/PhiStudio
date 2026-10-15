@@ -144,19 +144,27 @@ final class PackageResourceSelection {
 
     static void applyManifestMetadata(ChartDocument chart, WorkspaceAnalysis analysis) {
         chart.name = PackageResourceSelection.firstManifestValue(analysis.manifests, "name", analysis.projectName);
-        chart.composer = PackageResourceSelection.firstManifestValue(analysis.manifests, "composer", "");
-        chart.charter = PackageResourceSelection.firstManifestValue(analysis.manifests, "charter", "");
-        chart.level = PackageResourceSelection.firstManifestValue(analysis.manifests, "level", "");
-        chart.id = PackageResourceSelection.firstManifestValue(analysis.manifests, "id", "");
+        chart.composer = PackageResourceSelection.firstManifestValue(analysis.manifests, "composer", chart.composer);
+        chart.charter = PackageResourceSelection.firstManifestValue(analysis.manifests, "charter", chart.charter);
+        chart.level = PackageResourceSelection.firstManifestValue(analysis.manifests, "level", chart.level);
+        chart.id = PackageResourceSelection.firstManifestValue(analysis.manifests, "id", chart.id);
         chart.song = analysis.audioPath == null ? "" : analysis.audioPath;
         chart.background = analysis.illustrationPath == null ? "" : analysis.illustrationPath;
+    }
+
+    static void applyDisplayMetadata(ChartDocument chart, WorkspaceAnalysis analysis) {
+        chart.setPackageDisplayMetadata(
+                firstManifestValue(analysis.manifests, "name", chart.name),
+                firstManifestValue(analysis.manifests, "level", chart.level),
+                firstManifestValue(analysis.manifests, "composer", chart.composer),
+                firstManifestValue(analysis.manifests, "charter", chart.charter));
     }
 
     static String firstManifestValue(List<PackageManifest> manifests,
                                              String key, String fallback) {
         for (PackageManifest manifest : manifests) {
             String value = manifest.get(key);
-            if (value != null && !value.trim().isEmpty()) return value.trim();
+            if (value != null && !value.trim().isEmpty()) return value;
         }
         return fallback == null ? "" : fallback;
     }

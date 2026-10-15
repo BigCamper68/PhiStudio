@@ -56,5 +56,7 @@ public final class PackageWorkspaceWriter {
             temporary.delete();
         }
         BackgroundDimManifestWriter.writeWorkspace(chartPackage, chart);
+        PackageMetadataManifestWriter.writeWorkspace(chartPackage, chart);
+        chart.markPackageMetadataSaved();
     }
 }

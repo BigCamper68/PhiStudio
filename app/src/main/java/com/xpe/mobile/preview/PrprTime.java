@@ -13,15 +13,17 @@ final class PrprTime {
     PrprTime(ChartDocument chart) {
         List<BpmChange> changes = new ArrayList<>(chart.bpmChanges);
         changes.sort(Comparator.comparingDouble(c -> c.startTime.toDouble()));
-        int n = changes.size() + 1;
+        int n = Math.max(1, changes.size());
         beats = new double[n]; seconds = new double[n]; rates = new double[n];
-        rates[0] = 60.0 / chart.bpmAt(0);
-        for (int i = 1; i < n; i++) {
-            BpmChange change = changes.get(i - 1);
-            beats[i] = Math.max(0, change.startTime.toDouble());
-            seconds[i] = seconds[i - 1] + (beats[i] - beats[i - 1]) * rates[i - 1];
+        rates[0] = 60.0 / 120.0;
+        for (int i = 0; i < changes.size(); i++) {
+            BpmChange change = changes.get(i);
+            // BpmList anchors time zero at its first authored beat, including negative beats.
+            beats[i] = change.startTime.toDouble();
+            if (i > 0) seconds[i] = seconds[i - 1]
+                    + (beats[i] - beats[i - 1]) * rates[i - 1];
             rates[i] = Double.isFinite(change.bpm) && change.bpm > 0
-                    ? 60.0 / change.bpm : rates[i - 1];
+                    ? 60.0 / change.bpm : rates[Math.max(0, i - 1)];
         }
     }
 

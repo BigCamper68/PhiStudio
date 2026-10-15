@@ -53,6 +53,31 @@ public final class ShaderTimelineTest {
         assertArrayEquals(new float[]{1,3}, effect.uniforms.get("offset").at(1), 1e-6f);
         assertArrayEquals(new float[]{.5f,64f/255,32f/255,.5f}, effect.uniforms.get("color").at(1), 1e-6f);
     }
+    @Test public void unorderedPairsRetainPrprCursorAcrossPlaybackSeekAndRewind() throws Exception {
+        String events = "{\"power\":["
+                + "{\"startTime\":[0,0,1],\"endTime\":[3,0,1],\"start\":0,\"end\":30,\"easingType\":1},"
+                + "{\"startTime\":[1,0,1],\"endTime\":[2,0,1],\"start\":100,\"end\":200,\"easingType\":1}]}";
+        ShaderTimeline.Animation animation = parse("60", "[" + effect(events) + "]")
+                .effects.get(0).uniforms.get("power");
+        // Values independently captured from upstream Rust Anim for this query order.
+        double[] times = {0, 1, 2.5, 3, 4, 1, 1, .5, 2.5, 4};
+        float[] values = {0, 10, 25, 200, 200, 100, 100, 5, 25, 200};
+        for (int i = 0; i < times.length; i++) {
+            assertEquals("query " + i, values[i], animation.at(times[i])[0], 1e-5f);
+        }
+    }
+    @Test public void overlappingUniformContinuesUntilPreviousEndThenSeeksInSourceOrder() throws Exception {
+        String events = "{\"power\":["
+                + "{\"startTime\":[0,0,1],\"endTime\":[3,0,1],\"start\":0,\"end\":30,\"easingType\":1},"
+                + "{\"startTime\":[1,0,1],\"endTime\":[5,0,1],\"start\":100,\"end\":140,\"easingType\":1}]}";
+        ShaderTimeline.Animation animation = parse("60", "[" + effect(events) + "]")
+                .effects.get(0).uniforms.get("power");
+        double[] times = {0, 2, 3, 4, 6, 2, .5, 2, 3};
+        float[] values = {0, 20, 120, 130, 140, 110, 5, 20, 120};
+        for (int i = 0; i < times.length; i++) {
+            assertEquals("query " + i, values[i], animation.at(times[i])[0], 1e-5f);
+        }
+    }
     @Test public void prprExpoElasticAndEasingWindowsRemainUnsnapped() {
         assertEquals(1f/1024, ShaderTween.apply(17, 0, 0, 1), 0);
         assertEquals(1-1f/1024, ShaderTween.apply(16, 1, 0, 1), 0);

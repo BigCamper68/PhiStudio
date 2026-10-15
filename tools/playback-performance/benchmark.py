@@ -15,7 +15,7 @@ build.mkdir(parents=True, exist_ok=True)
 cp = os.pathsep.join(map(str, [classes, json_jar]))
 subprocess.run(['javac', '-cp', cp, '-d', str(build), str(Path(__file__).with_name('PlaybackProfile.java'))], check=True)
 checksums = []
-for label, implementation in [('baseline', args.baseline.resolve()), ('1.0.5', classes)]:
+for label, implementation in [('baseline', args.baseline.resolve()), ('candidate', classes)]:
     runtime = os.pathsep.join(map(str, [build, implementation, json_jar]))
     result = subprocess.run(['java', '-Xmx2g', '-cp', runtime, 'com.xpe.mobile.preview.PlaybackProfile', str(args.chart.resolve())],
                             text=True, capture_output=True, check=True)

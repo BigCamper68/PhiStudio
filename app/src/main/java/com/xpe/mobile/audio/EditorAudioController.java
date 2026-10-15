@@ -193,7 +193,7 @@ public final class EditorAudioController implements AutoCloseable {
         clearSource();
         sourceUri = uri;
         final int generation = ++audioLoadGeneration;
-        File output = File.createTempFile("phistudio-audio-", ".pcm", activity.getCacheDir());
+        File output = PlaybackPcmFiles.create(activity.getNoBackupFilesDir());
         decodedPcmFile = output;
         listener.showMessage("Preparing audio…");
         try {
@@ -227,7 +227,7 @@ public final class EditorAudioController implements AutoCloseable {
                         audioDecodeTask = null;
                         if (decodedPcmFile == output) decodedPcmFile = null;
                         notifyAudioStateChanged();
-                        listener.showMessage("Audio decoder error: " + safeMessage(exception));
+                        listener.showMessage("Audio decoder error: " + AudioErrorMessages.describe(exception));
                     });
                 }
             });
@@ -342,11 +342,5 @@ public final class EditorAudioController implements AutoCloseable {
 
     private void notifyAudioStateChanged() {
         if (!listener.isHostUnavailable()) listener.onAudioStateChanged();
-    }
-
-    private static String safeMessage(Throwable throwable) {
-        String message = throwable.getMessage();
-        return message == null || message.trim().isEmpty()
-                ? throwable.getClass().getSimpleName() : message;
     }
 }

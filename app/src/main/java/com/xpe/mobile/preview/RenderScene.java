@@ -36,6 +36,8 @@ public final class RenderScene {
         public final double y;
         public final double rotationDegrees;
         public final int alpha;
+        /** Authored opacity before byte saturation, so normal-line color can multiply it first. */
+        public final double rawAlpha;
         /** -1 means use the renderer's default line color. */
         public final int colorRgb;
         public final double scaleX;
@@ -48,6 +50,8 @@ public final class RenderScene {
         public final boolean gifControlled;
         public final double gifProgress;
         public final long gifAnchorTimeMs;
+        public final PreviewGifTimeline gifTimeline;
+        public final double gifTimeSeconds;
         public final boolean cover;
         public final List<RenderNote> notes;
         public final List<HitEffect> hitEffects;
@@ -61,12 +65,41 @@ public final class RenderScene {
                    double gifProgress, long gifAnchorTimeMs,
                    List<RenderNote> notes, List<HitEffect> hitEffects,
                    List<PaintStroke> paintStrokes) {
+            this(sourceIndex, zOrder, x, y, rotationDegrees, alpha, alpha, colorRgb,
+                    scaleX, scaleY, inclineDegrees, text, textureName, paintMode, cover,
+                    gifEnabled, gifControlled, gifProgress, gifAnchorTimeMs, notes, hitEffects, paintStrokes);
+        }
+
+        RenderLine(int sourceIndex, int zOrder, double x, double y,
+                   double rotationDegrees, int alpha, double rawAlpha, int colorRgb,
+                   double scaleX, double scaleY, double inclineDegrees,
+                   String text, String textureName, boolean paintMode, boolean cover,
+                   boolean gifEnabled, boolean gifControlled,
+                   double gifProgress, long gifAnchorTimeMs,
+                   List<RenderNote> notes, List<HitEffect> hitEffects,
+                   List<PaintStroke> paintStrokes) {
+            this(sourceIndex, zOrder, x, y, rotationDegrees, alpha, rawAlpha, colorRgb,
+                    scaleX, scaleY, inclineDegrees, text, textureName, paintMode, cover,
+                    gifEnabled, gifControlled, gifProgress, gifAnchorTimeMs, null, 0.0,
+                    notes, hitEffects, paintStrokes);
+        }
+
+        RenderLine(int sourceIndex, int zOrder, double x, double y,
+                   double rotationDegrees, int alpha, double rawAlpha, int colorRgb,
+                   double scaleX, double scaleY, double inclineDegrees,
+                   String text, String textureName, boolean paintMode, boolean cover,
+                   boolean gifEnabled, boolean gifControlled,
+                   double gifProgress, long gifAnchorTimeMs,
+                   PreviewGifTimeline gifTimeline, double gifTimeSeconds,
+                   List<RenderNote> notes, List<HitEffect> hitEffects,
+                   List<PaintStroke> paintStrokes) {
             this.sourceIndex = sourceIndex;
             this.zOrder = zOrder;
             this.x = x;
             this.y = y;
             this.rotationDegrees = rotationDegrees;
             this.alpha = alpha;
+            this.rawAlpha = rawAlpha;
             this.colorRgb = colorRgb;
             this.scaleX = scaleX;
             this.scaleY = scaleY;
@@ -78,10 +111,26 @@ public final class RenderScene {
             this.gifControlled = gifControlled;
             this.gifProgress = gifProgress;
             this.gifAnchorTimeMs = gifAnchorTimeMs;
+            this.gifTimeline = gifTimeline;
+            this.gifTimeSeconds = gifTimeSeconds;
             this.cover = cover;
             this.notes = Collections.unmodifiableList(notes);
             this.hitEffects = Collections.unmodifiableList(hitEffects);
             this.paintStrokes = Collections.unmodifiableList(paintStrokes);
+        }
+
+        public int gifMovieTimeMillis(int durationMs, long chartTimeMs) {
+            if (durationMs <= 0) return 0;
+            if (gifEnabled && gifTimeline != null) {
+                return gifTimeline.movieTimeMillis(gifTimeSeconds, durationMs);
+            }
+            double progress = 0.0;
+            if (gifEnabled) {
+                progress = gifProgress;
+                if (!gifControlled) progress += (chartTimeMs - gifAnchorTimeMs) / (double) durationMs;
+            }
+            if (!Double.isFinite(progress) || progress < 0.0) progress = 0.0;
+            return (int) Math.floor(progress * durationMs) % durationMs;
         }
     }
 

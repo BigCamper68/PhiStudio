@@ -24,14 +24,14 @@ final class InfoTxtManifestWriter {
 
         StringBuilder text = new StringBuilder(320);
         text.append("#\n");
-        append(text, "Name", chart.name);
+        append(text, "Name", chart.getDisplayName());
         append(text, "Path", pathId);
         append(text, "Song", audioPath);
         append(text, "Picture", picturePath);
         append(text, "Chart", chartPath);
-        append(text, "Level", chart.level);
-        append(text, "Composer", chart.composer);
-        append(text, "Charter", chart.charter);
+        append(text, "Level", chart.getDisplayLevel());
+        append(text, "Composer", chart.getDisplayComposer());
+        append(text, "Charter", chart.getDisplayCharter());
         append(text, "LastEditTime", firstNonBlank(
                 value(previous, "lastedittime"), "1970_1_1_0_0_0_"));
         append(text, "Length", firstNonBlank(value(previous, "length"), "0.000"));

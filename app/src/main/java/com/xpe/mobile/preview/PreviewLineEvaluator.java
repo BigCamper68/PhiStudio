@@ -33,10 +33,15 @@ final class PreviewLineEvaluator {
 
     static double lineScaleAt(JudgeLine line, ExtendedLineEvents extended,
                                       boolean horizontal, double beat, PrprTime time) {
+        return lineScaleAtSeconds(line, extended, horizontal, time.seconds(beat), time);
+    }
+
+    static double lineScaleAtSeconds(JudgeLine line, ExtendedLineEvents extended,
+                                     boolean horizontal, double seconds, PrprTime time) {
         List<ExtendedLineEvents.NumericEvent> events = horizontal
                 ? extended.scaleXEvents : extended.scaleYEvents;
         if (events.isEmpty()) return 1.0;
-        double raw = ChartEvaluator.finiteOr(PrprEvents.numeric(events, time, beat, 1.0, true), 1.0);
+        double raw = ChartEvaluator.finiteOr(PrprEvents.numericAtSeconds(events, time, seconds, 1.0, true), 1.0);
         boolean defaultTexture = line.texture == null || line.texture.trim().isEmpty()
                 || "line.png".equalsIgnoreCase(line.texture.trim());
         if (!defaultTexture) return raw;
@@ -74,8 +79,14 @@ final class PreviewLineEvaluator {
 
     static ResolvedLine resolveSingleLineAt(ChartDocument chart, PreparedChart prepared, int index,
                                                     double beat, boolean[] visiting, double localYScale) {
+        return resolveSingleLineAtSeconds(chart, prepared, index, prepared.time.seconds(beat),
+                visiting, localYScale);
+    }
+
+    static ResolvedLine resolveSingleLineAtSeconds(ChartDocument chart, PreparedChart prepared, int index,
+                                                  double seconds, boolean[] visiting, double localYScale) {
         JudgeLine line = chart.judgeLines.get(index);
-        double seconds = prepared.time.seconds(beat);
+        double beat = prepared.time.beat(seconds);
         ResolvedLine own = new ResolvedLine(
                 prepared.lines[index].valueAt(EventType.MOVE_X, beat, seconds),
                 prepared.lines[index].valueAt(EventType.MOVE_Y, beat, seconds),
@@ -84,7 +95,7 @@ final class PreviewLineEvaluator {
         if (parentIndex < 0 || parentIndex >= chart.judgeLines.size()
                 || parentIndex == index || visiting[index]) return own;
         visiting[index] = true;
-        ResolvedLine parent = PreviewLineEvaluator.resolveSingleLineAt(chart, prepared, parentIndex, beat, visiting, localYScale);
+        ResolvedLine parent = PreviewLineEvaluator.resolveSingleLineAtSeconds(chart, prepared, parentIndex, seconds, visiting, localYScale);
         visiting[index] = false;
         double radians = Math.toRadians(parent.rotationDegrees);
         double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians) * localYScale;
@@ -121,9 +132,22 @@ final class PreviewLineEvaluator {
         }
 
         static AlphaExtension from(double rawAlpha, boolean sourceCover) {
+            return from(rawAlpha, sourceCover, false);
+        }
+
+        static AlphaExtension from(double rawAlpha, boolean sourceCover, boolean pecOrigin) {
             if (!Double.isFinite(rawAlpha) || rawAlpha >= 0.0) {
                 return new AlphaExtension(false, sourceCover,
                         Double.POSITIVE_INFINITY);
+            }
+            if (pecOrigin) {
+                double flag = Math.floor(-rawAlpha);
+                if (flag == 1.0) return new AlphaExtension(true, sourceCover, Double.POSITIVE_INFINITY);
+                if (flag == 2.0) return new AlphaExtension(false, true, Double.POSITIVE_INFINITY);
+                if (flag >= 100.0 && flag < 1000.0) {
+                    return new AlphaExtension(false, sourceCover, (flag - 100.0) / 10.0);
+                }
+                return new AlphaExtension(false, sourceCover, Double.POSITIVE_INFINITY);
             }
             // Negative RPE alpha hides the line and note geometry. Judgement effects
             // and audio remain independent of this visual visibility flag.

@@ -336,6 +336,19 @@ public final class ShaderDocument {
     public void value(String name, Object value) {
         if (value != null)
             try {
+                // Playback preserves imported source order, including overlaps. New editor
+                // values still need valid intervals without sorting the event list.
+                if (animated(value)) {
+                    JSONArray events = (JSONArray) value;
+                    for (int i = 0; i < events.length(); i++) {
+                        JSONObject event = events.getJSONObject(i);
+                        double start = tempo.time(event.getJSONArray("startTime"));
+                        double end = tempo.time(event.getJSONArray("endTime"));
+                        if (end < start)
+                            throw new IllegalArgumentException(
+                                "Конец анимации не должен быть раньше начала");
+                    }
+                }
                 ShaderTimeline.Animation.parse(value, tempo);
             } catch (Exception ex) {
                 throw new IllegalArgumentException(ex.getMessage(), ex);

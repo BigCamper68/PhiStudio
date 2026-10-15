@@ -11,8 +11,16 @@ final class PreviewHudEvaluator {
             ChartDocument chart, PreparedChart prepared, double beat,
             long chartTimeMs, long trackDurationMs,
             Map<AttachedUiElement, RenderScene.HudTransform> transforms) {
+        return buildHudStateAtSeconds(chart, prepared, beat, prepared.time.seconds(beat),
+                chartTimeMs, trackDurationMs, transforms);
+    }
+
+    static RenderScene.HudState buildHudStateAtSeconds(
+            ChartDocument chart, PreparedChart prepared, double beat, double seconds,
+            long chartTimeMs, long trackDurationMs,
+            Map<AttachedUiElement, RenderScene.HudTransform> transforms) {
         int total = prepared.judgementBeats.length;
-        int passed = PreviewHudEvaluator.upperBound(prepared.judgementBeats, beat);
+        int passed = PreviewHudEvaluator.upperBound(prepared.judgementSeconds, seconds);
         double completion = total == 0 ? 0.0 : passed / (double) total;
         int score = (int) Math.round(Math.max(0.0, Math.min(1.0, completion))
                 * 1_000_000.0);
@@ -20,7 +28,7 @@ final class PreviewHudEvaluator {
                 ? chartTimeMs / (double) trackDurationMs
                 : prepared.finalBeat <= 0.0 ? 0.0 : beat / prepared.finalBeat;
         progress = Math.max(0.0, Math.min(1.0, progress));
-        return new RenderScene.HudState(chart.name, chart.level, passed,
+        return new RenderScene.HudState(chart.getDisplayName(), chart.getDisplayLevel(), passed,
                 score, progress, transforms, chart.useAttachUiFix);
     }
 

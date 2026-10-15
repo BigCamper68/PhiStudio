@@ -289,9 +289,10 @@ public final class PreviewCompatibilityRegressionTest {
                                                 List<RenderScene.HitEffect> effects) {
         return new RenderScene.RenderLine(source.sourceIndex, source.zOrder,
                 source.x, source.y, source.rotationDegrees, visuals ? source.alpha : 0,
-                source.colorRgb, source.scaleX, source.scaleY, source.inclineDegrees,
+                source.rawAlpha, source.colorRgb, source.scaleX, source.scaleY, source.inclineDegrees,
                 source.text, source.textureName, source.paintMode, source.cover,
                 source.gifEnabled, source.gifControlled, source.gifProgress, source.gifAnchorTimeMs,
+                source.gifTimeline, source.gifTimeSeconds,
                 notes, effects, visuals ? source.paintStrokes : Collections.emptyList());
     }
 

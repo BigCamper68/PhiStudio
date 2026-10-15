@@ -37,7 +37,8 @@ public final class EventLayer {
                 JSONObject eventObject = array.optJSONObject(index);
                 if (eventObject != null) target.add(LineEvent.fromJson(type, eventObject));
             }
-            sort(target);
+            // Classic speed Anim consumes source-order keyframes, including overlaps.
+            if (type != EventType.SPEED) sort(target);
         }
         return layer;
     }
@@ -55,7 +56,9 @@ public final class EventLayer {
         JSONObject object = RawJson.shallowCopy(raw);
         for (EventType type : EventType.values()) {
             List<LineEvent> values = events(type);
-            sort(values);
+            // Saving an untouched imported speed track must preserve its playback order.
+            // Editor time mutations explicitly sort their affected event lists.
+            if (type != EventType.SPEED) sort(values);
             if (values.isEmpty()) {
                 // Missing and empty event arrays are equivalent in RPE. Omitting empty arrays
                 // also keeps exports loadable in older Phira parsers that index every present

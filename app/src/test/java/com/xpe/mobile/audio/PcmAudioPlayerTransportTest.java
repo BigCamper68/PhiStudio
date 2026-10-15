@@ -18,7 +18,10 @@ public class PcmAudioPlayerTransportTest {
     @After public void releasePlayers() { for (var player : players) player.release(); }
 
     private PcmAudioPlayer player(PcmAudioPlayer.OutputFactory factory, int frames) throws Exception {
-        File file = temp.newFile();
+        return player(temp.newFile(), factory, frames);
+    }
+
+    private PcmAudioPlayer player(File file, PcmAudioPlayer.OutputFactory factory, int frames) throws Exception {
         try (FileOutputStream stream = new FileOutputStream(file)) {
             for (int i = 0; i < frames; i++) { stream.write(i & 255); stream.write(i >>> 8); }
         }
@@ -58,6 +61,43 @@ public class PcmAudioPlayerTransportTest {
 
     private static void await(CountDownLatch latch) throws Exception { assertTrue(latch.await(3, TimeUnit.SECONDS)); }
     private void drainCallbacks() { Runnable r; while ((r = callbacks.poll()) != null) r.run(); }
+
+    @Test public void evictedLegacyCachePcmReproducesOpenFailureOnResume() throws Exception {
+        File cache = temp.newFolder("cache");
+        File pcm = File.createTempFile("phistudio-audio-", ".pcm", cache);
+        Queue<FakeOutput> outputs = new ConcurrentLinkedQueue<>();
+        PcmAudioPlayer player = player(pcm, (asset, speed) -> {
+            FakeOutput output = new FakeOutput(); outputs.add(output); return output;
+        }, 10000);
+        player.start(500, 1); FakeOutput first = waitOutput(outputs); await(first.played);
+        player.pause(); await(first.released);
+        assertTrue(pcm.delete());
+        player.seek(1000); player.start(1000, 1);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (errors == 0 && System.nanoTime() < deadline) { drainCallbacks(); Thread.sleep(1); }
+        assertEquals(1, errors);
+        assertTrue(outputs.isEmpty()); // File open fails before any audio output is allocated.
+    }
+
+    @Test public void requiredSessionPcmSurvivesCacheClearAndResumesAtExactSample() throws Exception {
+        File cache = temp.newFolder("cache"), noBackup = temp.newFolder("no-backup");
+        File cached = File.createTempFile("phistudio-audio-", ".pcm", cache);
+        File pcm = PlaybackPcmFiles.create(noBackup);
+        Queue<FakeOutput> outputs = new ConcurrentLinkedQueue<>();
+        PcmAudioPlayer player = player(pcm, (asset, speed) -> {
+            FakeOutput output = new FakeOutput(); outputs.add(output); return output;
+        }, 10000);
+        player.start(500, 1); FakeOutput first = waitOutput(outputs); await(first.played);
+        player.pause(); await(first.released);
+        assertTrue(cached.delete()); assertTrue(cache.delete());
+        for (int position : new int[]{1000, 4000, 100}) {
+            player.seek(position); player.start(position, 1);
+            FakeOutput output = waitOutput(outputs); await(output.played);
+            assertEquals(position, output.firstSample());
+            player.pause(); await(output.released);
+        }
+        drainCallbacks(); assertEquals(0, errors); assertTrue(pcm.isFile());
+    }
 
     @Test public void rapidBackwardForwardSeekAndResumeReadExactSourceSamples() throws Exception {
         Queue<FakeOutput> outputs = new ConcurrentLinkedQueue<>();
@@ -149,11 +189,22 @@ public class PcmAudioPlayerTransportTest {
         FakeOutput output = outputs.poll(); assertNotNull(output); return output;
     }
 
-    @Test public void cancelledNativeCreationCannotStartOldAudioAfterNewSeek() throws Exception {
+    @Test public void replacementWaitsForCancelledNativeRouteToBeReleased() throws Exception {
         CountDownLatch creating = new CountDownLatch(1), finish = new CountDownLatch(1);
-        FakeOutput old = new FakeOutput(), fresh = new FakeOutput();
-        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger calls = new AtomicInteger(), routes = new AtomicInteger();
+        FakeOutput old = new FakeOutput() {
+            @Override public void release() { routes.decrementAndGet(); super.release(); }
+        };
+        FakeOutput fresh = new FakeOutput() {
+            @Override public void release() { routes.decrementAndGet(); super.release(); }
+        };
         PcmAudioPlayer player = player((asset, speed) -> {
+            // Some devices can only allocate one native route. Cancellation does not
+            // interrupt an in-flight AudioTrack.Builder/build binder transaction.
+            if (routes.incrementAndGet() != 1) {
+                routes.decrementAndGet();
+                throw new IOException("PCM output unavailable: previous route is still allocated");
+            }
             if (calls.getAndIncrement() > 0) return fresh;
             creating.countDown();
             boolean done = false;
@@ -163,11 +214,31 @@ public class PcmAudioPlayerTransportTest {
         try {
             player.start(5000, 1); await(creating);
             player.pause(); player.seek(1000); player.start(1000, 1);
-            await(fresh.played); finish.countDown(); await(old.released);
+            assertFalse("A second route must wait for cancelled native creation",
+                    fresh.played.await(100, TimeUnit.MILLISECONDS));
+            player.start(1250, 1); // Supersede the queued replacement before native creation returns.
+            assertFalse(fresh.played.await(100, TimeUnit.MILLISECONDS));
+            finish.countDown(); await(old.released); await(fresh.played);
             assertEquals(0, old.playCount);
-            assertEquals(1000, fresh.firstSample());
-            assertEquals(1000, player.positionMillis());
+            assertEquals(1250, fresh.firstSample());
+            assertEquals(1250, player.positionMillis());
+            assertEquals(2, calls.get());
+            player.pause(); await(fresh.released);
+            drainCallbacks(); assertEquals(0, errors); assertEquals(0, routes.get());
         } finally { finish.countDown(); }
+    }
+
+    @Test public void startAtEndCompletesWithoutOpeningUnavailableNativeOutput() throws Exception {
+        AtomicInteger created = new AtomicInteger();
+        PcmAudioPlayer player = player((asset, speed) -> {
+            created.incrementAndGet(); throw new IOException("No audio route");
+        }, 100);
+        player.start(100, 1);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (callbacks.isEmpty() && System.nanoTime() < deadline) Thread.sleep(1);
+        drainCallbacks();
+        assertEquals(0, created.get()); assertEquals(1, completions); assertEquals(0, errors);
+        assertEquals(100, player.positionMillis()); assertFalse(player.isPlaying());
     }
 
     @Test public void oldCompletionCallbackCannotStopNewPlayback() throws Exception {

@@ -30,7 +30,8 @@ public final class PackageExporter {
 
         List<ChartPackage.Entry> entries = new ArrayList<>(chartPackage.getEntries());
         String dimPath = BackgroundDimManifestWriter.path(chartPackage);
-        String dimText = BackgroundDimManifestWriter.text(chartPackage, editedChart);
+        String dimText = PackageMetadataManifestWriter.text(chartPackage, editedChart,
+                BackgroundDimManifestWriter.text(chartPackage, editedChart));
         if (dimText != null && entries.stream().noneMatch(entry -> entry.getPath().equals(dimPath))) {
             entries.add(new ChartPackage.Entry(dimPath, false, 0));
         }

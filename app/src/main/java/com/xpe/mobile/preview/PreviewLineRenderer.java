@@ -45,7 +45,7 @@ final class PreviewLineRenderer {
                 float thickness = PhiraJudgeLineStyle.normalThickness(
                         projection.viewport.width(), PreviewRenderer.finite(line.scaleY, 1.0));
                 delegateOwner.paint.setStyle(Paint.Style.FILL);
-                delegateOwner.paint.setColor(PhiraJudgeLineStyle.color(line.colorRgb, line.alpha,
+                delegateOwner.paint.setColor(PhiraJudgeLineStyle.color(line.colorRgb, line.rawAlpha,
                         true, active, settings.lineColorRgb));
                 int save = canvas.save();
                 canvas.translate(center.x, center.y);
@@ -103,15 +103,7 @@ final class PreviewLineRenderer {
         delegateOwner.texturePaint.setColorFilter(PreviewRenderer.tint(rgb));
         if (texture.isAnimated()) {
             int duration = texture.durationMs();
-            double progress = 0.0;
-            if (line.gifEnabled) {
-                progress = line.gifProgress;
-                if (!line.gifControlled) {
-                    progress += (chartTimeMs - line.gifAnchorTimeMs) / (double) duration;
-                }
-            }
-            if (!Double.isFinite(progress) || progress < 0.0) progress = 0.0;
-            int movieTime = (int) Math.floor(progress * duration) % duration;
+            int movieTime = line.gifMovieTimeMillis(duration, chartTimeMs);
             Bitmap frame = texture.bitmapAt(movieTime);
             if (frame != null) {
                 canvas.drawBitmap(frame, null,

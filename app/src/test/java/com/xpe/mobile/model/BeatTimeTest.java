@@ -16,6 +16,24 @@ public final class BeatTimeTest {
     }
 
     @Test
+    public void importedFloatBeatCanMoveByGridStepsWithoutDenominatorOverflow() {
+        BeatTime source = new BeatTime(0, 13_421_773, 134_217_728); // exactly f32(0.1)
+        BeatTime step = new BeatTime(0, 1, 16);
+        BeatTime moved = source.plus(step);
+        assertEquals(new BeatTime(0, 21_810_381, 134_217_728), moved);
+        assertEquals(source, moved.minus(step));
+        assertEquals(new BeatTime(-1, 120_795_955, 134_217_728), BeatTime.zero().minus(source));
+    }
+
+    @Test
+    public void largeWholeFractionsCanCancelBeforeIntermediateOverflow() {
+        BeatTime source = new BeatTime(2_000_000_000, 1, 2_000_000_000);
+        assertEquals(BeatTime.zero(), source.minus(source));
+        assertEquals(new BeatTime(2_000_000_001, 1, 2_000_000_000),
+                source.plus(new BeatTime(1, 0, 1)));
+    }
+
+    @Test
     public void normalizesFractionsAndNegativeValues() {
         assertEquals(new BeatTime(1, 1, 2), new BeatTime(1, 2, 4));
         assertEquals(new BeatTime(-1, 1, 2), new BeatTime(0, -1, 2));

@@ -7,6 +7,7 @@ import java.util.List;
 
 /** RPE parser/Anim semantics, kept separate from the editor's beat-domain curves. */
 final class PrprEvents {
+    static final float RPE_ALPHA_RATIO = 1f / 255f;
     private PrprEvents() { }
 
     static double progress(double input, int easing, double left, double right,
@@ -43,6 +44,33 @@ final class PrprEvents {
                 event.easingType, event.easingLeft, event.easingRight, event.bezier, event.bezierPoints);
     }
 
+    /** PEC AnimFloat interpolates normalized positive opacity and unscaled negative flags. */
+    static float pecAlphaValue(LineEvent event, double start, double end, double seconds) {
+        float from = pecAlphaEndpoint(event.start);
+        float to = pecAlphaEndpoint(event.end);
+        if (seconds >= end) return to;
+        if (end <= start) return from;
+        float progress = (float) progress((seconds - start) / (end - start),
+                event.easingType, event.easingLeft, event.easingRight, event.bezier, event.bezierPoints);
+        return from + (to - from) * progress;
+    }
+
+    private static float pecAlphaEndpoint(double authored) {
+        float value = (float) authored;
+        return value >= 0f ? value / 255f : value;
+    }
+
+    /** RPE maps authored opacity endpoints before the f32 Tweenable calculation. */
+    static float rpeAlphaValue(LineEvent event, double start, double end, double seconds) {
+        float from = (float) event.start * RPE_ALPHA_RATIO;
+        float to = (float) event.end * RPE_ALPHA_RATIO;
+        if (seconds >= end) return to;
+        if (end <= start) return from;
+        float progress = (float) progress((seconds - start) / (end - start),
+                event.easingType, event.easingLeft, event.easingRight, event.bezier, event.bezierPoints);
+        return from + (to - from) * progress;
+    }
+
     static <T extends ExtendedLineEvents.TimedEvent> T event(List<T> events, double beat, boolean preroll) {
         T latest = null;
         for (T event : events) {
@@ -55,10 +83,25 @@ final class PrprEvents {
         return latest != null ? latest : preroll && !events.isEmpty() ? events.get(0) : null;
     }
 
+    static <T extends ExtendedLineEvents.TimedEvent> T eventAtSeconds(
+            List<T> events, PrprTime time, double seconds, boolean preroll) {
+        T latest = null;
+        for (T event : events) {
+            // Match Anim's source-order keyframes, including overlapping intervals.
+            if (latest != null && seconds < time.seconds(latest.endTime.toDouble())) break;
+            if (time.seconds(event.startTime.toDouble()) <= seconds) latest = event;
+            else break;
+        }
+        return latest != null ? latest : preroll && !events.isEmpty() ? events.get(0) : null;
+    }
+
     static double progress(ExtendedLineEvents.TimedEvent event, PrprTime time, double beat) {
+        return progressAtSeconds(event, time, time.seconds(beat));
+    }
+
+    static double progressAtSeconds(ExtendedLineEvents.TimedEvent event, PrprTime time, double now) {
         double start = time.seconds(event.startTime.toDouble());
         double end = time.seconds(event.endTime.toDouble());
-        double now = time.seconds(beat);
         if (now >= end) return 1;
         if (end <= start) return 0;
         return progress((now - start) / (end - start), event.easingType, event.easingLeft,
@@ -67,14 +110,26 @@ final class PrprEvents {
 
     static double numeric(List<ExtendedLineEvents.NumericEvent> events, PrprTime time,
                           double beat, double fallback, boolean preroll) {
-        ExtendedLineEvents.NumericEvent event = event(events, beat, preroll);
-        return event == null ? fallback : event.start + (event.end - event.start) * progress(event, time, beat);
+        return numericAtSeconds(events, time, time.seconds(beat), fallback, preroll);
+    }
+
+    static double numericAtSeconds(List<ExtendedLineEvents.NumericEvent> events, PrprTime time,
+                                   double seconds, double fallback, boolean preroll) {
+        ExtendedLineEvents.NumericEvent event = eventAtSeconds(events, time, seconds, preroll);
+        if (event == null) return fallback;
+        float from = (float) event.start, to = (float) event.end;
+        return from + (to - from) * (float) progressAtSeconds(event, time, seconds);
     }
 
     static int color(List<ExtendedLineEvents.ColorEvent> events, PrprTime time, double beat, int fallback) {
-        ExtendedLineEvents.ColorEvent event = event(events, beat, false);
+        return colorAtSeconds(events, time, time.seconds(beat), fallback);
+    }
+
+    static int colorAtSeconds(List<ExtendedLineEvents.ColorEvent> events, PrprTime time,
+                              double seconds, int fallback) {
+        ExtendedLineEvents.ColorEvent event = eventAtSeconds(events, time, seconds, false);
         if (event == null) return fallback;
-        double t = progress(event, time, beat);
+        double t = progressAtSeconds(event, time, seconds);
         int result = 0;
         for (int shift : new int[]{16, 8, 0}) {
             double from = (event.startRgb >> shift) & 255, to = (event.endRgb >> shift) & 255;
@@ -84,11 +139,15 @@ final class PrprEvents {
     }
 
     static String text(List<ExtendedLineEvents.TextEvent> events, PrprTime time, double beat) {
-        ExtendedLineEvents.TextEvent event = event(events, beat, false);
+        return textAtSeconds(events, time, time.seconds(beat));
+    }
+
+    static String textAtSeconds(List<ExtendedLineEvents.TextEvent> events, PrprTime time, double seconds) {
+        ExtendedLineEvents.TextEvent event = eventAtSeconds(events, time, seconds, false);
         if (event == null) return "";
         // At the end keyframe Anim returns the literal string, including %P%.
-        if (beat >= event.endTime.toDouble()) return event.end;
+        if (seconds >= time.seconds(event.endTime.toDouble())) return event.end;
         return ExtendedLineEvents.TextEvent.tween(event.start, event.end,
-                Math.max(0, Math.min(1, progress(event, time, beat))));
+                Math.max(0, Math.min(1, progressAtSeconds(event, time, seconds))));
     }
 }

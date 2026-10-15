@@ -20,6 +20,9 @@ final class EditorTimelinePainter {
 
     final void drawNoteBackground(
             Canvas canvas, float left, float top, float right, float bottom) {
+        // A docked IME can leave less space than the fixed toolbar and footer.
+        // There is then no timeline to crop into; keep the illustration for the next frame.
+        if (right <= left || bottom <= top) return;
         delegateOwner.paint.setColor(Color.rgb(10, 14, 18));
         canvas.drawRect(left, top, right, bottom, delegateOwner.paint);
         Bitmap illustration = delegateOwner.backgroundIllustration;

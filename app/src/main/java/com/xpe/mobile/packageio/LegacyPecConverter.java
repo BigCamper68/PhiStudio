@@ -17,11 +17,16 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /** Converts legacy PhiEdit/PEC text charts, regardless of their file extension. */
 final class LegacyPecConverter {
     private static final int BEAT_PRECISION = 1_000_000;
     private static final double MIN_DURATION = 1.0 / BEAT_PRECISION;
+    // prpr parse/rpe.rs converts saved RPE speeds in the float domain.
+    private static final float RPE_SPEED_RATIO = (float) (10.0 / 45.0 / .83175);
 
     private LegacyPecConverter() {
     }
@@ -34,6 +39,7 @@ final class LegacyPecConverter {
         String offsetText = stripBom(lines[offsetLine].trim());
 
         ChartDocument chart = new ChartDocument();
+        chart.phiPecAlphaExtension = true;
         chart.offsetMs = offsetMilliseconds(number(offsetText, offsetLine + 1, "offset"));
         List<LineBuilder> builders = new ArrayList<>();
         Note lastNote = null;
@@ -76,8 +82,8 @@ final class LegacyPecConverter {
                         note.startTime = beat(start);
                         note.endTime = beat(note.type == NoteType.HOLD
                                 ? Math.max(start + MIN_DURATION, end) : start);
-                        note.positionX = number(values[cursor++], lineNumber, "note X")
-                                * 675.0 / 1024.0;
+                        note.positionX = ((float) number(values[cursor++], lineNumber, "note X")
+                                / 1024f) * 675.0;
                         note.above = nonNegativeInt(values[cursor++], lineNumber, "above") == 1
                                 ? 1 : 0;
                         note.fake = binary(values[cursor++], lineNumber, "fake") == 1;
@@ -112,9 +118,10 @@ final class LegacyPecConverter {
                         requireCount(values, 4, lineNumber);
                         LineBuilder builder = line(builders,
                                 nonNegativeInt(values[1], lineNumber, "line ID"));
+                        float rawSpeed = (float) number(values[3], lineNumber, "speed");
                         builder.speed.add(new SpeedPoint(
                                 number(values[2], lineNumber, "speed beat"),
-                                number(values[3], lineNumber, "speed") * 9.0 / 14.0));
+                                rpeSpeed(rawSpeed), rawSpeed / 5.85f));
                         break;
                     }
                     case "cp":
@@ -127,10 +134,12 @@ final class LegacyPecConverter {
                         int cursor = 3;
                         double end = transition
                                 ? number(values[cursor++], lineNumber, "move end beat") : start;
-                        double x = (number(values[cursor++], lineNumber, "move X") - 1024.0)
-                                * 675.0 / 1024.0;
-                        double y = (number(values[cursor++], lineNumber, "move Y") - 700.0)
-                                * 450.0 / 700.0;
+                        // PEC normalizes each endpoint as f32 before animation. Keep
+                        // that rounding when encoding the normalized values as RPE.
+                        double x = ((float) number(values[cursor++], lineNumber, "move X")
+                                / 2048f * 2f - 1f) * 675.0;
+                        double y = ((float) number(values[cursor++], lineNumber, "move Y")
+                                / 1400f * 2f - 1f) * 450.0;
                         int easing = transition
                                 ? easing(values[cursor], lineNumber) : 1;
                         builder.command(EventType.MOVE_X, start, end, x, easing, transition);
@@ -184,11 +193,69 @@ final class LegacyPecConverter {
         }
         chart.sortBpm();
         if (builders.isEmpty()) line(builders, 0);
+        JSONArray originalHeights;
+        try {
+            originalHeights = originalHeights(chart, builders);
+        } catch (JSONException exception) {
+            throw malformed(0, "Unable to preserve PEC height keyframes");
+        }
         for (LineBuilder builder : builders) {
             builder.finish();
             chart.judgeLines.add(builder.line);
         }
+        try {
+            chart.preservePecHeights(originalHeights);
+        } catch (JSONException exception) {
+            throw malformed(0, "Unable to preserve PEC height provenance");
+        }
         return chart;
+    }
+
+    private static double pecSeconds(ChartDocument chart, double beat) {
+        BpmChange current = chart.bpmChanges.get(0); double elapsed = 0;
+        for (int i = 1; i < chart.bpmChanges.size(); i++) {
+            BpmChange next = chart.bpmChanges.get(i);
+            if (next.startTime.toDouble() > beat) break;
+            elapsed += (next.startTime.toDouble() - current.startTime.toDouble()) * (60.0 / current.bpm);
+            current = next;
+        }
+        return elapsed + (beat - current.startTime.toDouble()) * (60.0 / current.bpm);
+    }
+
+    /** Unchanged-source PEC has its own floor parser, including hold-start and CV-order rules. */
+    private static JSONArray originalHeights(ChartDocument chart, List<LineBuilder> builders)
+            throws JSONException {
+        double maximum = Double.NEGATIVE_INFINITY;
+        for (LineBuilder builder : builders) {
+            double lineMaximum = Double.NEGATIVE_INFINITY;
+            for (List<PecCommand> commands : builder.commands.values())
+                for (PecCommand command : commands) lineMaximum = Math.max(lineMaximum, pecSeconds(chart, command.end));
+            for (SpeedPoint point : builder.speed) lineMaximum = Math.max(lineMaximum, pecSeconds(chart, point.beat));
+            for (Note note : builder.line.notes)
+                lineMaximum = Math.max(lineMaximum, pecSeconds(chart, note.startTime.toDouble()));
+            maximum = Math.max(maximum, lineMaximum == Double.NEGATIVE_INFINITY ? 0 : lineMaximum);
+        }
+        maximum += 1.0;
+        JSONArray result = new JSONArray();
+        for (LineBuilder builder : builders) {
+            if (builder.speed.isEmpty()) { result.put(JSONObject.NULL); continue; }
+            JSONArray frames = new JSONArray();
+            if (pecSeconds(chart, builder.speed.get(0).beat) >= 1e-5)
+                frames.put(new JSONArray().put(0.0).put(0.0));
+            double height = 0, lastTime = 0; float lastSpeed = 0; boolean finite = true;
+            for (SpeedPoint point : builder.speed) {
+                double time = pecSeconds(chart, point.beat);
+                height += (time - lastTime) * (double) lastSpeed;
+                if (!Float.isFinite((float) height)) { finite = false; break; }
+                frames.put(new JSONArray().put(time).put((double) (float) height));
+                lastTime = time; lastSpeed = point.normalized;
+            }
+            float tail = (float) (height + (maximum - lastTime) * (double) lastSpeed);
+            if (finite && Float.isFinite(tail)) {
+                frames.put(new JSONArray().put(maximum).put((double) tail)); result.put(frames);
+            } else result.put(JSONObject.NULL);
+        }
+        return result;
     }
 
     private static final class LineBuilder {
@@ -202,7 +269,7 @@ final class LegacyPecConverter {
             line.name = "Line " + id;
             // prpr PEC uses 3.91/6; RPE normal-line scaleX events carry a .5 factor.
             ExtendedLineEvents.NumericEvent width = new ExtendedLineEvents.NumericEvent();
-            width.start = width.end = 3.91 / 3.0;
+            width.start = width.end = (3.91f / 6f) * 2.0;
             line.extended.scaleXEvents.add(width);
             line.notes.clear();
             line.eventLayers.clear();
@@ -272,7 +339,7 @@ final class LegacyPecConverter {
         List<SpeedPoint> unique = new ArrayList<>();
         for (SpeedPoint point : source) {
             double time = Math.max(0.0, point.beat);
-            SpeedPoint normalized = new SpeedPoint(time, point.value);
+            SpeedPoint normalized = new SpeedPoint(time, point.value, point.normalized);
             if (!unique.isEmpty() && close(unique.get(unique.size() - 1).beat, time)) {
                 unique.set(unique.size() - 1, normalized);
             } else {
@@ -280,14 +347,18 @@ final class LegacyPecConverter {
             }
         }
         if (unique.isEmpty() || unique.get(0).beat > 0.0) {
-            unique.add(0, new SpeedPoint(0.0, 0.0));
+            unique.add(0, new SpeedPoint(0.0, 0.0, 0f));
         }
         for (int index = 0; index < unique.size(); index++) {
             SpeedPoint point = unique.get(index);
             double end = index + 1 < unique.size()
                     ? unique.get(index + 1).beat : point.beat + MIN_DURATION;
-            addMerged(target, event(EventType.SPEED, point.beat,
-                    Math.max(point.beat + MIN_DURATION, end), point.value, point.value, 1));
+            LineEvent speed = event(EventType.SPEED, point.beat,
+                    Math.max(point.beat + MIN_DURATION, end), point.value, point.value, 1);
+            speed.preservePecNormalizedSpeed(point.normalized);
+            // Each original CV timestamp creates a rounded floor keyframe, even if
+            // adjacent speeds are equal. Merging these intervals changes interpolation.
+            target.add(speed);
         }
     }
 
@@ -346,10 +417,12 @@ final class LegacyPecConverter {
     private static final class SpeedPoint {
         final double beat;
         final double value;
+        final float normalized;
 
-        SpeedPoint(double beat, double value) {
+        SpeedPoint(double beat, double value, float normalized) {
             this.beat = beat;
             this.value = value;
+            this.normalized = normalized;
         }
     }
 
@@ -393,8 +466,9 @@ final class LegacyPecConverter {
     private static double number(String value, int line, String label)
             throws PackageException {
         try {
-            double parsed = Double.parseDouble(value);
-            if (!Double.isFinite(parsed)) throw malformed(line, label + " must be finite");
+            // The original PEC parser takes f32 for beats, BPMs and scalar values.
+            float parsed = Float.parseFloat(value);
+            if (!Float.isFinite(parsed)) throw malformed(line, label + " must be finite");
             return parsed;
         } catch (NumberFormatException exception) {
             throw malformed(line, label + " must be numeric");
@@ -435,7 +509,32 @@ final class LegacyPecConverter {
     }
 
     private static BeatTime beat(double value) {
+        if ((double) (float) value == value) {
+            // f32 beat fractions are binary rationals. Preserve them exactly when
+            // their denominator fits BeatTime, including 0.1 and long chart beats.
+            // Smaller fractions need more than 30 bits; their error is <= 2^-31.
+            int bits = Math.max(0, Math.min(30, 23 - Math.getExponent((float) value)));
+            return BeatTime.fromDouble(value, 1 << bits);
+        }
+        // Artificial minimum-duration endpoints are not original PEC f32 beats.
         return BeatTime.fromDouble(value, BEAT_PRECISION);
+    }
+
+    private static double rpeSpeed(float raw) {
+        float speed = raw / 5.85f;
+        float candidate = speed / RPE_SPEED_RATIO;
+        // A float division followed by RPE's float multiplication can lose one
+        // ULP. Choose the neighboring encoding if it recovers the PEC speed more
+        // accurately; some native speeds have no exact RPE float preimage.
+        double error = Math.abs((double) (candidate * RPE_SPEED_RATIO) - speed);
+        for (float adjacent : new float[]{Math.nextDown(candidate), Math.nextUp(candidate)}) {
+            double adjacentError = Math.abs((double) (adjacent * RPE_SPEED_RATIO) - speed);
+            if (adjacentError < error) {
+                candidate = adjacent;
+                error = adjacentError;
+            }
+        }
+        return candidate;
     }
 
     private static int offsetMilliseconds(double value) throws PackageException {

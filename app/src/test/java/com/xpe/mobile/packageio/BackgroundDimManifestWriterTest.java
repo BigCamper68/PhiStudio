@@ -20,4 +20,11 @@ public final class BackgroundDimManifestWriterTest {
         assertEquals("\ufeffbackgroundDim: 0.5\n",
                 BackgroundDimManifestWriter.update("\ufeffbackgroundDim: 0.2\n", .5));
     }
+
+    @Test public void nestedDimInIntroDoesNotOverrideOrRewritePackageDim() {
+        String source = "name: Test\nintro: |-\n  backgroundDim: 0.2\n";
+        assertEquals(source + "backgroundDim: 0.4\n", BackgroundDimManifestWriter.update(source, .4));
+        String indented = "  name: Test\n  intro: |-\n    backgroundDim: 0.2\n";
+        assertEquals(indented + "  backgroundDim: 0.4\n", BackgroundDimManifestWriter.update(indented, .4));
+    }
 }

@@ -103,12 +103,12 @@ abstract class EditorChromeView extends EditorDocumentView {
         previewShaders = timeline == null ? ShaderTimeline.EMPTY : timeline;
         invalidate();
     }
-    public double shaderEditorSeconds() { return chart == null ? 0 : chart.beatToSeconds(currentBeat); }
+    public double shaderEditorSeconds() { return editorPlayback.currentSeconds(); }
     public void shaderEditorPlay() { if (chart != null) togglePlay(); }
     public void shaderEditorSeek(double seconds) {
         previewPlayback.reset();
         if (chart == null || !Double.isFinite(seconds)) return;
-        currentBeat = Math.max(0, chart.secondsToBeat(seconds));
+        editorPlayback.setCurrentSeconds(seconds);
         playbackScrubbing = false; lastFrameMs = SystemClock.elapsedRealtime();
         if (playing) editorPlayback.prepareHitSoundPlayback(false);
         if (callback != null && callback.isAudioReady()) {
@@ -302,7 +302,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
     public final void shaderBeginPan() { beginPanGesture(); }
     public final void shaderPanTo(double seconds) {
-        currentBeat = Math.max(0, chart.secondsToBeat(seconds));
+        editorPlayback.setCurrentSeconds(seconds);
         invalidate();
     }
     public final void shaderEndPan() {

@@ -68,14 +68,17 @@ public final class ChartDocumentTest {
     }
 
     @Test
-    public void usesFirstBpmBeforeDelayedFirstChange() throws Exception {
+    public void anchorsClockAtAuthoredFirstBpmLikePrpr() throws Exception {
         ChartDocument chart = ChartDocument.fromJson("{\n"
                 + "\"BPMList\":["
                 + "{\"bpm\":120,\"startTime\":[2,0,1]},"
                 + "{\"bpm\":60,\"startTime\":[4,0,1]}],"
                 + "\"META\":{},\"judgeLineList\":[]}");
 
-        assertEquals(4000L, chart.beatToMillis(6.0));
-        assertEquals(6.0, chart.millisToBeat(4000L), 0.000001);
+        assertEquals(0L, chart.beatToMillis(2.0));
+        assertEquals(2.0, chart.millisToBeat(0L), 0.0);
+        assertEquals(-1.0, chart.beatToSeconds(0.0), 0.0);
+        assertEquals(3000L, chart.beatToMillis(6.0));
+        assertEquals(6.0, chart.millisToBeat(3000L), 0.000001);
     }
 }

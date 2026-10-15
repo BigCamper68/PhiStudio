@@ -14,7 +14,7 @@ import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Immutable prpr extra.json effects, evaluated in chart seconds, independently of chart BPM. */
+/** prpr extra.json effects, evaluated in chart seconds, independently of chart BPM. */
 public final class ShaderTimeline {
     public interface SourceLoader { String load(String name) throws IOException; }
     public static final ShaderTimeline EMPTY = new ShaderTimeline(Collections.emptyList());
@@ -106,9 +106,11 @@ public final class ShaderTimeline {
         public boolean active(double seconds) { return seconds >= start && seconds < end; }
     }
 
-    /** Keyframe pairs retain input order, steps in gaps and last-keyframe wins at shared times. */
+    /** Source-order keyframes with prpr's playback cursor, including seeks and rewinds. */
     public static final class Animation {
         private final List<Keyframe> frames;
+        private int cursor;
+        private double time;
         public final int size;
         private Animation(List<Keyframe> frames, int size) { this.frames = frames; this.size = size; }
 
@@ -133,11 +135,8 @@ public final class ShaderTimeline {
                 frames.add(new Keyframe(0, vector(value), 0, 0, 1));
             }
             int size = frames.get(0).value.length;
-            double previous = Double.NEGATIVE_INFINITY;
             for (Keyframe frame : frames) {
                 if (frame.value.length != size) throw new IOException("Uniform changes type");
-                if (frame.time < previous) throw new IOException("Unordered uniform keyframes");
-                previous = frame.time;
             }
             return new Animation(Collections.unmodifiableList(frames), size);
         }
@@ -149,19 +148,21 @@ public final class ShaderTimeline {
         }
 
         public void sample(double seconds, float[] output) {
-            int low = 0, high = frames.size();
-            while (low < high) {
-                int middle = (low + high) >>> 1;
-                if (frames.get(middle).time <= seconds) low = middle + 1;
-                else high = middle;
+            // Anim::set_time walks source order. A later overlapping event cannot
+            // take over until the preceding end keyframe is reached; sorting or
+            // binary searching the frames changes both playback and rewind results.
+            if (seconds != time) {
+                while (cursor + 1 < frames.size()
+                        && frames.get(cursor + 1).time <= seconds) cursor++;
+                while (cursor != 0 && frames.get(cursor).time > seconds) cursor--;
+                time = seconds;
             }
-            int index = Math.max(0, low - 1);
-            Keyframe first = frames.get(index);
-            if (index + 1 == frames.size()) {
+            Keyframe first = frames.get(cursor);
+            if (cursor + 1 == frames.size()) {
                 System.arraycopy(first.value, 0, output, 0, size);
                 return;
             }
-            Keyframe next = frames.get(index + 1);
+            Keyframe next = frames.get(cursor + 1);
             float t = (float) ((seconds - first.time) / (next.time - first.time));
             float factor = first.easing == 0 ? 0 : ShaderTween.apply(first.easing, t, first.left, first.right);
             for (int i = 0; i < size; i++) output[i] = first.value[i] + (next.value[i] - first.value[i]) * factor;

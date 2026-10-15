@@ -74,6 +74,28 @@ public final class ExtendedLineEvents {
                 && raw.optJSONArray(type.jsonKey) != null);
     }
 
+    /** Playback consumes imported GIF keyframes in authored order, independently of editor sorting. */
+    public List<NumericEvent> gifSourceEvents() {
+        JSONArray source = raw == null || modified.contains(StoryboardEventType.GIF)
+                ? null : raw.optJSONArray("gifEvents");
+        List<NumericEvent> result = new ArrayList<>();
+        if (source != null && source.length() == gifEvents.size()) {
+            for (int i = 0; i < source.length(); i++) {
+                JSONObject authored = source.optJSONObject(i);
+                NumericEvent matching = null;
+                for (NumericEvent event : gifEvents) {
+                    if (((TimedEvent) event).raw == authored) { matching = event; break; }
+                }
+                if (matching == null) { result.clear(); break; }
+                result.add(matching.copy());
+            }
+            if (result.size() == gifEvents.size()) return result;
+        }
+        result.clear();
+        for (NumericEvent event : gifEvents) result.add(event.copy());
+        return result;
+    }
+
     public int count() {
         return scaleXEvents.size() + scaleYEvents.size() + inclineEvents.size()
                 + paintEvents.size() + gifEvents.size() + colorEvents.size()

@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Deterministically evaluates the supported RPE chart model at a supplied beat. */
+/** Deterministically evaluates the supported RPE chart model at a beat or exact chart time. */
 public final class ChartEvaluator {
     private static final double RPE_WIDTH = 1350.0;
     static final long HIT_EFFECT_DURATION_MS = 500L;
@@ -75,21 +75,48 @@ public final class ChartEvaluator {
                 useRpe170Speed, aspectRatio, null);
     }
 
-    /** Stateful paint accumulation for actual playback; null reconstructs a still frame. */
+    /** Per-view playback and paint history; null reconstructs an independent still frame. */
     public static RenderScene evaluate(ChartDocument chart, double requestedBeat,
                                        boolean highlightSimultaneousNotes, long trackDurationMs,
                                        boolean useRpe170Speed, double aspectRatio,
                                        PreviewPlaybackState playback) {
         if (chart == null) throw new IllegalArgumentException("chart is required");
+        double beat = Math.max(0.0, finiteOr(requestedBeat, 0.0));
+        PreparedChart prepared = PreviewChartIndex.prepared(chart, useRpe170Speed);
+        return evaluatePrepared(chart, prepared, beat, prepared.time.seconds(beat),
+                highlightSimultaneousNotes, trackDurationMs, aspectRatio, playback);
+    }
+
+    /** Chart-relative seconds, with chart/package offsets already removed by the caller. */
+    public static RenderScene evaluateAtSeconds(ChartDocument chart, double requestedSeconds,
+                                                boolean highlightSimultaneousNotes) {
+        return evaluateAtSeconds(chart, requestedSeconds, highlightSimultaneousNotes,
+                -1L, false, 1.5, null);
+    }
+
+    /** Keeps the playback/export clock intact instead of converting seconds to beats and back. */
+    public static RenderScene evaluateAtSeconds(ChartDocument chart, double requestedSeconds,
+                                                boolean highlightSimultaneousNotes, long trackDurationMs,
+                                                boolean useRpe170Speed, double aspectRatio,
+                                                PreviewPlaybackState playback) {
+        if (chart == null) throw new IllegalArgumentException("chart is required");
+        double seconds = Math.max(0.0, finiteOr(requestedSeconds, 0.0));
+        PreparedChart prepared = PreviewChartIndex.prepared(chart, useRpe170Speed);
+        return evaluatePrepared(chart, prepared, prepared.time.beat(seconds), seconds,
+                highlightSimultaneousNotes, trackDurationMs, aspectRatio, playback);
+    }
+
+    private static RenderScene evaluatePrepared(ChartDocument chart, PreparedChart prepared,
+                                               double beat, double seconds,
+                                               boolean highlightSimultaneousNotes, long trackDurationMs,
+                                               double aspectRatio, PreviewPlaybackState playback) {
         double localYScale = Double.isFinite(aspectRatio) && aspectRatio > 0
                 ? 1.5 / aspectRatio : 1.0;
-        double beat = finiteOr(requestedBeat, 0.0);
-        beat = Math.max(0.0, beat);
-        long chartTimeMs = chart.beatToMillis(beat);
-        PreparedChart prepared = PreviewChartIndex.prepared(chart, useRpe170Speed);
+        long chartTimeMs = Math.round(seconds * 1000.0);
         PrprTime time = prepared.time;
-        double seconds = time.seconds(beat);
         boolean rebuildPaint = playback == null || playback.begin(prepared, seconds, localYScale);
+        boolean constructorZero = playback == null ? seconds == 0.0
+                : playback.initialZero(prepared, seconds);
         Map<Integer, PaintHistory> paintHistories = new HashMap<>();
         Map<BeatTime, Integer> simultaneous = highlightSimultaneousNotes
                 ? prepared.simultaneous : Collections.emptyMap();
@@ -102,10 +129,10 @@ public final class ChartEvaluator {
             JudgeLine line = chart.judgeLines.get(index);
             PreparedLine preparedLine = prepared.lines[index];
             local[index] = new LocalLine(
-                    preparedLine.valueAt(EventType.MOVE_X, beat, seconds),
-                    preparedLine.valueAt(EventType.MOVE_Y, beat, seconds),
-                    -preparedLine.valueAt(EventType.ROTATE, beat, seconds),
-                    preparedLine.valueAt(EventType.ALPHA, beat, seconds));
+                    preparedLine.valueAt(EventType.MOVE_X, beat, seconds, constructorZero),
+                    preparedLine.valueAt(EventType.MOVE_Y, beat, seconds, constructorZero),
+                    -preparedLine.valueAt(EventType.ROTATE, beat, seconds, constructorZero),
+                    preparedLine.valueAt(EventType.ALPHA, beat, seconds, constructorZero));
         }
         for (int index = 0; index < count; index++) {
             PreviewLineEvaluator.resolveLine(chart, index, local, resolved, resolveState, localYScale);
@@ -123,22 +150,22 @@ public final class ChartEvaluator {
                     ? new ExtendedLineEvents() : source.extended;
             if (source.attachUi != null) {
                 int hudColor = extended.colorEvents.isEmpty() ? -1
-                        : PrprEvents.color(
-                        extended.colorEvents, time, beat, 0xFFFFFF);
-                double hudScaleX = PreviewLineEvaluator.lineScaleAt(source, extended, true, beat, time);
-                double hudScaleY = PreviewLineEvaluator.lineScaleAt(source, extended, false, beat, time);
+                        : PrprEvents.colorAtSeconds(
+                        extended.colorEvents, time, seconds, 0xFFFFFF);
+                double hudScaleX = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, true, seconds, time);
+                double hudScaleY = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, false, seconds, time);
                 hudTransforms.put(source.attachUi, new RenderScene.HudTransform(
                         index, transform.x, transform.y, local[index].rotationDegrees,
                         clampAlpha(local[index].rawAlpha), hudColor,
                         hudScaleX, hudScaleY));
                 continue;
             }
-            double incline = finiteOr(PrprEvents.numeric(
-                    extended.inclineEvents, time, beat, 0.0, false), 0.0);
+            double incline = finiteOr(PrprEvents.numericAtSeconds(
+                    extended.inclineEvents, time, seconds, 0.0, false), 0.0);
             AlphaExtension alphaExtension = AlphaExtension.from(
-                    local[index].rawAlpha, source.cover);
+                    local[index].rawAlpha, source.cover, chart.phiPecAlphaExtension);
             PrprSpeed speed = prepared.lines[index].speed;
-            double currentDistance = speed.distanceAt(beat);
+            double currentDistance = speed.distanceAtSeconds(seconds);
             List<RenderScene.RenderNote> notes = new ArrayList<>();
             List<RenderScene.HitEffect> effects = new ArrayList<>();
             NoteControlEvents controls = source.noteControls == null
@@ -151,7 +178,7 @@ public final class ChartEvaluator {
                 double endBeat = cached.endBeat;
                 // Fake notes without cover can remain visible after their timestamp.
                 if ((hold || !note.fake || alphaExtension.cover)
-                        && beat > endBeat && chartTimeMs - cached.endMs >= HIT_EFFECT_DURATION_MS) continue;
+                        && seconds > cached.endSeconds && chartTimeMs - cached.endMs >= HIT_EFFECT_DURATION_MS) continue;
 
                 double noteSpeed = finiteOr(note.speed, 1.0);
                 double yOffset = finiteOr(note.yOffset, 0.0);
@@ -174,23 +201,23 @@ public final class ChartEvaluator {
                         + renderedOffset;
                 double endDistance = baseEndDistance * noteSpeed * yControl
                         + renderedOffset;
-                if (hold && beat >= startBeat) startDistance = renderedOffset;
+                if (hold && seconds >= cached.startSeconds) startDistance = renderedOffset;
 
-                if (beat >= startBeat) PreviewHitEvaluator.appendHitEffects(chart, prepared, index, cached, controls,
+                if (seconds >= cached.startSeconds) PreviewHitEvaluator.appendHitEffects(chart, prepared, index, cached, controls,
                         chartTimeMs, noteSpeed, yOffset, effects, localYScale);
-                // Negative line alpha hides geometry, but real notes still hit normally.
+                // Hidden geometry remains independent of real-note judgement effects.
                 if (alphaExtension.hideLineAndNotes) continue;
 
                 if (beat < startBeat - alphaExtension.appearBeforeBeats) continue;
-                if ((!hold && note.fake && alphaExtension.cover && beat >= startBeat)
-                        || (!hold && !note.fake && beat >= startBeat)
-                        || (hold && beat >= endBeat)) continue;
+                if ((!hold && note.fake && alphaExtension.cover && seconds >= cached.startSeconds)
+                        || (!hold && !note.fake && seconds >= cached.startSeconds)
+                        || (hold && seconds >= cached.endSeconds)) continue;
 
                 double secondsUntilHit = cached.startSeconds - seconds;
                 double visibleTime = finiteOr(note.visibleTime, Double.POSITIVE_INFINITY);
                 if (secondsUntilHit > visibleTime) continue;
 
-                if (alphaExtension.cover && beat < startBeat
+                if (alphaExtension.cover && seconds < cached.startSeconds
                         // prpr compares the scroll distance before yOffset, in normalized screen units.
                         // Its -0.001 tolerance keeps notes on a zero-speed plateau visible
                         // after cancellation of positive and negative speed integrals.
@@ -208,37 +235,37 @@ public final class ChartEvaluator {
                         renderedX, startDistance, endDistance,
                         note.above == 1, renderedSize,
                         renderedAlpha, note.fake, multiHit,
-                        !hold || beat < startBeat,
+                        !hold || seconds < cached.startSeconds,
                         note.hasTint ? note.tintRgb : 0xFFFFFF,
                         chart.noteUniformScale ? renderedSize : 1.0, renderedOffset));
             }
 
             int colorRgb = extended.colorEvents.isEmpty() ? -1
-                    : PrprEvents.color(
-                    extended.colorEvents, time, beat, 0xFFFFFF);
+                    : PrprEvents.colorAtSeconds(
+                    extended.colorEvents, time, seconds, 0xFFFFFF);
             boolean defaultTexture = source.texture == null
                     || source.texture.trim().isEmpty()
                     || "line.png".equalsIgnoreCase(source.texture.trim());
             boolean paintMode = defaultTexture && extended.hasChannel(StoryboardEventType.PAINT);
             String text = !defaultTexture || paintMode || !extended.hasChannel(StoryboardEventType.TEXT) ? null
-                    : PrprEvents.text(extended.textEvents, time, beat);
-            double scaleX = PreviewLineEvaluator.lineScaleAt(source, extended, true, beat, time);
-            double scaleY = PreviewLineEvaluator.lineScaleAt(source, extended, false, beat, time);
+                    : PrprEvents.textAtSeconds(extended.textEvents, time, seconds);
+            double scaleX = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, true, seconds, time);
+            double scaleY = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, false, seconds, time);
             GifState gif = !defaultTexture && extended.hasChannel(StoryboardEventType.GIF)
-                    ? PreviewGifEvaluator.evaluateGifState(chart, time, extended.gifEvents, beat)
+                    ? PreviewGifEvaluator.evaluateGifStateAtSeconds(chart, time, extended.gifEvents, seconds)
                     : GifState.disabled();
             List<RenderScene.PaintStroke> paintStrokes = new ArrayList<>();
             if (paintMode) {
                 if (playback == null) {
-                    paintStrokes = PreviewPaintEvaluator.evaluatePaintStrokes(chart, prepared, index, beat, localYScale);
+                    paintStrokes = PreviewPaintEvaluator.evaluatePaintStrokesAtSeconds(chart, prepared, index, seconds, localYScale);
                 } else {
                     PaintHistory history = playback.paint.get(index);
                     if (rebuildPaint) {
                         history = PaintHistory.empty();
-                        for (RenderScene.PaintStroke stroke : PreviewPaintEvaluator.evaluatePaintStrokes(chart, prepared, index, beat, localYScale))
+                        for (RenderScene.PaintStroke stroke : PreviewPaintEvaluator.evaluatePaintStrokesAtSeconds(chart, prepared, index, seconds, localYScale))
                             history = history.append(stroke);
                     } else if (playback.advanced) {
-                        RenderScene.PaintStroke stroke = PreviewPaintEvaluator.paintSample(chart, prepared, index, beat, localYScale);
+                        RenderScene.PaintStroke stroke = PreviewPaintEvaluator.paintSampleAtSeconds(chart, prepared, index, seconds, localYScale);
                         history = stroke == null ? PaintHistory.empty() : history.append(stroke);
                     }
                     if (history == null) history = PaintHistory.empty();
@@ -249,15 +276,16 @@ public final class ChartEvaluator {
             if (alphaExtension.hideLineAndNotes && effects.isEmpty() && !paintMode) continue;
             lines.add(new RenderScene.RenderLine(index, source.zOrder,
                     transform.x, transform.y, transform.rotationDegrees,
-                    clampAlpha(local[index].rawAlpha), colorRgb, scaleX, scaleY, incline,
+                    clampAlpha(local[index].rawAlpha), local[index].rawAlpha, colorRgb, scaleX, scaleY, incline,
                     text, source.texture, paintMode, alphaExtension.cover,
                     gif.enabled, gif.controlled, gif.progress, gif.anchorTimeMs,
+                    prepared.lines[index].gifTimeline, seconds,
                     notes, effects, paintStrokes));
         }
         lines.sort(Comparator.comparingInt((RenderScene.RenderLine line) -> line.zOrder)
                 .thenComparingInt(line -> line.sourceIndex));
         return new RenderScene(beat, chartTimeMs, lines,
-                PreviewHudEvaluator.buildHudState(chart, prepared, beat, chartTimeMs,
+                PreviewHudEvaluator.buildHudStateAtSeconds(chart, prepared, beat, seconds, chartTimeMs,
                         trackDurationMs, hudTransforms), paintHistories);
     }
 

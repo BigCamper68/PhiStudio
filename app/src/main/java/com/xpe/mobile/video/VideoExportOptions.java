@@ -29,6 +29,11 @@ public final class VideoExportOptions {
 
     public long frameCount() { return ((endMs - startMs) * fps + 999) / 1000; }
     public long frameTimeUs(long frame) { return frame * 1_000_000L / fps; }
+    /** Same unquantized timestamp for the scene and shader layers, excluding both offsets. */
+    public double chartSeconds(long frame, int chartOffsetMs, long packageOffsetMs) {
+        return Math.max(0.0, (startMs - (double) chartOffsetMs - packageOffsetMs) / 1000.0
+                + frameTimeUs(frame) / 1_000_000.0);
+    }
     public long durationUs() { return frameTimeUs(frameCount()); }
     public long estimatedBytes() {
         return Math.round(durationUs() / 1_000_000.0 * (bitrate + (music || hits ? 192_000 : 0)) / 8);

@@ -17,6 +17,9 @@ public final class LineEvent {
     public boolean bezier;
     public final double[] bezierPoints = new double[]{0.0, 0.0, 0.0, 0.0};
     private JSONObject raw;
+    private Float pecNormalizedSpeed;
+    private double pecEncodedStart;
+    private double pecEncodedEnd;
 
     public static LineEvent fromJson(EventType type, JSONObject object) throws JSONException {
         LineEvent event = new LineEvent();
@@ -32,6 +35,18 @@ public final class LineEvent {
         event.endTime = BeatTime.fromJson(object.optJSONArray("endTime"));
         event.start = object.optDouble("start", defaultValue(type));
         event.end = object.optDouble("end", event.start);
+        JSONObject pecSpeed = object.optJSONObject("phiPecSpeed");
+        if (type == EventType.SPEED && pecSpeed != null) {
+            double normalized = pecSpeed.optDouble("normalized", Double.NaN);
+            double encodedStart = pecSpeed.optDouble("start", Double.NaN);
+            double encodedEnd = pecSpeed.optDouble("end", Double.NaN);
+            if (Float.isFinite((float) normalized) && normalized == (double) (float) normalized
+                    && Double.isFinite(encodedStart) && Double.isFinite(encodedEnd)) {
+                event.pecNormalizedSpeed = (float) normalized;
+                event.pecEncodedStart = encodedStart;
+                event.pecEncodedEnd = encodedEnd;
+            }
+        }
         event.easingType = type == EventType.SPEED ? 1 : Math.max(1, object.optInt("easingType", 1));
         event.easingLeft = object.optDouble("easingLeft", 0.0);
         event.easingRight = object.optDouble("easingRight", 1.0);
@@ -52,6 +67,10 @@ public final class LineEvent {
         object.put("endTime", endTime.toJson());
         object.put("start", start);
         object.put("end", end);
+        if (type == EventType.SPEED && pecNormalizedSpeed != null) {
+            object.put("phiPecSpeed", new JSONObject().put("normalized", (double) pecNormalizedSpeed)
+                    .put("start", pecEncodedStart).put("end", pecEncodedEnd));
+        }
         object.put("linkgroup", linkGroup);
         if (type != EventType.SPEED) {
             object.put("easingType", Math.max(1, easingType));
@@ -81,6 +100,9 @@ public final class LineEvent {
         copy.bezier = bezier;
         System.arraycopy(bezierPoints, 0, copy.bezierPoints, 0, bezierPoints.length);
         copy.raw = raw;
+        copy.pecNormalizedSpeed = pecNormalizedSpeed;
+        copy.pecEncodedStart = pecEncodedStart;
+        copy.pecEncodedEnd = pecEncodedEnd;
         return copy;
     }
 
@@ -208,6 +230,33 @@ public final class LineEvent {
     /** Original renderer metadata; editing speed remains linear. */
     public int sourceSpeedEasing() {
         return raw == null ? 1 : raw.optInt("easingType", 1);
+    }
+
+    /** Keeps the original PEC f32 speed when RPE float encoding has no exact preimage. */
+    public void preservePecNormalizedSpeed(float normalized) {
+        if (type != EventType.SPEED || !Float.isFinite(normalized)) {
+            throw new IllegalArgumentException("A finite PEC speed event is required");
+        }
+        pecNormalizedSpeed = normalized;
+        pecEncodedStart = start;
+        pecEncodedEnd = end;
+    }
+
+    public float normalizedSpeedStart(float ratio) {
+        return pecNormalizedSpeed != null && start == pecEncodedStart
+                ? pecNormalizedSpeed : (float) start * ratio;
+    }
+
+    public float normalizedSpeedEnd(float ratio) {
+        return pecNormalizedSpeed != null && end == pecEncodedEnd
+                ? pecNormalizedSpeed : (float) end * ratio;
+    }
+
+    public long pecSpeedStamp() {
+        if (pecNormalizedSpeed == null) return 0;
+        long stamp = 1L + Float.floatToIntBits(pecNormalizedSpeed);
+        return (stamp * 31L + Double.doubleToLongBits(pecEncodedStart)) * 31L
+                + Double.doubleToLongBits(pecEncodedEnd);
     }
 
     public static double defaultValue(EventType type) {

@@ -147,6 +147,27 @@ public class WorkbenchViewTest {
         assertEquals(View.VISIBLE, workbench.getChildAt(2).getVisibility());
         assertTrue(workbench.getChildAt(2).getHeight() > 0);
     }
+    @Test @Config(sdk = {33, 34})
+    public void keyboardCanCollapseAndRestorePanelsWithoutInvertedBoundsOrLosingText() {
+        EditText draft = new EditText(activity);
+        draft.setText("keyboard draft");
+        EditorPanelWindow page = new EditorPanelWindow.Builder(activity, workbench)
+                .setTitle("Text").setView(draft).create();
+        page.show();
+        assertTrue(draft.requestFocus());
+        for (int height : new int[]{1080, 180, 48, 35, 0, 1080}) {
+            layout(1920, height);
+            for (int childIndex = 0; childIndex < workbench.getChildCount(); childIndex++) {
+                View child = workbench.getChildAt(childIndex);
+                assertTrue("child " + childIndex + " height " + height, child.getHeight() >= 0);
+                assertTrue(child.getTop() >= 0);
+                assertTrue(child.getBottom() <= height);
+            }
+            assertEquals("keyboard draft", draft.getText().toString());
+        }
+        assertTrue(draft.isShown());
+        assertTrue(draft.requestFocus());
+    }
     @Test public void replacingALineAtTheSameIndexStillInvalidatesItsForm() {
         boolean[] applied = {false};
         EditorPanelWindow page = new EditorPanelWindow.Builder(activity, workbench)

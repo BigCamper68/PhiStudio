@@ -114,9 +114,13 @@ public final class PackageIoTest extends PackageIoTestSupport {
         assertEquals(337.5,
                 chartPackage.getChart().judgeLines.get(0).notes.get(0).positionX, 0.0001);
         assertEquals(1.5, chartPackage.getChart().judgeLines.get(0).notes.get(0).speed, 0.0);
-        assertEquals(0.8, chartPackage.getChart().judgeLines.get(0).notes.get(0).size, 0.0);
-        assertEquals(4.5, chartPackage.getChart().judgeLines.get(0).eventLayers.get(0)
-                .events(com.xpe.mobile.model.EventType.SPEED).get(0).start, 0.0001);
+        // Independent full upstream PEC dump: f32 size .8 and cv7 native speed.
+        assertEquals(0.800000011920929,
+                chartPackage.getChart().judgeLines.get(0).notes.get(0).size, 0.0);
+        float rpeSpeed = (float) chartPackage.getChart().judgeLines.get(0).eventLayers.get(0)
+                .events(com.xpe.mobile.model.EventType.SPEED).get(0).start;
+        assertEquals(1.196581244468689,
+                rpeSpeed * (float) (10.0 / 45.0 / .83175), 0.0);
         assertEquals(675.0, chartPackage.getChart().judgeLines.get(0).eventLayers.get(0)
                 .events(com.xpe.mobile.model.EventType.MOVE_X).get(0).end, 0.0001);
         assertEquals(ChartJsonFormat.RPE, ChartJsonFormatDetector.detect(new JSONObject(

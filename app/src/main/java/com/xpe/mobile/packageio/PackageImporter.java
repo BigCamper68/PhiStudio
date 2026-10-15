@@ -76,6 +76,7 @@ public final class PackageImporter {
         }
         boolean converted = analysis.selected.format != ChartJsonFormat.RPE;
         if (converted) PackageResourceSelection.applyManifestMetadata(chart, analysis);
+        PackageResourceSelection.applyDisplayMetadata(chart, analysis);
         ChartPackage result = new ChartPackage(workspace, sourceDisplayName, analysis.projectName,
                 analysis.selected.path, analysis.audioPath, analysis.illustrationPath,
                 analysis.manifestOffsetMs, analysis.useRpe170Speed,

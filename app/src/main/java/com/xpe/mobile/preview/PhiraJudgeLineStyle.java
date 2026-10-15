@@ -27,11 +27,23 @@ public final class PhiraJudgeLineStyle {
      */
     public static int color(int authoredRgb, int lineAlpha, boolean normal,
                             boolean highlight, int highlightRgb) {
+        return color(authoredRgb, (double) lineAlpha, normal, highlight, highlightRgb);
+    }
+
+    public static int color(int authoredRgb, double rawAlpha, boolean normal,
+                            boolean highlight, int highlightRgb) {
         int base = highlight ? 0xFF000000 | (highlightRgb & 0xFFFFFF)
                 : authoredRgb >= 0 ? 0xFF000000 | (authoredRgb & 0xFFFFFF)
                 : normal ? PERFECT_COLOR_ARGB : 0xFFFFFFFF;
-        int alpha = Math.round(Math.max(0, Math.min(255, lineAlpha))
-                * (base >>> 24) / 255f);
-        return (alpha << 24) | (base & 0xFFFFFF);
+        return withRawAlpha(base, rawAlpha);
+    }
+
+    static int withRawAlpha(int baseArgb, double rawAlpha) {
+        // RPE maps opacity to f32 using 1/255. Normal lines then multiply the
+        // resource color's alpha before macroquad Vertex converts it to a byte.
+        float opacity = Math.max(0f, (float) rawAlpha * (1f / 255f));
+        float baseAlpha = (baseArgb >>> 24) / 255f;
+        int alpha = (int) Math.max(0f, Math.min(255f, baseAlpha * opacity * 255f));
+        return (alpha << 24) | (baseArgb & 0xFFFFFF);
     }
 }

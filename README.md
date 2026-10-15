@@ -23,7 +23,7 @@ bundled Windows executables.
 - Import and conversion of RPE, official Phigros and legacy PEC charts.
 - Local project library with explicit Save and package export.
 - Native audio-synchronized preview.
-- Offline MP4 export through Menu → Projects: PhiStudio rendering and shaders,
+- Offline MP4 export through Menu → Export chart to MP4: PhiStudio rendering and shaders,
   H.264/AAC, resolution/FPS/bitrate, music/hit volumes, time range and HUD controls.
 - Hardware Canvas to external GL textures for shader playback, without full-frame CPU bitmap uploads.
 - Shaders workbench: Preview on the left, vertical effects/keyframe timeline on the right, parameters below.
@@ -57,17 +57,17 @@ Release builds use the existing PhiStudio signing certificate. Set
 Without these variables Gradle produces an unsigned release APK.
 Keep keystores and passwords outside the repository.
 
-The release workflow publishes **PhiStudio 1.0.5** as tag `v1.0.5` after a
+The release workflow publishes **PhiStudio 1.0.6** as tag `v1.0.6` after a
 push to `main`, using the existing Actions signing secrets. It attaches the
 signed APK, a source archive and SHA-256 checksums. Release notes are stored in
-`.github/release-notes/v1.0.5.md`.
+`.github/release-notes/v1.0.6.md`.
 
 See [architecture](ARCHITECTURE.md), [rendering compatibility](docs/rendering-parity.md)
 and [release validation](docs/validation.md) for implementation and test details.
 
 ## Video export
 
-Open a chart and choose **Menu → Projects → Export chart to MP4**. The export
+Open a chart and choose **Menu → Export chart to MP4**. The export
 uses the current chart and shader drafts. Set resolution (including custom sizes
 and the player preset), 30/60 FPS, bitrate, start/end in seconds, audio volumes,
 shaders and HUD. Rendering pauses editor playback and runs offline; performance

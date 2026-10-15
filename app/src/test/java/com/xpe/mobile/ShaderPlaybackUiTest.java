@@ -351,6 +351,33 @@ public final class ShaderPlaybackUiTest extends ShaderEditorViewTestSupport {
         assertEquals(2.345678,editor.shaderEditorSeconds(),1e-10);
     }
 
+    @Test public void shaderPanKeepsExactEventBoundaryClock() {
+        ChartDocument chart = editor.getChart();
+        chart.bpmChanges.get(0).bpm = 202.99999999999997;
+        chart.markEdited();
+        editor.shaderEditorSeek(299.0);
+        editor.shaderBeginPan();
+        for (double seconds : new double[]{300.0, 0.015}) {
+            editor.shaderPanTo(seconds);
+            assertEquals(seconds, editor.shaderEditorSeconds(), 0.0);
+        }
+        editor.shaderEndPan();
+        assertEquals(0.015, editor.shaderEditorSeconds(), 0.0);
+    }
+
+    @Test public void shaderPanStartsAtFirstAuthoredBpmIncludingNegativeBeat() {
+        ChartDocument chart = editor.getChart();
+        for (int first : new int[]{-4, 4}) {
+            chart.bpmChanges.get(0).startTime = new com.xpe.mobile.model.BeatTime(first, 0, 1);
+            chart.markEdited();
+            editor.shaderEditorSeek(1.0);
+            editor.shaderBeginPan();
+            editor.shaderPanTo(0.0);
+            editor.shaderEndPan();
+            assertEquals(0.0, editor.shaderEditorSeconds(), 0.0);
+        }
+    }
+
     @Test
     public void loopStartsAtSelectedEffectWhenPlayheadIsOutsideItsRange() {
         workbench.switchTab(3);

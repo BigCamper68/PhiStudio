@@ -77,9 +77,8 @@ final class ExportFrameRenderer implements AutoCloseable {
 
     void render(long frame) throws IOException {
         Mp4Exporter.checkCancelled();
-        long audioMs = options.startMs + Math.round(options.frameTimeUs(frame) / 1000.0);
-        double beat = chart.audioMillisToBeat(audioMs, packageOffsetMs);
-        RenderScene scene = ChartEvaluator.evaluate(chart, beat, settings.highlightSimultaneousNotes,
+        double chartSeconds = options.chartSeconds(frame, chart.offsetMs, packageOffsetMs);
+        RenderScene scene = ChartEvaluator.evaluateAtSeconds(chart, chartSeconds, settings.highlightSimultaneousNotes,
                 trackDurationMs, pack != null && pack.isUseRpe170Speed(),
                 options.width / (double) options.height, playback);
         gameReady = new CountDownLatch(1); overlayReady = new CountDownLatch(1);
@@ -94,7 +93,6 @@ final class ExportFrameRenderer implements AutoCloseable {
         }
         await(gameReady); await(overlayReady);
         gameplay.update(); overlay.update();
-        double chartSeconds = Math.max(0, (audioMs - (double) chart.offsetMs - packageOffsetMs) / 1000.0);
         gl.renderLayers(gameplay, overlay, options.width, options.height,
                 timeline, chartSeconds, viewport, options.width, options.height);
         egl.presentAt(options.frameTimeUs(frame) * 1000);

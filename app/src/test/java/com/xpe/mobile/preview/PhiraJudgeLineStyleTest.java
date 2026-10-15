@@ -24,7 +24,7 @@ public final class PhiraJudgeLineStyleTest {
 
     @Test public void autoplayColorIncludesResourcePackAlphaAndAuthoredOverride() {
         assertEquals(0xE1FFEC9F, color(-1, 255, true, false));
-        assertEquals(0x71FFEC9F, color(-1, 128, true, false));
+        assertEquals(0x70FFEC9F, color(-1, 128, true, false));
         assertEquals(0x00FFEC9F, color(-1, 0, true, false));
         assertEquals(0x80000000, color(0x000000, 128, true, false));
         assertEquals(0xFF123456, color(0x123456, 255, true, false));

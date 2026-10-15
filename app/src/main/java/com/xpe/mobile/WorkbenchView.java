@@ -319,10 +319,11 @@ final class WorkbenchView extends ViewGroup {
         float density = getResources().getDisplayMetrics().density;
         int split = Math.round(WorkbenchLayout.split(width, density));
         int y = Math.max(0, height - footer.getMeasuredHeight());
+        int contentTop = Math.min(height, Math.round(WorkbenchLayout.toolbar(density)));
         editor.layout(0, 0, width, height);
-        shaderPreview.layout(0, Math.round(WorkbenchLayout.toolbar(density)), width,
-                Math.max(Math.round(WorkbenchLayout.toolbar(density)), height - Math.round(25f * density)));
-        pane.layout(split, Math.round(WorkbenchLayout.toolbar(density)), width, y);
+        shaderPreview.layout(0, contentTop, width,
+                Math.max(contentTop, height - Math.round(25f * density)));
+        pane.layout(split, Math.min(contentTop, y), width, y);
         footer.layout(split, y, width, height);
         if (shaderEditor != null) shaderEditor.layout(0, 0, width, y);
     }
