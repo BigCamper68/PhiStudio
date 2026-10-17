@@ -22,8 +22,8 @@ android {
         applicationId 'com.xpe.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 89
-        versionName '1.0.7-checkpoint9'
+        versionCode 90
+        versionName '1.0.7-checkpoint10'
     }
 
     signingConfigs {

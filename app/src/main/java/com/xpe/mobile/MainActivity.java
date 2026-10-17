@@ -34,6 +34,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     private final MainScreenSetup mainScreenSetup = new MainScreenSetup(this);
 
     final MainMenuUi mainMenuUi = new MainMenuUi(this);
+    final MainPlaytest mainPlaytest = new MainPlaytest(this);
     final MainPreviewResources mainPreviewResources = new MainPreviewResources(this);
     final MainProjectActions mainProjectActions = new MainProjectActions(this);
     final MainProjectSession mainProjectSession = new MainProjectSession(this);
@@ -281,6 +282,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     @Override
     protected void onPause() {
         super.onPause();
+        mainPlaytest.pause();
         pauseAudio();
         ChartDocument chart = editorView.getChart();
         if (chart != null && (editorView.isChartDirty() || mainShaderSession.shadersDirty())
@@ -300,6 +302,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
 
     @Override
     protected void onDestroy() {
+        mainPlaytest.close();
         mainVideoExport.close();
         mainShaderSession.clearShaderSession();
         illustrationLoadGeneration++;
@@ -328,7 +331,7 @@ public final class MainActivity extends Activity implements EditorView.Callback 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
-                && editorSettings != null && !(getCurrentFocus() instanceof EditText)) {
+                && !mainPlaytest.isOpen() && editorSettings != null && !(getCurrentFocus() instanceof EditText)) {
             if (mainShortcuts.matchesShortcut(event, editorSettings.shortcutSave)) {
                 mainShortcuts.saveFromShortcut();
                 return true;

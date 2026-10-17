@@ -43,7 +43,7 @@ final class MainScreenSetup {
 
                     @Override
                     public void onAudioCompleted() {
-                        delegateOwner.editorView.audioCompleted();
+                        if (!delegateOwner.mainPlaytest.audioCompleted()) delegateOwner.editorView.audioCompleted();
                     }
 
                     @Override

@@ -58,3 +58,17 @@ The clipper now processes the left X plane before the right X plane; ordinary
 scales and rotation calculations are unchanged. The regression tests assert
 both right-side boundaries in Preview and export-layer draw commands. Their
 reference is the reported Phira appearance, not a new phone screenshot capture.
+
+## Manual playtest judgement
+
+`generate_judge_oracle.py /path/to/phira/prpr/src/judge.rs /output [--core core.rs] [--rustc rustc]`
+extracts the actual upstream candidate-selection, hold-sustain, miss and pre-judge
+passes, plus the complete FlickTracker. Renderer/audio wrappers are inert and the
+fixture supplies fixed line-local touch coordinates, one note, and speed 1.
+The judgement-width coefficient is read from the actual upstream core.rs;
+it is independent of the note sprite's visual width.
+Generated Rust is upstream GPL-3.0 validation code, never linked into the app.
+The two CSVs in `app/src/test/resources/prpr/` contain 4,365 judgement cases and
+360 flick-speed cases. `PlaytestOracleTest` compares these outputs with Java.
+This does not measure Android event delivery, latency, or pixel equivalence.
+See [playtest documentation](../../docs/playtest.md) for the UI and lifecycle checks.

@@ -1,0 +1,28 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="menu_playtest">Playtest</string>
+    <string name="playtest_start_position">Start Position</string>
+    <string name="playtest_from_beginning">From beginning</string>
+    <string name="playtest_from_playhead">From playhead (Beat %1$s)</string>
+    <string name="playtest_custom_position">Custom Position</string>
+    <string name="playtest_time">Time</string>
+    <string name="playtest_beat">Beat</string>
+    <string name="playtest_time_hint">Chart time · seconds or M:SS.mmm</string>
+    <string name="playtest_beat_hint">Beat · e.g. 32.5</string>
+    <string name="playtest_countdown">Countdown</string>
+    <string name="playtest_off">off</string>
+    <plurals name="playtest_seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+    <string name="playtest_start">Start</string>
+    <string name="playtest_after_end">Position is beyond the end of this chart</string>
+    <string name="playtest_audio_loading">Audio is preparing. Try Playtest when it has loaded.</string>
+    <string name="playtest_accessibility">Chart playtest. Activate to pause or resume.</string>
+    <string name="playtest_paused">Paused</string>
+    <string name="playtest_results">Playtest results</string>
+    <string name="playtest_resume">Resume</string>
+    <string name="playtest_retry">Retry</string>
+    <string name="playtest_exit">Back to editor</string>
+    <!-- Metric labels follow values; none of these labels inflect with the preceding number. -->
+    <string name="playtest_stats" tools:ignore="PluralsCandidate">Score  %1$07d    Accuracy  %2$.2f%%\nMax combo  %3$d / %4$d\nPerfect  %5$d    Good  %6$d    Bad  %7$d    Miss  %8$d</string>
+</resources>

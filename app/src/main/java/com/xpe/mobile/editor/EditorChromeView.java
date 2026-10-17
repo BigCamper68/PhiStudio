@@ -16,6 +16,7 @@ import com.xpe.mobile.model.Note;
 import com.xpe.mobile.model.StoryboardEventType;
 import com.xpe.mobile.preview.PreviewShaderView;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
+import com.xpe.mobile.preview.PreviewRenderer;
 import com.xpe.mobile.preview.ShaderTimeline;
 import java.util.ArrayList;
 import java.util.List;
@@ -177,6 +178,18 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     public EditorSettings getSettings() {
         return settings.copy();
+    }
+
+    public double getCurrentBeat() { return currentBeat; }
+    public boolean usesRpe170Speed() { return useRpe170Speed; }
+    /** Borrowed resources stay owned by the editor for the lifetime of its playtest window. */
+    public Bitmap playtestBackground() { return blurredBackgroundIllustration; }
+    public ShaderTimeline playtestShaders() { return previewShaders; }
+    public Map<String, PreviewTextureDecoder.Texture> playtestLineTextures() { return previewLineTextures; }
+    public PreviewRenderer createPlaytestRenderer() {
+        PreviewRenderer renderer = new PreviewRenderer(noteTextures, density, "COMBO", getContext().getAssets());
+        renderer.setLineTextures(previewLineTextures);
+        return renderer;
     }
 
     public void setChart(ChartDocument chart) {

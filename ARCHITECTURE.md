@@ -17,6 +17,7 @@
 | Библиотека проектов | `ProjectLibrary` | `ProjectIndexStore`, `ProjectWorkspaceDiscovery`, `ProjectWorkspaceFiles` |
 | Storyboard-модель | `ExtendedLineEvents` | `StoryboardTextTween`, `StoryboardColorTween`; публичные вложенные типы событий сохранены |
 | Audio DSP | `Sonic` | `SonicTiming`, `SonicImpl`, `SonicFloatImpl`, `SonicShortImpl`; исходные лицензии и алгоритмы сохранены |
+| Playtest | `MainPlaytest`, `PlaytestView` | `PlaytestOptionsDialog`, `PlaytestOptions`, `PlaytestClock`, `PlaytestJudge`; ручные оценки, звуки и результаты отделены от autoplay Preview |
 
 `ChartEvaluator` создаёт `RenderScene`. Рендер использует готовую сцену;
 подготовленные данные и слабый кэш чарта принадлежат `PreviewChartIndex`.
@@ -46,3 +47,4 @@ Lifecycle-вызовы Android остаются в Activity/View; внутрен
 Результаты проверки релиза — [docs/validation.md](docs/validation.md).
 Особенности совместимости предпросмотра с prpr —
 [docs/rendering-parity.md](docs/rendering-parity.md).
+Игровой режим и проверка поведения ввода Phira — [docs/playtest.md](docs/playtest.md).
