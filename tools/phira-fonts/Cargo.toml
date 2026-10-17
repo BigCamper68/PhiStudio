@@ -1,0 +1,9 @@
+[package]
+name = "phira-font-metrics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ab_glyph = "=0.2.32"
+glyph_brush_layout = "=0.2.4"
+ttf-parser = "=0.25.1"

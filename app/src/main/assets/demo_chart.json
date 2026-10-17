@@ -1,0 +1,44 @@
+{
+  "BPMList": [{"bpm": 150.0, "startTime": [0, 0, 1]}],
+  "META": {
+    "RPEVersion": 123,
+    "background": "",
+    "charter": "PhiStudio",
+    "composer": "Demo",
+    "id": "phistudio_demo",
+    "level": "Demo",
+    "name": "PhiStudio demo",
+    "offset": 0,
+    "song": ""
+  },
+  "judgeLineGroup": ["Default"],
+  "judgeLineList": [{
+    "Group": 0,
+    "Name": "Line 0",
+    "Texture": "line.png",
+    "alphaControl": [{"alpha": 1.0, "easing": 1, "x": 0.0}, {"alpha": 1.0, "easing": 1, "x": 9999999.0}],
+    "bpmfactor": 1.0,
+    "eventLayers": [{
+      "alphaEvents": [{"bezier":0,"bezierPoints":[0,0,0,0],"easingLeft":0,"easingRight":1,"easingType":1,"end":255,"endTime":[1,0,1],"linkgroup":0,"start":255,"startTime":[0,0,1]}],
+      "moveXEvents": [{"bezier":0,"bezierPoints":[0,0,0,0],"easingLeft":0,"easingRight":1,"easingType":1,"end":0,"endTime":[1,0,1],"linkgroup":0,"start":0,"startTime":[0,0,1]}],
+      "moveYEvents": [{"bezier":0,"bezierPoints":[0,0,0,0],"easingLeft":0,"easingRight":1,"easingType":1,"end":0,"endTime":[1,0,1],"linkgroup":0,"start":0,"startTime":[0,0,1]}],
+      "rotateEvents": [{"bezier":0,"bezierPoints":[0,0,0,0],"easingLeft":0,"easingRight":1,"easingType":1,"end":0,"endTime":[1,0,1],"linkgroup":0,"start":0,"startTime":[0,0,1]}],
+      "speedEvents": [{"end":10,"endTime":[1,0,1],"linkgroup":0,"start":10,"startTime":[0,0,1]}]
+    }],
+    "extended": {"inclineEvents": []},
+    "father": -1,
+    "isCover": 1,
+    "notes": [
+      {"above":1,"alpha":255,"endTime":[1,0,1],"isFake":0,"positionX":-300,"size":1,"speed":1,"startTime":[1,0,1],"type":1,"visibleTime":999999,"yOffset":0},
+      {"above":1,"alpha":255,"endTime":[2,0,1],"isFake":0,"positionX":-100,"size":1,"speed":1,"startTime":[2,0,1],"type":4,"visibleTime":999999,"yOffset":0},
+      {"above":1,"alpha":255,"endTime":[3,0,1],"isFake":0,"positionX":100,"size":1,"speed":1,"startTime":[3,0,1],"type":3,"visibleTime":999999,"yOffset":0},
+      {"above":1,"alpha":255,"endTime":[6,0,1],"isFake":0,"positionX":300,"size":1,"speed":1,"startTime":[4,0,1],"type":2,"visibleTime":999999,"yOffset":0}
+    ],
+    "numOfNotes": 4,
+    "posControl": [{"easing":1,"pos":1,"x":0},{"easing":1,"pos":1,"x":9999999}],
+    "sizeControl": [{"easing":1,"size":1,"x":0},{"easing":1,"size":1,"x":9999999}],
+    "skewControl": [{"easing":1,"skew":0,"x":0},{"easing":1,"skew":0,"x":9999999}],
+    "yControl": [{"easing":1,"x":0,"y":1},{"easing":1,"x":9999999,"y":1}],
+    "zOrder": 0
+  }]
+}

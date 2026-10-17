@@ -1,0 +1,12 @@
+// Optional Termux ARM64 validation profile. The normal desktop suite is unchanged.
+// Robolectric 4.14.1 native graphics and Conscrypt do not provide Android ARM64 binaries.
+// Explicitly excludes 23 desktop graphics tests; do not report them as passing.
+// Includes two NormalLineOpacityRenderingTest Canvas assertions that need desktop native support.
+allprojects {
+    tasks.withType(Test).configureEach {
+        exclude '**/GraphProportionsTest.class'
+        exclude '**/PreviewCompatibilityRegressionTest.class'
+        exclude '**/RenderingProportionsTest.class'
+        exclude '**/NormalLineOpacityRenderingTest.class'
+    }
+}

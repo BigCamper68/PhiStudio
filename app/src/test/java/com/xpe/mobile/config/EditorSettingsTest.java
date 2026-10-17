@@ -1,0 +1,66 @@
+package com.xpe.mobile.config;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public final class EditorSettingsTest {
+    @Test
+    public void defaultsAndCopyAreValidAndIndependent() {
+        EditorSettings settings = new EditorSettings();
+        assertTrue(settings.isValid());
+        assertEquals(1920, settings.playerWidth);
+        assertEquals(1080, settings.playerHeight);
+        assertTrue(settings.highlightCurrentLine);
+        assertTrue(settings.showFakeNoteOutline);
+        EditorSettings copy = settings.copy();
+        copy.musicVolume = 0.25;
+        copy.showFakeNoteOutline = false;
+        copy.highlightCurrentLine = false;
+        assertTrue(settings.highlightCurrentLine);
+        assertFalse(copy.copy().highlightCurrentLine);
+        assertTrue(settings.showFakeNoteOutline);
+        assertFalse(copy.copy().showFakeNoteOutline);
+        copy.splitSnapToGrid = false;
+        assertEquals(1.0, settings.musicVolume, 0.0);
+        assertEquals(0.25, copy.musicVolume, 0.0);
+        assertTrue(settings.splitSnapToGrid);
+        assertFalse(copy.splitSnapToGrid);
+    }
+
+    @Test
+    public void migratesLegacyThreeByTwoPreviewDefault() {
+        EditorSettings settings = new EditorSettings();
+        settings.playerWidth = 1350;
+        settings.playerHeight = 900;
+
+        EditorSettingsStore.migrateLegacyPreviewAspect(settings);
+
+        assertEquals(1920, settings.playerWidth);
+        assertEquals(1080, settings.playerHeight);
+    }
+
+    @Test
+    public void rejectsInvalidRangesAndHotkeys() {
+        EditorSettings settings = new EditorSettings();
+        settings.backgroundBrightness = 256;
+        assertFalse(settings.isValid());
+        settings = new EditorSettings();
+        settings.shortcutUndo = "CTRL+ALT";
+        assertFalse(settings.isValid());
+    }
+
+    @Test
+    public void parsesManualAndNativeChordSyntax() {
+        ShortcutChord chord = ShortcutChord.parse("leftctrl & shift & z");
+        assertTrue(chord.control);
+        assertTrue(chord.shift);
+        assertEquals("Z", chord.key);
+        assertTrue(ShortcutChord.isValid("SPACE"));
+        assertTrue(ShortcutChord.isValid("ALT+F4"));
+        assertFalse(ShortcutChord.isValid("CTRL+LEFTCTRL+Z"));
+        assertFalse(ShortcutChord.isValid("ALT+RIGHTALT+F4"));
+    }
+}
