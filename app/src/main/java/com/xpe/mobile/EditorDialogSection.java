@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.text.Editable;
@@ -44,9 +46,46 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
         this.host = host;
     }
 
+    @Override public android.content.res.Resources getResources() {
+        return UiText.resources(getBaseContext());
+    }
+
+    protected EditText addField(LinearLayout parent, int label, String value, boolean numeric) {
+        EditText field = addField(parent, "", value, numeric);
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(field) - 1), label);
+        return field;
+    }
+    protected EditText addField(LinearLayout parent, java.util.function.Supplier<String> label, String value, boolean numeric) {
+        EditText field = addField(parent, "", value, numeric);
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(field) - 1), label);
+        return field;
+    }
+    protected TextView addHint(LinearLayout parent, java.util.function.Supplier<String> label) {
+        TextView view = addHint(parent, "");
+        UiText.text(view, label);
+        return view;
+    }
+    protected TextView addHint(LinearLayout parent, int label) {
+        TextView view = addHint(parent, "");
+        UiText.text(view, label);
+        return view;
+    }
+    protected Spinner addStringSpinner(LinearLayout parent, int label, List<String> entries, int selected) {
+        Spinner spinner = addStringSpinner(parent, "", entries, selected);
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(spinner) - 1), label);
+        return spinner;
+    }
+    protected Spinner addStringSpinner(LinearLayout parent, int label,
+            java.util.function.Supplier<List<String>> entries, int selected) {
+        Spinner spinner = addStringSpinner(parent, label, entries.get(), selected);
+        UiText.entries(spinner, entries);
+        spinner.setSelection(Math.max(0, Math.min(selected, spinner.getCount() - 1)));
+        return spinner;
+    }
+
     protected void addMenuSection(LinearLayout parent, int textResource) {
         TextView title = new TextView(this);
-        title.setText(textResource);
+        UiText.text(title, textResource);
         title.setTextSize(16f);
         title.setPadding(dp(4), dp(4), dp(4), dp(6));
         parent.addView(title, new LinearLayout.LayoutParams(
@@ -56,7 +95,7 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
 
     protected Button addMenuButton(LinearLayout parent, int textResource) {
         Button button = new Button(this);
-        button.setText(textResource);
+        UiText.text(button, textResource);
         button.setAllCaps(false);
         button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         button.setMinHeight(dp(48));
@@ -158,17 +197,14 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
 
     protected Spinner addSpinner(LinearLayout parent, int labelResource, int entriesResource, int selected) {
         TextView title = new TextView(this);
-        title.setText(labelResource);
+        UiText.text(title, labelResource);
         title.setTextSize(14f);
         title.setPadding(0, dp(8), 0, dp(3));
         parent.addView(title);
 
         Spinner spinner = new Spinner(this);
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
-                this, entriesResource, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setSelection(Math.max(0, Math.min(selected, adapter.getCount() - 1)));
+        UiText.spinner(spinner, entriesResource);
+        spinner.setSelection(Math.max(0, Math.min(selected, spinner.getCount() - 1)));
         parent.addView(spinner, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -177,7 +213,7 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
 
     protected CheckBox addCheckBox(LinearLayout parent, int textResource, boolean checked) {
         CheckBox checkBox = new CheckBox(this);
-        checkBox.setText(textResource);
+        UiText.text(checkBox, textResource);
         checkBox.setChecked(checked);
         checkBox.setPadding(0, dp(6), 0, dp(2));
         parent.addView(checkBox, new LinearLayout.LayoutParams(
@@ -193,7 +229,7 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
 
     protected Button addActionButton(LinearLayout parent, int textResource) {
         Button button = new Button(this);
-        button.setText(textResource);
+        UiText.text(button, textResource);
         button.setAllCaps(false);
         button.setMinHeight(dp(48));
         parent.addView(button, new LinearLayout.LayoutParams(0,

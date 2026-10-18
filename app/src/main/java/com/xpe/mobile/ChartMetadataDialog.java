@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.text.method.DigitsKeyListener;
@@ -31,32 +33,32 @@ final class ChartMetadataDialog {
         content.setPadding(pad, pad, pad, pad);
         scrollView.addView(content);
 
-        EditText name = delegateOwner.addField(content, "Name", chart.name, false);
-        EditText composer = delegateOwner.addField(content, "Composer", chart.composer, false);
-        EditText charter = delegateOwner.addField(content, "Charter", chart.charter, false);
-        EditText level = delegateOwner.addField(content, "Level", chart.level, false);
-        EditText id = delegateOwner.addField(content, "ID / project folder", chart.id, false);
-        EditText offset = delegateOwner.addField(content, delegateOwner.getString(R.string.field_chart_offset),
+        EditText name = delegateOwner.addField(content, R.string.ui_name, chart.name, false);
+        EditText composer = delegateOwner.addField(content, R.string.project_create_composer, chart.composer, false);
+        EditText charter = delegateOwner.addField(content, R.string.project_create_charter, chart.charter, false);
+        EditText level = delegateOwner.addField(content, R.string.ui_level, chart.level, false);
+        EditText id = delegateOwner.addField(content, R.string.ui_id_project_folder, chart.id, false);
+        EditText offset = delegateOwner.addField(content, R.string.field_chart_offset,
                 Integer.toString(chart.offsetMs), false);
         offset.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
         offset.setKeyListener(DigitsKeyListener.getInstance("0123456789-"));
         TextView offsetHint = new TextView(delegateOwner);
         long packageOffsetMs = delegateOwner.host.packageOffsetMs();
-        offsetHint.setText(delegateOwner.getString(R.string.chart_offset_hint, packageOffsetMs,
+        UiText.text(offsetHint, () -> delegateOwner.getString(R.string.chart_offset_hint, packageOffsetMs,
                 (long) chart.offsetMs));
         offsetHint.setTextSize(12f);
         content.addView(offsetHint);
         double currentBpm = chart.bpmChanges.isEmpty() ? 120.0 : chart.bpmChanges.get(0).bpm;
-        EditText bpm = delegateOwner.addField(content, "Base BPM", String.format(Locale.US, "%.6f", currentBpm), true);
-        EditText backgroundDim = delegateOwner.addField(content, delegateOwner.getString(R.string.field_background_dim),
+        EditText bpm = delegateOwner.addField(content, R.string.project_create_bpm, String.format(Locale.US, "%.6f", currentBpm), true);
+        EditText backgroundDim = delegateOwner.addField(content, R.string.field_background_dim,
                 EditorDialogController.formatNumber(chart.getBackgroundDim()), true);
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())
-                .setTitle("Chart metadata")
+                .setTitle(R.string.menu_metadata)
                 .retainOnLineChange()
                 .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.toolbar_save, null)
                 .create();
         delegateOwner.showEditorWindow(dialog, () -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(view -> {
@@ -95,9 +97,9 @@ final class ChartMetadataDialog {
                         chart.backgroundDim = parsedDim;
                         delegateOwner.editorView.chartMetadataChanged();
                         dialog.dismiss();
-                        delegateOwner.showMessage("Metadata saved");
+                        delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_metadata_saved));
                     } catch (NumberFormatException exception) {
-                        delegateOwner.showMessage("Invalid offset, BPM, or background dim (0 to 1)");
+                        delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_invalid_offset_bpm_or_background_dim_0_to_1));
                     }
                 }));
     }

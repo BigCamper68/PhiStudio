@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -32,36 +34,36 @@ final class EventPropertyDialog {
 
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
-        EditText startTime = delegateOwner.addField(content, delegateOwner.getString(R.string.field_start_beat), event.startTime.toString(), false);
-        EditText endTime = delegateOwner.addField(content, delegateOwner.getString(R.string.field_end_beat), event.endTime.toString(), false);
-        EditText startValue = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_start_value), EditorDialogController.formatNumber(event.start), true);
-        EditText endValue = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_end_value), EditorDialogController.formatNumber(event.end), true);
+        EditText startTime = delegateOwner.addField(content, R.string.field_start_beat, event.startTime.toString(), false);
+        EditText endTime = delegateOwner.addField(content, R.string.field_end_beat, event.endTime.toString(), false);
+        EditText startValue = delegateOwner.addField(content, R.string.field_event_start_value, EditorDialogController.formatNumber(event.start), true);
+        EditText endValue = delegateOwner.addField(content, R.string.field_event_end_value, EditorDialogController.formatNumber(event.end), true);
         CheckBox locked = delegateOwner.addCheckBox(content, R.string.field_event_locked, Double.compare(event.start, event.end) == 0);
         Spinner easingType = delegateOwner.addSpinner(content, R.string.field_event_easing_type,
                 R.array.event_easing_entries,
                 Math.max(Easing.MIN_TYPE, Math.min(Easing.MAX_TYPE, event.easingType)) - 1);
         TextView easingHelp = new TextView(delegateOwner);
-        easingHelp.setText(R.string.field_event_easing_help);
+        UiText.text(easingHelp, R.string.field_event_easing_help);
         easingHelp.setTextSize(12f);
         easingHelp.setPadding(0, delegateOwner.dp(2), 0, delegateOwner.dp(5));
         content.addView(easingHelp);
         TextView previewLabel = new TextView(delegateOwner);
-        previewLabel.setText(R.string.field_event_easing_preview);
+        UiText.text(previewLabel, R.string.field_event_easing_preview);
         previewLabel.setTextSize(14f);
         previewLabel.setPadding(0, delegateOwner.dp(8), 0, delegateOwner.dp(3));
         content.addView(previewLabel);
         EasingPreviewView easingPreview = new EasingPreviewView(delegateOwner);
-        easingPreview.setContentDescription(delegateOwner.getString(R.string.field_event_easing_preview_description));
+        UiText.description(easingPreview, R.string.field_event_easing_preview_description);
         content.addView(easingPreview, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(148)));
-        EditText easingLeft = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_easing_left), EditorDialogController.formatNumber(event.easingLeft), true);
-        EditText easingRight = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_easing_right), EditorDialogController.formatNumber(event.easingRight), true);
-        EditText linkGroup = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_link_group), Integer.toString(event.linkGroup), true);
+        EditText easingLeft = delegateOwner.addField(content, R.string.field_event_easing_left, EditorDialogController.formatNumber(event.easingLeft), true);
+        EditText easingRight = delegateOwner.addField(content, R.string.field_event_easing_right, EditorDialogController.formatNumber(event.easingRight), true);
+        EditText linkGroup = delegateOwner.addField(content, R.string.field_event_link_group, Integer.toString(event.linkGroup), true);
         CheckBox bezier = delegateOwner.addCheckBox(content, R.string.field_event_bezier, event.bezier);
-        EditText bezierX1 = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_bezier_x1), EditorDialogController.formatNumber(event.bezierPoints[0]), true);
-        EditText bezierY1 = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_bezier_y1), EditorDialogController.formatNumber(event.bezierPoints[1]), true);
-        EditText bezierX2 = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_bezier_x2), EditorDialogController.formatNumber(event.bezierPoints[2]), true);
-        EditText bezierY2 = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_bezier_y2), EditorDialogController.formatNumber(event.bezierPoints[3]), true);
+        EditText bezierX1 = delegateOwner.addField(content, R.string.field_event_bezier_x1, EditorDialogController.formatNumber(event.bezierPoints[0]), true);
+        EditText bezierY1 = delegateOwner.addField(content, R.string.field_event_bezier_y1, EditorDialogController.formatNumber(event.bezierPoints[1]), true);
+        EditText bezierX2 = delegateOwner.addField(content, R.string.field_event_bezier_x2, EditorDialogController.formatNumber(event.bezierPoints[2]), true);
+        EditText bezierY2 = delegateOwner.addField(content, R.string.field_event_bezier_y2, EditorDialogController.formatNumber(event.bezierPoints[3]), true);
 
         boolean speedEvent = event.type == EventType.SPEED;
         Runnable refreshEasingUi = () -> delegateOwner.updateEasingEditor(
@@ -102,7 +104,7 @@ final class EventPropertyDialog {
         refreshEasingUi.run();
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())
-                .setTitle(delegateOwner.getString(R.string.event_properties_title, delegateOwner.eventTypeLabel(event.type)))
+                .setTitle(() -> delegateOwner.getString(R.string.event_properties_title, delegateOwner.eventTypeLabel(event.type)))
                 .selectionProperties(event, 0)
                 .setView(scrollView)
                 .setNegativeButton(R.string.action_cancel, null)

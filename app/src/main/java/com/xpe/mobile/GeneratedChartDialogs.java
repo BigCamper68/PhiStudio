@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.view.View;
 import android.widget.CheckBox;
@@ -40,40 +42,40 @@ final class GeneratedChartDialogs {
 
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_scope,
+        delegateOwner.addHint(content, () -> delegateOwner.getString(R.string.complex_move_scope,
                 delegateOwner.editorView.getLineIndex(), delegateOwner.editorView.getEventLayerIndex()));
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_time_help));
-        EditText startTime = delegateOwner.addField(content, delegateOwner.getString(R.string.complex_move_start_time),
+        delegateOwner.addHint(content, R.string.complex_move_time_help);
+        EditText startTime = delegateOwner.addField(content, R.string.complex_move_start_time,
                 startBeat.toString(), false);
-        EditText endTime = delegateOwner.addField(content, delegateOwner.getString(R.string.complex_move_end_time),
+        EditText endTime = delegateOwner.addField(content, R.string.complex_move_end_time,
                 endBeat.toString(), false);
-        EditText xEquation = delegateOwner.addField(content, delegateOwner.getString(R.string.complex_move_x_equation),
+        EditText xEquation = delegateOwner.addField(content, R.string.complex_move_x_equation,
                 delegateOwner.getString(R.string.complex_move_default_x), false);
-        EditText yEquation = delegateOwner.addField(content, delegateOwner.getString(R.string.complex_move_y_equation),
+        EditText yEquation = delegateOwner.addField(content, R.string.complex_move_y_equation,
                 delegateOwner.getString(R.string.complex_move_default_y), false);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_equation_help));
+        delegateOwner.addHint(content, R.string.complex_move_equation_help);
         Spinner xEasingType = delegateOwner.addSpinner(content, R.string.complex_move_x_time_easing,
                 R.array.event_easing_entries, 0);
         Spinner yEasingType = delegateOwner.addSpinner(content, R.string.complex_move_y_time_easing,
                 R.array.event_easing_entries, 0);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_time_easing_help));
+        delegateOwner.addHint(content, R.string.complex_move_time_easing_help);
         CheckBox easingWindows = delegateOwner.addCheckBox(content, R.string.complex_move_easing_windows, false);
         LinearLayout windowFields = new LinearLayout(delegateOwner);
         windowFields.setOrientation(LinearLayout.VERTICAL);
         content.addView(windowFields, new LinearLayout.LayoutParams(-1, -2));
-        EditText xLeft = delegateOwner.addField(windowFields, "X · " + delegateOwner.getString(R.string.field_event_easing_left), "0", true);
-        EditText xRight = delegateOwner.addField(windowFields, "X · " + delegateOwner.getString(R.string.field_event_easing_right), "1", true);
-        EditText yLeft = delegateOwner.addField(windowFields, "Y · " + delegateOwner.getString(R.string.field_event_easing_left), "0", true);
-        EditText yRight = delegateOwner.addField(windowFields, "Y · " + delegateOwner.getString(R.string.field_event_easing_right), "1", true);
+        EditText xLeft = delegateOwner.addField(windowFields, () -> "X · " + delegateOwner.getString(R.string.field_event_easing_left), "0", true);
+        EditText xRight = delegateOwner.addField(windowFields, () -> "X · " + delegateOwner.getString(R.string.field_event_easing_right), "1", true);
+        EditText yLeft = delegateOwner.addField(windowFields, () -> "Y · " + delegateOwner.getString(R.string.field_event_easing_left), "0", true);
+        EditText yRight = delegateOwner.addField(windowFields, () -> "Y · " + delegateOwner.getString(R.string.field_event_easing_right), "1", true);
         windowFields.setVisibility(View.GONE);
         TimeEasingInput xTimeEasing = new TimeEasingInput(xEasingType, easingWindows, xLeft, xRight);
         TimeEasingInput yTimeEasing = new TimeEasingInput(yEasingType, easingWindows, yLeft, yRight);
         EditText generationDensity = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.complex_move_density),
+                R.string.complex_move_density,
                 delegateOwner.getString(R.string.complex_move_default_density), true);
 
         ComplexMovePreviewView preview = new ComplexMovePreviewView(delegateOwner);
-        preview.setContentDescription(delegateOwner.getString(R.string.complex_move_preview_description));
+        UiText.description(preview, R.string.complex_move_preview_description);
         content.addView(preview, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(190)));
         TextView previewStatus = delegateOwner.addHint(content, "");
@@ -85,16 +87,16 @@ final class GeneratedChartDialogs {
                                 xTimeEasing, yTimeEasing, generationDensity));
                 if (result.error == ComplexMoveGenerator.Error.NONE) {
                     preview.setPath(result.path);
-                    previewStatus.setText(delegateOwner.getResources().getQuantityString(
+                    UiText.text(previewStatus, () -> delegateOwner.getResources().getQuantityString(
                             R.plurals.complex_move_preview_ready, result.segmentCount,
                             result.segmentCount));
                 } else {
                     preview.setPath(null);
-                    previewStatus.setText(delegateOwner.complexMoveErrorMessage(result.error, result.detail));
+                    UiText.text(previewStatus, () -> delegateOwner.complexMoveErrorMessage(result.error, result.detail));
                 }
             } catch (IllegalArgumentException exception) {
                 preview.setPath(null);
-                previewStatus.setText(R.string.complex_move_preview_invalid);
+                UiText.text(previewStatus, R.string.complex_move_preview_invalid);
             }
         };
         EditorOperationDialogSection.watch(refreshPreview, startTime, endTime, xEquation, yEquation,
@@ -149,32 +151,35 @@ final class GeneratedChartDialogs {
         int endIndex = Math.max(0, notes.indexOf(defaultEnd));
         if (startIndex == endIndex) endIndex = startIndex == notes.size() - 1 ? 0 : startIndex + 1;
 
-        List<String> endpointLabels = new ArrayList<>();
-        for (int index = 0; index < notes.size(); index++) {
-            Note note = notes.get(index);
-            endpointLabels.add(delegateOwner.getString(R.string.curve_notes_endpoint, index + 1,
-                    delegateOwner.noteTypeLabel(note.type), note.startTime.toString(),
-                    EditorOperationDialogSection.formatNumber(note.positionX)));
-        }
+        java.util.function.Supplier<List<String>> endpointLabels = () -> {
+            List<String> labels = new ArrayList<>();
+            for (int index = 0; index < notes.size(); index++) {
+                Note note = notes.get(index);
+                labels.add(delegateOwner.getString(R.string.curve_notes_endpoint, index + 1,
+                        delegateOwner.noteTypeLabel(note.type), note.startTime.toString(),
+                        EditorOperationDialogSection.formatNumber(note.positionX)));
+            }
+            return labels;
+        };
 
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.curve_notes_help));
+        delegateOwner.addHint(content, R.string.curve_notes_help);
         Spinner startNote = delegateOwner.addStringSpinner(content,
-                delegateOwner.getString(R.string.curve_notes_start), endpointLabels, startIndex);
+                R.string.curve_notes_start, endpointLabels, startIndex);
         Spinner endNote = delegateOwner.addStringSpinner(content,
-                delegateOwner.getString(R.string.curve_notes_end), endpointLabels, endIndex);
+                R.string.curve_notes_end, endpointLabels, endIndex);
         EditText curveDensity = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.curve_notes_density),
+                R.string.curve_notes_density,
                 delegateOwner.getString(R.string.curve_notes_default_density), true);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.curve_notes_density_help,
+        delegateOwner.addHint(content, () -> delegateOwner.getString(R.string.curve_notes_density_help,
                 delegateOwner.editorView.getSubdivision()));
         Spinner noteType = delegateOwner.addSpinner(content, R.string.curve_notes_type,
                 R.array.curve_note_types, 1);
         Spinner easing = delegateOwner.addSpinner(content, R.string.curve_notes_easing,
                 R.array.event_easing_entries, 0);
         CurveNotePreviewView preview = new CurveNotePreviewView(delegateOwner);
-        preview.setContentDescription(delegateOwner.getString(R.string.curve_notes_preview_description));
+        UiText.description(preview, R.string.curve_notes_preview_description);
         content.addView(preview, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(190)));
         TextView previewStatus = delegateOwner.addHint(content, "");
@@ -189,16 +194,16 @@ final class GeneratedChartDialogs {
                         easing.getSelectedItemPosition() + Easing.MIN_TYPE);
                 if (result.error == CurveNoteGenerator.Error.NONE) {
                     preview.setPath(result.path);
-                    previewStatus.setText(delegateOwner.getResources().getQuantityString(
+                    UiText.text(previewStatus, () -> delegateOwner.getResources().getQuantityString(
                             R.plurals.curve_notes_preview_ready, result.notes.size(),
                             result.notes.size()));
                 } else {
                     preview.setPath(null);
-                    previewStatus.setText(delegateOwner.curveNotesErrorMessage(result.error));
+                    UiText.text(previewStatus, () -> delegateOwner.curveNotesErrorMessage(result.error));
                 }
             } catch (IllegalArgumentException exception) {
                 preview.setPath(null);
-                previewStatus.setText(R.string.curve_notes_preview_invalid);
+                UiText.text(previewStatus, R.string.curve_notes_preview_invalid);
             }
         };
         EditorOperationDialogSection.setSpinnerChangeListener(startNote, refreshPreview);

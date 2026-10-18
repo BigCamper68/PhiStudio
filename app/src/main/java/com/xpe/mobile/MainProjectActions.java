@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.app.AlertDialog;
 import android.widget.EditText;
 import com.xpe.mobile.project.ProjectBrowserDialog;
@@ -68,9 +71,9 @@ final class MainProjectActions {
     }
 
     void confirmRemoveIndexedProject(String projectId, String projectName) {
-        new AlertDialog.Builder(delegateOwner)
+        new UiDialogs.Builder(delegateOwner)
                 .setTitle(R.string.project_remove_title)
-                .setMessage(delegateOwner.getString(R.string.project_remove_message, projectName))
+                .setMessage(() -> delegateOwner.getString(R.string.project_remove_message, projectName))
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.project_action_remove, (dialog, which) -> {
                     boolean active = projectId.equals(delegateOwner.currentProjectId);
@@ -101,7 +104,7 @@ final class MainProjectActions {
         try {
             delegateOwner.mainProjectSession.saveCurrentProject();
         } catch (IOException exception) {
-            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, MainActivity.safeMessage(exception)));
+            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, UiErrors.describe(delegateOwner, exception)));
             return;
         }
         delegateOwner.mainProjectSession.runProjectTask(R.string.project_opening,
@@ -120,7 +123,7 @@ final class MainProjectActions {
         input.setText(project.getName());
         input.setSingleLine(true);
         input.setSelectAllOnFocus(true);
-        AlertDialog dialog = new AlertDialog.Builder(delegateOwner)
+        AlertDialog dialog = new UiDialogs.Builder(delegateOwner)
                 .setTitle(R.string.project_rename_title)
                 .setView(input)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -141,7 +144,7 @@ final class MainProjectActions {
                                 renamed == null ? input.getText().toString().trim() : renamed.getName()));
                         delegateOwner.mainProjectActions.showProjectLibrary(false);
                     } catch (IOException exception) {
-                        delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, MainActivity.safeMessage(exception)));
+                        delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, UiErrors.describe(delegateOwner, exception)));
                     }
                 }));
         dialog.show();
@@ -151,7 +154,7 @@ final class MainProjectActions {
         try {
             delegateOwner.mainProjectSession.saveCurrentProject();
         } catch (IOException exception) {
-            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, MainActivity.safeMessage(exception)));
+            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, UiErrors.describe(delegateOwner, exception)));
             return;
         }
         String newId = UUID.randomUUID().toString();
@@ -178,10 +181,10 @@ final class MainProjectActions {
                                 recovered.getRecord().getName()));
                     });
         } else {
-            new AlertDialog.Builder(delegateOwner)
+            new UiDialogs.Builder(delegateOwner)
                     .setTitle(R.string.project_recovery_remove_title)
-                    .setMessage(delegateOwner.getString(R.string.project_recovery_remove_message,
-                            issue.getDisplayName(), issue.getMessage()))
+                    .setMessage(() -> delegateOwner.getString(R.string.project_recovery_remove_message,
+                            issue.getDisplayName(), UiErrors.workspace(delegateOwner, issue)))
                     .setNegativeButton(R.string.action_cancel, null)
                     .setPositiveButton(R.string.project_recovery_remove, (dialog, which) ->
                             delegateOwner.mainProjectSession.runProjectTask(R.string.project_removing,

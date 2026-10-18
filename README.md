@@ -1,5 +1,7 @@
 # PhiStudio
 
+Language packs and contribution guide: [Internationalization](docs/i18n.md).
+
 PhiStudio is a native, touch-first Android chart editor for RPE and compatible
 rhythm-game chart packages. It runs directly on Android without Winlator or
 bundled Windows executables.

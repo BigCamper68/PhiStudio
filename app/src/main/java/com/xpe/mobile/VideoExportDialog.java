@@ -1,5 +1,9 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.text.Editable;
@@ -23,6 +27,15 @@ final class VideoExportDialog {
     private CheckBox music, hits, shaders, hud;
     private SeekBar musicVolume, hitVolume;
     private TextView estimate, error;
+    private AlertDialog activeDialog;
+
+    void relocalizeUi() {
+        if (activeDialog == null || !activeDialog.isShowing()) return;
+        activeDialog.setTitle(activity.getText(R.string.menu_export_video));
+        activeDialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(activity.getText(R.string.video_render));
+        activeDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setText(activity.getText(R.string.action_cancel));
+        UiText.relocalize(activeDialog.getWindow().getDecorView());
+    }
 
     VideoExportDialog(MainActivity activity, boolean hasMusic, long durationMs) {
         this.activity = activity; this.hasMusic = hasMusic; this.durationMs = durationMs;
@@ -40,11 +53,11 @@ final class VideoExportDialog {
         right.setPadding(activity.dp(12), 0, 0, 0);
         text(left, R.string.video_section_video);
         Spinner preset = spinner(left, R.string.video_resolution,
-                new String[]{"1920 × 1080 · 1080p", "1280 × 720 · 720p", "960 × 540 · 540p",
-                        activity.getString(R.string.video_player_resolution), activity.getString(R.string.video_custom)});
+                activity.getResources().getStringArray(R.array.video_resolution_presets));
         LinearLayout dimensions = row(left);
         width = field(cell(dimensions), R.string.video_width, Integer.toString(preferences.getInt("width", 1920)));
         height = field(cell(dimensions), R.string.video_height, Integer.toString(preferences.getInt("height", 1080)));
+        UiText.spinner(preset, R.array.video_resolution_presets);
         preset.setSelection(4);
         fps = spinner(left, R.string.video_fps, new String[]{"30 FPS", "60 FPS"});
         fps.setSelection(preferences.getInt("fps", 60) == 30 ? 0 : 1);
@@ -67,9 +80,10 @@ final class VideoExportDialog {
         hud = check(right, R.string.video_hud, preferences.getBoolean("hud", true));
         estimate = text(content, 0); error = text(content, 0);
         error.setTextColor(0xFFFF8A80);
-        AlertDialog dialog = new AlertDialog.Builder(activity).setTitle(R.string.menu_export_video)
+        AlertDialog dialog = new UiDialogs.Builder(activity).setTitle(R.string.menu_export_video)
                 .setView(scroll).setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.video_render, null).create();
+        activeDialog = dialog;
         preset.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onNothingSelected(AdapterView<?> parent) { }
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -101,7 +115,7 @@ final class VideoExportDialog {
                         persist(options);
                         dialog.dismiss(); render.accept(options);
                     } catch (IllegalArgumentException exception) {
-                        error.setText(activity.getString(R.string.video_invalid_settings, exception.getMessage()));
+                        UiText.text(error, () -> activity.getString(R.string.video_invalid_settings, UiErrors.describe(activity, exception)));
                     }
                 }), 0.84f, 0.90f);
         updateEstimate();
@@ -112,14 +126,14 @@ final class VideoExportDialog {
             double startSeconds = decimal(start), endSeconds = decimal(end), mbps = decimal(bitrate);
             if (!Double.isFinite(startSeconds) || !Double.isFinite(endSeconds) || !Double.isFinite(mbps)
                     || startSeconds < 0 || endSeconds > 86400 || mbps < 1 || mbps > 80)
-                throw new IllegalArgumentException(activity.getString(R.string.video_numeric_limits));
+                throw new UiErrors.ValidationException(R.string.video_numeric_limits);
             return new VideoExportOptions(Integer.parseInt(width.getText().toString().trim()),
                     Integer.parseInt(height.getText().toString().trim()), fps.getSelectedItemPosition() == 0 ? 30 : 60,
                     (int) Math.round(mbps * 1_000_000), Math.round(startSeconds * 1000), Math.round(endSeconds * 1000),
                     music.isChecked(), hits.isChecked(), musicVolume.getProgress() / 100f,
                     hitVolume.getProgress() / 100f, shaders.isChecked(), hud.isChecked());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(activity.getString(R.string.video_enter_numbers));
+            throw new UiErrors.ValidationException(R.string.video_enter_numbers);
         }
     }
     private static double decimal(EditText field) {
@@ -128,11 +142,11 @@ final class VideoExportDialog {
     private void updateEstimate() {
         try {
             VideoExportOptions options = options();
-            estimate.setText(activity.getString(R.string.video_estimate,
+            UiText.text(estimate, () -> activity.getString(R.string.video_estimate,
                     options.frameCount(), (options.endMs - options.startMs) / 1000.0,
                     options.estimatedBytes() / (1024.0 * 1024)));
-            error.setText("");
-        } catch (IllegalArgumentException ignored) { estimate.setText(R.string.video_estimate_pending); }
+            UiText.text(error, () -> "");
+        } catch (IllegalArgumentException ignored) { UiText.text(estimate, R.string.video_estimate_pending); }
     }
     private void persist(VideoExportOptions options) {
         preferences.edit().putInt("width", options.width).putInt("height", options.height)
@@ -150,11 +164,11 @@ final class VideoExportDialog {
     }
     private LinearLayout cell(LinearLayout parent) { return column(parent); }
     private TextView text(LinearLayout parent, int resource) {
-        TextView text = new TextView(activity); if (resource != 0) text.setText(resource);
+        TextView text = new TextView(activity); if (resource != 0) UiText.text(text, resource);
         text.setPadding(0, activity.dp(8), 0, activity.dp(4)); parent.addView(text); return text;
     }
     private EditText field(LinearLayout parent, int resource, String value) {
-        EditText field = activity.mainMenuUi.addField(parent, activity.getString(resource), value, true);
+        EditText field = activity.mainMenuUi.addField(parent, resource, value, true);
         field.setKeyListener(DigitsKeyListener.getInstance("0123456789.,-"));
         field.setRawInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         return field;
@@ -167,13 +181,13 @@ final class VideoExportDialog {
         spinner.setAdapter(adapter); parent.addView(spinner, new LinearLayout.LayoutParams(-1, -2)); return spinner;
     }
     private CheckBox check(LinearLayout parent, int resource, boolean checked) {
-        CheckBox check = new CheckBox(activity); check.setText(resource); check.setChecked(checked);
+        CheckBox check = new CheckBox(activity); UiText.text(check, resource); check.setChecked(checked);
         parent.addView(check); return check;
     }
     private SeekBar volume(LinearLayout parent, int resource, int value) {
         TextView label = text(parent, 0);
         SeekBar bar = new SeekBar(activity); bar.setMax(100); bar.setProgress(Math.max(0, Math.min(100, value)));
-        label.setText(activity.getString(resource, bar.getProgress()));
+        UiText.text(label, () -> activity.getString(resource, bar.getProgress()));
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar seekBar) { }
             public void onStopTrackingTouch(SeekBar seekBar) { }

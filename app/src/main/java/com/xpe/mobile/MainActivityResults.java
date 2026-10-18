@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.content.Intent;
 import android.net.Uri;
 import com.xpe.mobile.io.ChartIo;
@@ -47,7 +50,7 @@ final class MainActivityResults {
                                 delegateOwner.projectLibrary.clearCurrentProject();
                             } catch (IOException exception) {
                                 delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error,
-                                        MainActivity.safeMessage(exception)));
+                                        UiErrors.describe(delegateOwner, exception)));
                                 return;
                             }
                             delegateOwner.currentPackage = null;
@@ -61,10 +64,10 @@ final class MainActivityResults {
                             delegateOwner.editorView.setProjectName(displayName);
                             delegateOwner.showMessage(delegateOwner.getString(R.string.chart_imported));
                         }, exception -> delegateOwner.showMessage(delegateOwner.getString(
-                                R.string.file_error, MainActivity.safeMessage(exception))));
+                                R.string.file_error, UiErrors.describe(delegateOwner, exception))));
             } else if (requestCode == MainActivity.SAVE_CHART) {
                 ChartIo.writeChart(delegateOwner.getContentResolver(), uri, delegateOwner.editorView.getChart());
-                delegateOwner.showMessage("Chart exported");
+                delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_chart_exported));
             } else if (requestCode == MainActivity.OPEN_AUDIO) {
                 delegateOwner.takeReadPermission(uri, data);
                 delegateOwner.mainPreviewResources.loadAudio(uri, true);
@@ -91,7 +94,7 @@ final class MainActivityResults {
                             && ((PackageException) exception).getRetainedWorkspace() != null
                             ? R.string.package_import_failed_retained
                             : R.string.package_import_failed;
-                    delegateOwner.showMessage(delegateOwner.getString(message, MainActivity.safeMessage(exception)));
+                    delegateOwner.showMessage(delegateOwner.getString(message, UiErrors.describe(delegateOwner, exception)));
                 });
             } else if (requestCode == MainActivity.SAVE_PACKAGE) {
                 if (delegateOwner.currentPackage == null) {
@@ -111,17 +114,17 @@ final class MainActivityResults {
             if (requestCode == MainActivity.OPEN_PACKAGE) {
                 int message = exception.getRetainedWorkspace() == null
                         ? R.string.package_import_failed : R.string.package_import_failed_retained;
-                delegateOwner.showMessage(delegateOwner.getString(message, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(message, UiErrors.describe(delegateOwner, exception)));
             } else {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, UiErrors.describe(delegateOwner, exception)));
             }
         } catch (Exception exception) {
             if (requestCode == MainActivity.OPEN_PACKAGE) {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_import_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_import_failed, UiErrors.describe(delegateOwner, exception)));
             } else if (requestCode == MainActivity.SAVE_PACKAGE) {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, UiErrors.describe(delegateOwner, exception)));
             } else {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.file_error, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.file_error, UiErrors.describe(delegateOwner, exception)));
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -36,7 +38,7 @@ final class BatchEditDialogs {
         }
         ScrollView scroll = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scroll);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.batch_help));
+        delegateOwner.addHint(content, R.string.batch_help);
 
         List<String> targetEntries = new ArrayList<>();
         List<Boolean> noteTargets = new ArrayList<>();
@@ -48,18 +50,23 @@ final class BatchEditDialogs {
             targetEntries.add(delegateOwner.getString(R.string.batch_target_events, events.size()));
             noteTargets.add(false);
         }
-        Spinner target = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_target),
-                targetEntries, 0);
-        Spinner eventType = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_event_type),
-                delegateOwner.eventTypeLabels(), 0);
-        Spinner field = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_data_type),
+        Spinner target = delegateOwner.addStringSpinner(content, R.string.batch_target,
+                () -> {
+                    List<String> labels = new ArrayList<>();
+                    if (!notes.isEmpty()) labels.add(delegateOwner.getString(R.string.batch_target_notes, notes.size()));
+                    if (!events.isEmpty()) labels.add(delegateOwner.getString(R.string.batch_target_events, events.size()));
+                    return labels;
+                }, 0);
+        Spinner eventType = delegateOwner.addStringSpinner(content, R.string.batch_event_type,
+                delegateOwner::eventTypeLabels, 0);
+        Spinner field = delegateOwner.addStringSpinner(content, R.string.batch_data_type,
                 delegateOwner.resourceEntries(R.array.batch_note_fields), 0);
-        EditText lower = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_lower_bound), "0", true);
-        EditText upper = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_upper_bound), "0", true);
-        EditText easing = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_easing), "1", true);
-        EditText sequence = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_periodic_sequence),
+        EditText lower = delegateOwner.addField(content, R.string.batch_lower_bound, "0", true);
+        EditText upper = delegateOwner.addField(content, R.string.batch_upper_bound, "0", true);
+        EditText easing = delegateOwner.addField(content, R.string.batch_easing, "1", true);
+        EditText sequence = delegateOwner.addField(content, R.string.batch_periodic_sequence,
                 "1", false);
-        EditText disturbance = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_disturbance),
+        EditText disturbance = delegateOwner.addField(content, R.string.batch_disturbance,
                 "0", true);
         Spinner mode = delegateOwner.addSpinner(content, R.string.batch_edit_mode,
                 R.array.batch_edit_modes, 0);
@@ -67,12 +74,8 @@ final class BatchEditDialogs {
         Runnable updateTarget = () -> {
             boolean noteMode = noteTargets.get(target.getSelectedItemPosition());
             eventType.setEnabled(!noteMode);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(delegateOwner,
-                    android.R.layout.simple_spinner_item,
-                    delegateOwner.resourceEntries(noteMode ? R.array.batch_note_fields
-                            : R.array.batch_event_fields));
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            field.setAdapter(adapter);
+            UiText.entries(field, () -> delegateOwner.resourceEntries(
+                    noteTargets.get(target.getSelectedItemPosition()) ? R.array.batch_note_fields : R.array.batch_event_fields));
         };
         EditorOperationDialogSection.setSpinnerChangeListener(target, updateTarget);
         updateTarget.run();
@@ -143,26 +146,26 @@ final class BatchEditDialogs {
         LinearLayout content = delegateOwner.createDialogContent(scroll);
         delegateOwner.addHint(content, delegateOwner.getResources().getQuantityString(R.plurals.event_clone_help,
                 events.size(), events.size(), delegateOwner.editorView.getEventLayerIndex()));
-        EditText lines = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_line_sequence),
+        EditText lines = delegateOwner.addField(content, R.string.event_clone_line_sequence,
                 Integer.toString(delegateOwner.editorView.getLineIndex()), false);
         EditText timeIncrement = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_time_increment), "0:0/1", false);
-        EditText xUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_x_uled),
+                R.string.event_clone_time_increment, "0:0/1", false);
+        EditText xUled = delegateOwner.addField(content, R.string.event_clone_x_uled,
                 "0 0 1 0", false);
-        EditText xSequence = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_x_sequence),
+        EditText xSequence = delegateOwner.addField(content, R.string.event_clone_x_sequence,
                 "1", false);
-        EditText yUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_y_uled),
+        EditText yUled = delegateOwner.addField(content, R.string.event_clone_y_uled,
                 "0 0 1 0", false);
-        EditText ySequence = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_y_sequence),
+        EditText ySequence = delegateOwner.addField(content, R.string.event_clone_y_sequence,
                 "1", false);
-        EditText rotateUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_rotate_uled),
+        EditText rotateUled = delegateOwner.addField(content, R.string.event_clone_rotate_uled,
                 "0 0 1 0", false);
         EditText rotateSequence = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_rotate_sequence), "1", false);
-        EditText alphaUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_alpha_uled),
+                R.string.event_clone_rotate_sequence, "1", false);
+        EditText alphaUled = delegateOwner.addField(content, R.string.event_clone_alpha_uled,
                 "0 0 1 0", false);
         EditText alphaSequence = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_alpha_sequence), "1", false);
+                R.string.event_clone_alpha_sequence, "1", false);
         CheckBox keepSource = delegateOwner.addCheckBox(content, R.string.event_clone_keep_source, false);
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())

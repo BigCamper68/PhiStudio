@@ -1,5 +1,7 @@
 package com.xpe.mobile.editor;
 
+import com.xpe.mobile.i18n.ModelLabels;
+
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -159,7 +161,7 @@ final class EditorTimelinePainter {
         for (int index = 0; index < types.length; index++) {
             delegateOwner.paint.setColor(types[index] == delegateOwner.selectedEventType && delegateOwner.tool == Tool.EVENT
                     ? EditorSurfaceView.ACCENT : Color.LTGRAY);
-            canvas.drawText(types[index].label, left + (index + .5f) * width,
+            canvas.drawText(ModelLabels.event(delegateOwner.getContext(), types[index]), left + (index + .5f) * width,
                     top + 17f * delegateOwner.density, delegateOwner.paint);
         }
         delegateOwner.paint.setTextAlign(Paint.Align.LEFT);

@@ -1,5 +1,8 @@
 package com.xpe.mobile.project;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.app.Activity;
 import android.app.Dialog;
 import android.graphics.Color;
@@ -66,6 +69,11 @@ public final class ProjectBrowserDialog {
         }
     }
 
+    public void relocalizeUi() {
+        if (activeDialog != null && activeDialog.isShowing())
+            UiText.relocalize(activeDialog.getWindow().getDecorView());
+    }
+
     public void show(ProjectLibrary.Discovery discovery, boolean startup, Callback callback) {
         if (activeDialog != null) activeDialog.dismiss();
         LinearLayout root = new LinearLayout(activity);
@@ -80,7 +88,7 @@ public final class ProjectBrowserDialog {
         root.addView(header, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(68)));
 
-        TextView title = text(activity.getString(R.string.project_library_title), 24f, Color.WHITE);
+        TextView title = text(R.string.project_library_title, 24f, Color.WHITE);
         title.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(title, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -112,7 +120,7 @@ public final class ProjectBrowserDialog {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         if (discovery.getState().getProjects().isEmpty()) {
-            TextView empty = text(activity.getString(R.string.project_library_empty), 16f, Color.LTGRAY);
+            TextView empty = text(R.string.project_library_empty, 16f, Color.LTGRAY);
             empty.setPadding(dp(6), dp(18), dp(6), dp(18));
             content.addView(empty);
         } else {
@@ -131,7 +139,7 @@ public final class ProjectBrowserDialog {
         }
 
         if (!discovery.getIssues().isEmpty()) {
-            TextView issueTitle = text(activity.getString(R.string.project_recovery_title), 20f, Color.WHITE);
+            TextView issueTitle = text(R.string.project_recovery_title, 20f, Color.WHITE);
             issueTitle.setPadding(dp(4), dp(18), dp(4), dp(8));
             content.addView(issueTitle);
             for (ProjectLibrary.WorkspaceIssue issue : discovery.getIssues()) {
@@ -189,9 +197,8 @@ public final class ProjectBrowserDialog {
         TextView source = text(project.getSourceDisplayName(), 12f, Color.LTGRAY);
         source.setMaxLines(1);
         card.addView(source);
-        String details = activity.getString(R.string.project_library_card_details,
-                mediaSummary(project), formatLastOpened(project.getLastOpenedAtMillis()));
-        TextView detailView = text(details, 12f, Color.LTGRAY);
+        TextView detailView = text(() -> activity.getString(R.string.project_library_card_details,
+                mediaSummary(project), formatLastOpened(project.getLastOpenedAtMillis())), 12f, Color.LTGRAY);
         detailView.setPadding(0, dp(3), 0, dp(7));
         card.addView(detailView);
 
@@ -227,10 +234,10 @@ public final class ProjectBrowserDialog {
         params.setMargins(dp(4), dp(4), dp(4), dp(4));
         row.setLayoutParams(params);
         String status = issueStatus(issue.getStatus());
-        TextView title = text(activity.getString(R.string.project_recovery_row,
-                issue.getDisplayName(), status), 16f, Color.WHITE);
+        TextView title = text(() -> activity.getString(R.string.project_recovery_row,
+                issue.getDisplayName(), issueStatus(issue.getStatus())), 16f, Color.WHITE);
         row.addView(title);
-        TextView message = text(issue.getMessage(), 12f, Color.LTGRAY);
+        TextView message = text(() -> UiErrors.workspace(activity, issue), 12f, Color.LTGRAY);
         message.setPadding(0, dp(3), 0, dp(7));
         row.addView(message);
         Button action = button(issue.getStatus() == ProjectLibrary.WorkspaceStatus.RECOVERABLE
@@ -278,7 +285,7 @@ public final class ProjectBrowserDialog {
 
     private Button button(int textResource) {
         Button button = new Button(activity);
-        button.setText(textResource);
+        UiText.text(button, textResource);
         button.setAllCaps(false);
         button.setMinHeight(dp(44));
         button.setMinimumHeight(dp(44));
@@ -294,6 +301,16 @@ public final class ProjectBrowserDialog {
         return button;
     }
 
+    private TextView text(int resource, float size, int color) {
+        TextView text = text("", size, color);
+        UiText.text(text, resource);
+        return text;
+    }
+    private TextView text(java.util.function.Supplier<String> source, float size, int color) {
+        TextView text = text("", size, color);
+        UiText.text(text, source);
+        return text;
+    }
     private TextView text(String value, float size, int color) {
         TextView text = new TextView(activity);
         text.setText(value);
@@ -313,7 +330,8 @@ public final class ProjectBrowserDialog {
 
     private String formatLastOpened(long millis) {
         if (millis <= 0L) return activity.getString(R.string.project_never_opened);
-        return DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+        return DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT,
+                activity.getResources().getConfiguration().getLocales().get(0))
                 .format(new Date(millis));
     }
 

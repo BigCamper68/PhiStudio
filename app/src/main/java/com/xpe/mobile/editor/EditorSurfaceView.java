@@ -1,5 +1,7 @@
 package com.xpe.mobile.editor;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -104,10 +106,11 @@ abstract class EditorSurfaceView extends View {
     protected final Path eventCurvePath = new Path();
     protected final NoteTextureSet noteTextures;
     protected final PreviewRenderer previewRenderer;
-    protected final String[] easingEntries;
+    protected String[] easingEntries;
 
     protected ChartDocument chart;
     protected String projectName = "";
+    protected int projectNameResource;
     protected Tool tool = Tool.SELECT;
     protected int lineIndex;
     protected int eventLayerIndex;
@@ -176,14 +179,23 @@ abstract class EditorSurfaceView extends View {
     protected BeatTime holdCandidateStart;
     protected BeatTime holdCandidateEnd;
 
+    @Override public android.content.res.Resources getResources() {
+        return UiText.resources(getContext());
+    }
+
+    public void relocalizeUi() {
+        easingEntries = UiText.resources(getContext()).getStringArray(R.array.event_easing_entries);
+        invalidate();
+    }
+
     protected EditorSurfaceView(Context context) {
         super(context);
         density = getResources().getDisplayMetrics().density;
         pixelsPerBeat = 96f * density;
         noteTextures = new NoteTextureSet(getResources());
         previewRenderer = new PreviewRenderer(noteTextures, density,
-                getResources().getString(R.string.preview_hud_autoplay), context.getAssets());
-        easingEntries = getResources().getStringArray(R.array.event_easing_entries);
+                "AUTOPLAY", context.getAssets());
+        easingEntries = UiText.resources(getContext()).getStringArray(R.array.event_easing_entries);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(2f * density);
     }

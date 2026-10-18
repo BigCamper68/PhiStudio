@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.LanguageController;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -59,6 +61,9 @@ final class MainScreenSetup {
         delegateOwner.audioController.applySettings(delegateOwner.editorSettings);
         delegateOwner.editorDialogs = new EditorDialogController(delegateOwner, delegateOwner.editorView,
                 new EditorDialogController.Host() {
+                    @Override public LanguageController languageController() {
+                        return delegateOwner.languageController;
+                    }
                     @Override public WorkbenchView workbench() { return delegateOwner.workbench; }
                     @Override
                     public EditorSettings editorSettings() {

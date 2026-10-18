@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+
 import android.app.AlertDialog;
 import android.view.Gravity;
 import android.widget.Button;
@@ -79,9 +82,9 @@ final class JudgeLineDialogs {
                 row.setAllCaps(false);
                 row.setGravity(Gravity.CENTER);
                 row.setAlpha(active ? 1.0f : 0.78f);
-                row.setText(delegateOwner.getString(R.string.line_manager_row, index, line.name,
-                        active ? delegateOwner.getString(R.string.line_manager_active_suffix) : ""));
                 int nextIndex = index;
+                UiText.text(row, () -> delegateOwner.getString(R.string.line_manager_row, nextIndex, line.name,
+                        active ? delegateOwner.getString(R.string.line_manager_active_suffix) : ""));
                 row.setOnClickListener(view -> {
                     selectedIndex[0] = nextIndex;
                     delegateOwner.editorView.selectLine(nextIndex);
@@ -92,11 +95,11 @@ final class JudgeLineDialogs {
                         delegateOwner.dp(48)));
             }
             JudgeLine selected = chart.judgeLines.get(selectedIndex[0]);
-            selectedTitle.setText(delegateOwner.getString(R.string.line_manager_row, selectedIndex[0],
+            UiText.text(selectedTitle, () -> delegateOwner.getString(R.string.line_manager_row, selectedIndex[0],
                     selected.name, delegateOwner.getString(R.string.line_manager_active_suffix)));
-            summary.setText(delegateOwner.getString(R.string.line_manager_summary,
+            UiText.text(summary, () -> delegateOwner.getString(R.string.line_manager_summary,
                     selected.notes.size(), selected.countEvents()));
-            propertiesSummary.setText(delegateOwner.getString(R.string.line_manager_details,
+            UiText.text(propertiesSummary, () -> delegateOwner.getString(R.string.line_manager_details,
                     selected.texture, selected.group, EditorDialogController.formatNumber(selected.bpmFactor),
                     selected.zOrder, delegateOwner.getString(selected.cover
                             ? R.string.line_manager_cover_on : R.string.line_manager_cover_off)));
@@ -118,7 +121,7 @@ final class JudgeLineDialogs {
             JudgeLine target = chart.judgeLines.get(selectedIndex[0]);
             delegateOwner.judgeLineDialogs.showLineProperties(target, refresh[0]);
         });
-        delete.setOnClickListener(view -> new AlertDialog.Builder(delegateOwner)
+        delete.setOnClickListener(view -> new UiDialogs.Builder(delegateOwner)
                 .setTitle(R.string.line_delete_title)
                 .setMessage(delegateOwner.getString(R.string.line_delete_message, selectedIndex[0],
                         chart.judgeLines.get(selectedIndex[0]).name))
@@ -141,16 +144,16 @@ final class JudgeLineDialogs {
     void showLineProperties(JudgeLine line, Runnable afterSave) {
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
-        EditText name = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_name), line.name, false);
-        EditText texture = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_texture), line.texture, false);
-        EditText group = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_group), Integer.toString(line.group), true);
-        EditText bpmFactor = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_bpm_factor), EditorDialogController.formatNumber(line.bpmFactor), true);
-        EditText zOrder = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_z_order), Integer.toString(line.zOrder), true);
+        EditText name = delegateOwner.addField(content, R.string.field_line_name, line.name, false);
+        EditText texture = delegateOwner.addField(content, R.string.field_line_texture, line.texture, false);
+        EditText group = delegateOwner.addField(content, R.string.field_line_group, Integer.toString(line.group), true);
+        EditText bpmFactor = delegateOwner.addField(content, R.string.field_line_bpm_factor, EditorDialogController.formatNumber(line.bpmFactor), true);
+        EditText zOrder = delegateOwner.addField(content, R.string.field_line_z_order, Integer.toString(line.zOrder), true);
         CheckBox cover = delegateOwner.addCheckBox(content, R.string.field_line_cover, line.cover);
         Spinner attachedUi = delegateOwner.addSpinner(content, R.string.field_line_hud,
                 R.array.line_hud_elements, line.attachUi == null ? 0 : line.attachUi.ordinal() + 1);
         TextView hudHelp = new TextView(delegateOwner);
-        hudHelp.setText(R.string.field_line_hud_help);
+        UiText.text(hudHelp, R.string.field_line_hud_help);
         content.addView(hudHelp);
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())

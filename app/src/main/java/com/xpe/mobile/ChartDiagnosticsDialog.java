@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -34,7 +36,7 @@ final class ChartDiagnosticsDialog {
         root.setPadding(pad, pad, pad, pad);
 
         TextView summary = new TextView(delegateOwner);
-        summary.setText(delegateOwner.getString(R.string.diagnostics_summary, report.errorCount,
+        UiText.text(summary, () -> delegateOwner.getString(R.string.diagnostics_summary, report.errorCount,
                 report.warningCount, report.cautionCount, report.items.size(),
                 report.totalCount));
         summary.setTextSize(14f);
@@ -48,7 +50,14 @@ final class ChartDiagnosticsDialog {
         }
         ListView list = new ListView(delegateOwner);
         list.setNestedScrollingEnabled(true);
-        list.setAdapter(new ArrayAdapter<>(delegateOwner, android.R.layout.simple_list_item_1, labels));
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(delegateOwner, android.R.layout.simple_list_item_1, labels);
+        list.setAdapter(adapter);
+        UiText.onRelocalize(list, () -> {
+            adapter.setNotifyOnChange(false); adapter.clear();
+            for (ChartDiagnostic diagnostic : diagnostics)
+                adapter.add(delegateOwner.chartDiagnosticsDialog.diagnosticLabel(diagnostic));
+            adapter.notifyDataSetChanged();
+        });
         root.addView(list, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(240)));
 

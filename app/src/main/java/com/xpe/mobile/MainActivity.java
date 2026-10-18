@@ -1,5 +1,9 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.LanguageController;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -27,7 +31,44 @@ import com.xpe.mobile.shadereditor.ShaderDocument;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public final class MainActivity extends Activity implements EditorView.Callback {
+public final class MainActivity extends Activity implements EditorView.Callback, UiText.ResourceOwner,
+        UiDialogs.Owner {
+    LanguageController languageController;
+    private final java.util.List<java.lang.ref.WeakReference<android.app.AlertDialog>> localizedDialogs = new java.util.ArrayList<>();
+
+    @Override public void registerLocalizedDialog(android.app.AlertDialog dialog) {
+        localizedDialogs.removeIf(reference -> reference.get() == null);
+        localizedDialogs.add(new java.lang.ref.WeakReference<>(dialog));
+    }
+
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(base);
+        languageController = new LanguageController(base);
+        languageController.setLanguageChanged(this::relocalizeUi);
+    }
+
+    @Override public android.content.res.Resources getResources() {
+        return languageController == null ? super.getResources() : languageController.resources();
+    }
+
+    @Override public android.content.res.Resources uiResources() { return getResources(); }
+
+    @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        languageController.onConfigurationChanged();
+    }
+
+    void relocalizeUi() {
+        if (workbench != null) workbench.relocalizeUi();
+        if (projectBrowser != null) projectBrowser.relocalizeUi();
+        mainVideoExport.relocalizeUi();
+        for (java.lang.ref.WeakReference<android.app.AlertDialog> reference : localizedDialogs) {
+            android.app.AlertDialog dialog = reference.get();
+            if (dialog != null && dialog.isShowing())
+                UiText.relocalize(dialog.getWindow().getDecorView());
+        }
+        setTitle(getText(R.string.app_name));
+    }
     private final MainActivityResults mainActivityResults = new MainActivityResults(this);
     final MainFileActions mainFileActions = new MainFileActions(this);
     final MainVideoExport mainVideoExport = new MainVideoExport(this);

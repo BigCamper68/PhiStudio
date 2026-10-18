@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
@@ -57,14 +59,14 @@ final class BpmListDialog {
         selectionTitle.setPadding(0, 0, 0, delegateOwner.dp(6));
         form.addView(selectionTitle);
         TextView baseHint = new TextView(delegateOwner);
-        baseHint.setText(R.string.bpm_list_base_hint);
+        UiText.text(baseHint, R.string.bpm_list_base_hint);
         baseHint.setTextSize(13f);
         baseHint.setPadding(0, 0, 0, delegateOwner.dp(6));
         form.addView(baseHint);
 
-        EditText startTime = delegateOwner.addField(form, delegateOwner.getString(R.string.field_bpm_start),
+        EditText startTime = delegateOwner.addField(form, R.string.field_bpm_start,
                 chart.bpmChanges.get(0).startTime.toString(), false);
-        EditText bpmValue = delegateOwner.addField(form, delegateOwner.getString(R.string.field_bpm_value),
+        EditText bpmValue = delegateOwner.addField(form, R.string.field_bpm_value,
                 EditorDialogController.formatNumber(chart.bpmChanges.get(0).bpm), true);
         bpmValue.setEnabled(true);
 
@@ -109,7 +111,7 @@ final class BpmListDialog {
             }
 
             if (creating[0]) {
-                selectionTitle.setText(R.string.bpm_list_new_title);
+                UiText.text(selectionTitle, R.string.bpm_list_new_title);
                 startTime.setEnabled(true);
                 bpmValue.setEnabled(true);
                 deleteButton.setEnabled(false);
@@ -120,7 +122,8 @@ final class BpmListDialog {
                     index = 0;
                 }
                 BpmChange change = selected[0];
-                selectionTitle.setText(delegateOwner.getString(R.string.bpm_list_edit_title, index + 1));
+                UiText.text(selectionTitle, () -> delegateOwner.getString(
+                        R.string.bpm_list_edit_title, chart.bpmChanges.indexOf(selected[0]) + 1));
                 startTime.setText(change.startTime.toString());
                 bpmValue.setText(EditorDialogController.formatNumber(change.bpm));
                 startTime.setEnabled(index != 0);

@@ -52,12 +52,14 @@ final class EditorToolbarUi {
             delegateOwner.paint.setColor(Color.WHITE);
             delegateOwner.paint.setTextSize(12f * delegateOwner.density);
             String chartTitle = delegateOwner.chart.name == null || delegateOwner.chart.name.trim().isEmpty()
-                    ? "Untitled" : delegateOwner.chart.name.trim();
+                    ? delegateOwner.getResources().getString(R.string.chart_untitled) : delegateOwner.chart.name.trim();
             String lineMarker = delegateOwner.settings.markLineId
                     ? " · L" + delegateOwner.lineIndex + "/" + (delegateOwner.chart.judgeLines.size() - 1) : "";
-            String title = delegateOwner.projectName.isEmpty() || delegateOwner.projectName.equals(chartTitle)
+            String projectName = delegateOwner.projectNameResource == 0 ? delegateOwner.projectName
+                    : delegateOwner.getResources().getString(delegateOwner.projectNameResource);
+            String title = projectName.isEmpty() || projectName.equals(chartTitle)
                     ? chartTitle + lineMarker
-                    : delegateOwner.projectName + " · " + chartTitle + lineMarker;
+                    : projectName + " · " + chartTitle + lineMarker;
             canvas.drawText(delegateOwner.ellipsize(title, titleRight - titleLeft), titleLeft,
                     20f * delegateOwner.density, delegateOwner.paint);
 
@@ -65,9 +67,9 @@ final class EditorToolbarUi {
             delegateOwner.paint.setTextSize(10f * delegateOwner.density);
             long effectiveOffset = (long) delegateOwner.chart.offsetMs + delegateOwner.packageOffsetMs;
             String offsetText = delegateOwner.packageOffsetMs == 0L
-                    ? "offset " + delegateOwner.chart.offsetMs + " ms"
-                    : "offset " + delegateOwner.chart.offsetMs + " + package " + delegateOwner.packageOffsetMs
-                    + " = " + effectiveOffset + " ms";
+                    ? delegateOwner.getResources().getString(R.string.toolbar_offset, delegateOwner.chart.offsetMs)
+                    : delegateOwner.getResources().getString(R.string.toolbar_package_offset,
+                            delegateOwner.chart.offsetMs, delegateOwner.packageOffsetMs, effectiveOffset);
             String bpmLine = "BPM " + EditorChromeView.compactValue(delegateOwner.chart.bpmAt(delegateOwner.currentBeat)) + " · " + offsetText;
             canvas.drawText(delegateOwner.ellipsize(bpmLine, titleRight - titleLeft), titleLeft,
                     38f * delegateOwner.density, delegateOwner.paint);
@@ -137,8 +139,7 @@ final class EditorToolbarUi {
         String audioText = audioDuration > 0
                 ? EditorChromeView.formatMillis(audioPosition) + "/" + EditorChromeView.formatMillis(audioDuration)
                 : EditorChromeView.formatMillis(audioPosition);
-        String text = String.format(Locale.US,
-                "Beat %.3f  BPM %.2f  Audio %s  Line notes %d  Events %d  Total notes %d  Total events %d",
+        String text = delegateOwner.getResources().getString(R.string.editor_status,
                 delegateOwner.currentBeat,
                 delegateOwner.chart.bpmAt(delegateOwner.currentBeat),
                 audioText,

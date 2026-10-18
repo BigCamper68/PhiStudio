@@ -1,5 +1,7 @@
 package com.xpe.mobile.editor;
 
+import com.xpe.mobile.i18n.ModelLabels;
+
 import android.graphics.Canvas;
 import android.graphics.Color;
 import com.xpe.mobile.R;
@@ -299,7 +301,7 @@ final class EditorBottomBarUi {
         }
         if (delegateOwner.selectedEvent != null) {
             return delegateOwner.getResources().getString(R.string.controls_event_summary,
-                    delegateOwner.selectedEvent.type.label, delegateOwner.selectedEvent.startTime.toString(),
+                    ModelLabels.event(delegateOwner.getContext(), delegateOwner.selectedEvent.type), delegateOwner.selectedEvent.startTime.toString(),
                     delegateOwner.selectedEvent.endTime.toString(), EditorChromeView.compactValue(delegateOwner.selectedEvent.start),
                     EditorChromeView.compactValue(delegateOwner.selectedEvent.end));
         }

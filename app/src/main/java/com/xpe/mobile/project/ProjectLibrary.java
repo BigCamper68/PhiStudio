@@ -83,20 +83,35 @@ public final class ProjectLibrary {
     }
 
     public static final class WorkspaceIssue {
+        public enum Reason { TECHNICAL_DETAIL, MISSING_WORKSPACE, UNSAFE_WORKSPACE, RECOVERABLE_WORKSPACE }
         private final WorkspaceStatus status;
         private final String projectId;
         private final String displayName;
         private final String message;
         private final boolean indexed;
+        private final Reason reason;
 
         WorkspaceIssue(WorkspaceStatus status, String projectId, String displayName,
                        String message, boolean indexed) {
+            this(status, projectId, displayName, message, indexed, Reason.TECHNICAL_DETAIL);
+        }
+
+        WorkspaceIssue(WorkspaceStatus status, String projectId, String displayName,
+                       Reason reason, boolean indexed) {
+            this(status, projectId, displayName, reason.name(), indexed, reason);
+        }
+
+        private WorkspaceIssue(WorkspaceStatus status, String projectId, String displayName,
+                       String message, boolean indexed, Reason reason) {
             this.status = status;
             this.projectId = projectId;
             this.displayName = displayName;
             this.message = message;
             this.indexed = indexed;
+            this.reason = reason;
         }
+
+        public Reason getReason() { return reason; }
 
         public WorkspaceStatus getStatus() {
             return status;

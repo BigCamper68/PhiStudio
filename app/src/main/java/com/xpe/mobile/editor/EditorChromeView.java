@@ -1,5 +1,7 @@
 package com.xpe.mobile.editor;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -91,7 +93,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         shaderView = view;
         view.setFrameListener(this::invalidate);
         view.setErrorListener(message -> {
-            if (callback != null) callback.showMessage(getResources().getString(R.string.preview_shader_error, message));
+            if (callback != null) callback.showMessage(UiText.resources(getContext()).getString(R.string.preview_shader_error, message));
         });
     }
     public void setPreviewShaders(ShaderTimeline timeline) {
@@ -151,8 +153,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     public void arrangeBeatGrid(int delta) { changeSubdivision(delta); }
     public void arrangeXGrid(int delta) { changeVerticalGrid(delta); }
     public String workbenchArrangementSummary() {
-        return "Arrange · L" + lineIndex + " · layer " + eventLayerIndex
-                + " · beat 1/" + subdivision + " · X grid " + verticalGridLines;
+        return getResources().getString(R.string.arrange_summary, lineIndex, eventLayerIndex, subdivision, verticalGridLines);
     }
     public void selectStoryboardEvent(StoryboardEventType type, ExtendedLineEvents.TimedEvent event) {
         storyboardTimeline.select(type, event);
@@ -202,7 +203,14 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
 
     public void setProjectName(String projectName) {
+        projectNameResource = 0;
         this.projectName = projectName == null ? "" : projectName.trim();
+        invalidate();
+    }
+
+    public void setProjectNameResource(int resource) {
+        projectNameResource = resource;
+        projectName = "";
         invalidate();
     }
 
@@ -263,7 +271,7 @@ abstract class EditorChromeView extends EditorDocumentView {
             if (shaderView != null) shaderView.hidePreview();
             paint.setColor(Color.WHITE);
             paint.setTextSize(18f * density);
-            canvas.drawText("No chart loaded", 24f * density, 48f * density, paint);
+            canvas.drawText(getResources().getString(R.string.editor_no_chart), 24f * density, 48f * density, paint);
             return;
         }
 
@@ -387,14 +395,14 @@ abstract class EditorChromeView extends EditorDocumentView {
             xyBindingEnabled = false;
             settings.xyBindingEnabled = false;
             if (callback != null) callback.showMessage(
-                    getResources().getString(R.string.xy_binding_disabled));
+                    UiText.resources(getContext()).getString(R.string.xy_binding_disabled));
         } else if (XYBindingValidator.isChartSynchronized(chart)) {
             xyBindingEnabled = true;
             settings.xyBindingEnabled = true;
             if (callback != null) callback.showMessage(
-                    getResources().getString(R.string.xy_binding_enabled));
+                    UiText.resources(getContext()).getString(R.string.xy_binding_enabled));
         } else if (callback != null) {
-            callback.showMessage(getResources().getString(R.string.xy_binding_enable_rejected));
+            callback.showMessage(UiText.resources(getContext()).getString(R.string.xy_binding_enable_rejected));
         }
         invalidate();
     }
@@ -430,7 +438,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         tool = Tool.SELECT;
         activateEditPanel();
         if (enable && callback != null) callback.showMessage(
-                getResources().getString(R.string.selection_box_add_armed));
+                UiText.resources(getContext()).getString(R.string.selection_box_add_armed));
         invalidate();
     }
 

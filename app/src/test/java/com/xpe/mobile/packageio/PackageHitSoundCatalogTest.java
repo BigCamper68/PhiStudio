@@ -52,7 +52,12 @@ public final class PackageHitSoundCatalogTest {
         File asset = new File(pack.getWorkspace(), "sounds/custom.wav");
         Files.delete(asset.toPath());
         File outside = temporary.newFile("outside.wav");
-        Files.createSymbolicLink(asset.toPath(), outside.toPath());
+        try {
+            Files.createSymbolicLink(asset.toPath(), outside.toPath());
+        } catch (UnsupportedOperationException | java.nio.file.FileSystemException unsupported) {
+            // Windows may require an unavailable privilege. Linux CI still executes the assertion.
+            Assume.assumeNoException("This filesystem cannot create symbolic links", unsupported);
+        }
         assertFalse(PackageHitSoundCatalog.isAvailable(pack, "sounds/custom.wav"));
     }
 

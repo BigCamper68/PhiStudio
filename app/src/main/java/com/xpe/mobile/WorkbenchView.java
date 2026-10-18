@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.content.Context;
 import android.graphics.Color;
 import android.view.Gravity;
@@ -32,6 +34,7 @@ final class WorkbenchView extends ViewGroup {
     private final Button[] tabs = new Button[4];
     private final List<EditorPanelWindow> pages = new ArrayList<>();
     private View menu;
+    private TextView panelTitle;
     private Runnable shaderOpener;
     private ShaderEditorView shaderEditor;
     private boolean shadersOpen;
@@ -71,14 +74,16 @@ final class WorkbenchView extends ViewGroup {
         addView(footer);
         addView(shaderPreview);
         LinearLayout tabRow = new LinearLayout(context);
-        String[] labels = {"Events", "Storyboard", "Shaders", "Menu"};
+        int[] labels = {R.string.workbench_events, R.string.workbench_storyboard, R.string.workbench_shaders, R.string.menu_title};
         for (int index = 0; index < tabs.length; index++) {
             int next = TAB_IDS[index];
             tabs[index] = button(context, labels[index]);
             tabs[index].setTextSize(10f);
             tabs[index].setSingleLine(true);
             tabs[index].setPadding(dp(context, 2), 0, dp(context, 2), 0);
-            tabs[index].setContentDescription(labels[index] + " workbench");
+            final Button tabButton = tabs[index];
+            UiText.description(tabButton, () -> getContext().getString(
+                    R.string.workbench_tab_description, tabButton.getText()));
             tabs[index].setOnClickListener(view -> switchTab(next));
             tabRow.addView(tabs[index], new LinearLayout.LayoutParams(0, dp(context, 36), 1f));
         }
@@ -102,6 +107,27 @@ final class WorkbenchView extends ViewGroup {
         button.setMinimumHeight(0);
         button.setPadding(dp(context, 5), 0, dp(context, 5), 0);
         return button;
+    }
+
+    static Button button(Context context, int resource) {
+        Button button = button(context, "");
+        UiText.text(button, resource);
+        return button;
+    }
+
+    void relocalizeUi() {
+        // Refresh detached navigation pages too, without reparenting any live form.
+        for (EditorPanelWindow page : pages) page.relocalizeUi();
+        if (menu != null) UiText.relocalize(menu);
+        UiText.relocalize(footer);
+        if (panelTitle != null) {
+            EditorPanelWindow page = currentPage();
+            panelTitle.setText(page == null ? getContext().getText(R.string.menu_title) : page.title);
+        }
+        UiText.relocalize(pane);
+        editor.relocalizeUi();
+        if (shaderEditor != null) shaderEditor.relocalizeUi();
+        invalidate();
     }
 
     void setShaderOpener(Runnable opener) { shaderOpener = opener; }
@@ -267,11 +293,12 @@ final class WorkbenchView extends ViewGroup {
         LinearLayout header = new LinearLayout(getContext());
         header.setGravity(Gravity.CENTER_VERTICAL);
         Button back = button(getContext(), "‹");
-        back.setContentDescription("Back to workbench");
+        UiText.description(back, R.string.workbench_back);
         back.setOnClickListener(view -> back());
         header.addView(back, new LinearLayout.LayoutParams(dp(getContext(), 36), -1));
         EditorPanelWindow page = currentPage();
         TextView title = new TextView(getContext());
+        panelTitle = title;
         title.setText(page == null ? getContext().getText(R.string.menu_title) : page.title);
         title.setTextSize(15f);
         title.setTextColor(Color.WHITE);

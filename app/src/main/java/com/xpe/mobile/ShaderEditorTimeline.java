@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.annotation.SuppressLint;
 
 import android.content.Context;
@@ -57,6 +59,11 @@ final class ShaderEditorTimeline extends View {
             right = (float) event.optDouble("easingRight", 1);
         }
     }
+    void relocalizeUi() {
+        cachedRevision = -1;
+        animationRevision = -1;
+        invalidate();
+    }
     private void prepareAnimation() {
         if (animationRevision == delegateOwner.document.revision() && animationSelection == delegateOwner.document.selected
             && java.util.Objects.equals(animationParameter, delegateOwner.parameter))
@@ -64,7 +71,7 @@ final class ShaderEditorTimeline extends View {
         animationRevision = delegateOwner.document.revision();
         animationSelection = delegateOwner.document.selected;
         animationParameter = delegateOwner.parameter;
-        animationTitle = delegateOwner.parameter + " · parameter events";
+        animationTitle = UiText.string(getContext(), R.string.shader_parameter_events, delegateOwner.parameter);
         animationBlocks.clear();
         int size = 0;
         for (ShaderDocument.Parameter param : delegateOwner.document.parameters())
@@ -101,7 +108,7 @@ final class ShaderEditorTimeline extends View {
     ShaderEditorTimeline(Context context, ShaderEditorView delegateOwner) {
         super(context);
         this.delegateOwner = delegateOwner;
-        setContentDescription("Vertical shader effects timeline");
+        UiText.description(this, R.string.shader_timeline_description);
     }
     private boolean animation() {
         if (delegateOwner.page != 2 || delegateOwner.parameter == null || delegateOwner.document.selected() == null)
@@ -282,7 +289,8 @@ final class ShaderEditorTimeline extends View {
         paint.setTextSize(delegateOwner.dp(10));
         paint.setTextAlign(Paint.Align.RIGHT);
         paint.setColor(Color.LTGRAY);
-        canvas.drawText(delegateOwner.beats ? "Beat" : "s", gutter - delegateOwner.dp(4), delegateOwner.dp(18), paint);
+        canvas.drawText(UiText.string(getContext(),
+                delegateOwner.beats ? R.string.shader_axis_beat : R.string.shader_seconds_unit), gutter - delegateOwner.dp(4), delegateOwner.dp(18), paint);
         paint.setTextAlign(Paint.Align.LEFT);
         delegateOwner.editor.drawTimelineBaseline(canvas, getWidth(), getHeight());
     }

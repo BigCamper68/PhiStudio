@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.content.Intent;
 import com.xpe.mobile.model.ChartDocument;
 import java.io.IOException;
@@ -40,7 +42,7 @@ final class MainFileActions {
             delegateOwner.mainProjectSession.saveCurrentProject();
             delegateOwner.showMessage(delegateOwner.getString(R.string.shortcut_project_saved));
         } catch (IOException exception) {
-            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, MainActivity.safeMessage(exception)));
+            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, UiErrors.describe(delegateOwner, exception)));
         }
     }
 
@@ -70,7 +72,7 @@ final class MainFileActions {
         try {
             delegateOwner.mainProjectSession.saveCurrentProject();
         } catch (IOException exception) {
-            delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, MainActivity.safeMessage(exception)));
+            delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, UiErrors.describe(delegateOwner, exception)));
             return;
         }
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);

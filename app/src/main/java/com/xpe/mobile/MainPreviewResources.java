@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.net.Uri;
 import com.xpe.mobile.editor.EditorBackgroundDecoder;
 import com.xpe.mobile.model.JudgeLine;
@@ -53,7 +55,7 @@ final class MainPreviewResources {
                     shaderError = null;
                 } catch (IOException exception) {
                     loadedShaders = ShaderTimeline.EMPTY;
-                    shaderError = MainActivity.safeMessage(exception);
+                    shaderError = UiErrors.describe(delegateOwner, exception);
                 }
                 ShaderTimeline shaders = loadedShaders;
                 String error = shaderError;
@@ -89,7 +91,7 @@ final class MainPreviewResources {
     }
 
     void loadAudio(Uri uri, boolean remember) throws IOException {
-        if (delegateOwner.audioController == null) throw new IOException("Audio controller is unavailable");
+        if (delegateOwner.audioController == null) throw new IOException(delegateOwner.getString(R.string.audio_controller_unavailable));
         delegateOwner.audioController.load(uri);
         if (remember) {
             delegateOwner.getPreferences(MainActivity.MODE_PRIVATE).edit().putString("audio_uri", uri.toString()).apply();

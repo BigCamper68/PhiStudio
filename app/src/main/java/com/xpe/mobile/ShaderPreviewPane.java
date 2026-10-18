@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.annotation.SuppressLint;
 
 import android.content.Context;
@@ -74,12 +76,12 @@ final class ShaderPreviewPane extends View {
             delegateOwner.play.setText(delegateOwner.editor.isPlaying() ? R.string.toolbar_pause : R.string.toolbar_play);
             if (delegateOwner.diagnostic != null) {
                 delegateOwner.status.setTextColor(0xffffab91);
-                delegateOwner.status.setText(delegateOwner.diagnostic);
+                delegateOwner.status.setText(delegateOwner.statusLabel());
             } else {
                 delegateOwner.status.setTextColor(Color.WHITE);
-                delegateOwner.status.setText(getResources().getString(R.string.shader_clock,
+                delegateOwner.status.setText(UiText.resources(getContext()).getString(R.string.shader_clock,
                     String.format(java.util.Locale.US, "%.3f", delegateOwner.document.axis(delegateOwner.editor.shaderEditorSeconds(), delegateOwner.beats)),
-                    getResources().getString(
+                    UiText.resources(getContext()).getString(
                         delegateOwner.beats ? R.string.shader_beats_unit : R.string.shader_seconds_unit),
                     delegateOwner.document.dirty() ? " *" : ""));
             }

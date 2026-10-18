@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
@@ -28,34 +31,34 @@ final class NewProjectDialog {
         NewProjectDraft draft = new NewProjectDraft();
         ScrollView scroll = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.mainMenuUi.createDialogContent(scroll);
-        draft.name = delegateOwner.mainMenuUi.addField(content, delegateOwner.getString(R.string.project_create_name), "", false);
-        draft.composer = delegateOwner.mainMenuUi.addField(content, delegateOwner.getString(R.string.project_create_composer), "", false);
-        draft.charter = delegateOwner.mainMenuUi.addField(content, delegateOwner.getString(R.string.project_create_charter), "", false);
-        draft.level = delegateOwner.mainMenuUi.addField(content, delegateOwner.getString(R.string.project_create_level), "", false);
-        draft.bpm = delegateOwner.mainMenuUi.addField(content, delegateOwner.getString(R.string.project_create_bpm), "120", true);
+        draft.name = delegateOwner.mainMenuUi.addField(content, R.string.project_create_name, "", false);
+        draft.composer = delegateOwner.mainMenuUi.addField(content, R.string.project_create_composer, "", false);
+        draft.charter = delegateOwner.mainMenuUi.addField(content, R.string.project_create_charter, "", false);
+        draft.level = delegateOwner.mainMenuUi.addField(content, R.string.project_create_level, "", false);
+        draft.bpm = delegateOwner.mainMenuUi.addField(content, R.string.project_create_bpm, "120", true);
 
         Button audioButton = new Button(delegateOwner);
-        audioButton.setText(R.string.project_create_audio);
+        UiText.text(audioButton, R.string.project_create_audio);
         audioButton.setAllCaps(false);
         content.addView(audioButton, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         draft.audioStatus = new TextView(delegateOwner);
-        draft.audioStatus.setText(R.string.project_create_audio_none);
+        UiText.text(draft.audioStatus, R.string.project_create_audio_none);
         draft.audioStatus.setTextSize(12f);
         draft.audioStatus.setPadding(0, 0, 0, delegateOwner.dp(8));
         content.addView(draft.audioStatus);
 
         Button illustrationButton = new Button(delegateOwner);
-        illustrationButton.setText(R.string.project_create_illustration);
+        UiText.text(illustrationButton, R.string.project_create_illustration);
         illustrationButton.setAllCaps(false);
         content.addView(illustrationButton, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         draft.illustrationStatus = new TextView(delegateOwner);
-        draft.illustrationStatus.setText(R.string.project_create_illustration_none);
+        UiText.text(draft.illustrationStatus, R.string.project_create_illustration_none);
         draft.illustrationStatus.setTextSize(12f);
         content.addView(draft.illustrationStatus);
 
-        AlertDialog dialog = new AlertDialog.Builder(delegateOwner)
+        AlertDialog dialog = new UiDialogs.Builder(delegateOwner)
                 .setTitle(R.string.project_create_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -137,9 +140,9 @@ final class NewProjectDialog {
     }
 
     InputStream openRequiredInput(Uri uri) throws IOException {
-        if (uri == null) throw new IOException("Required project asset was not selected");
+        if (uri == null) throw new IOException(delegateOwner.getString(R.string.project_asset_not_selected));
         InputStream input = delegateOwner.getContentResolver().openInputStream(uri);
-        if (input == null) throw new IOException("Unable to open selected project asset");
+        if (input == null) throw new IOException(delegateOwner.getString(R.string.project_asset_unreadable));
         return input;
     }
 
@@ -159,11 +162,11 @@ final class NewProjectDialog {
         if (audio) {
             draft.audioUri = uri;
             draft.audioExtension = extension;
-            draft.audioStatus.setText(delegateOwner.getString(R.string.project_create_selected, displayName));
+            UiText.text(draft.audioStatus, () -> delegateOwner.getString(R.string.project_create_selected, displayName));
         } else {
             draft.illustrationUri = uri;
             draft.illustrationExtension = extension;
-            draft.illustrationStatus.setText(delegateOwner.getString(
+            UiText.text(draft.illustrationStatus, () -> delegateOwner.getString(
                     R.string.project_create_selected, displayName));
         }
     }
