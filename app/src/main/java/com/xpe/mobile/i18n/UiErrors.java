@@ -6,6 +6,11 @@ import com.xpe.mobile.packageio.PackageException;
 import com.xpe.mobile.project.ProjectLibrary;
 import com.xpe.mobile.video.VideoExportOptions;
 import com.xpe.mobile.playtest.PlaytestOptions;
+import com.xpe.mobile.video.VideoExportStorage;
+import android.system.ErrnoException;
+import android.system.OsConstants;
+import java.util.Locale;
+import java.nio.file.NoSuchFileException;
 
 /** Domain codes stay Android-free; technical details remain available after a translated explanation. */
 public final class UiErrors {
@@ -54,5 +59,28 @@ public final class UiErrors {
             case TECHNICAL_DETAIL -> 0;
         };
         return resource == 0 ? issue.getMessage() : UiText.string(context, resource);
+    }
+
+    public static String video(Context context, Throwable error) {
+        boolean missingTemporary = false;
+        Throwable cause = error;
+        for (int depth = 0; cause != null && depth < 32; depth++, cause = cause.getCause()) {
+            String message = cause.getMessage() == null ? "" : cause.getMessage();
+            String lower = message.toLowerCase(Locale.ROOT);
+            boolean noSpace = cause instanceof VideoExportStorage.LowSpaceException
+                    || cause instanceof ErrnoException && (((ErrnoException) cause).errno == OsConstants.ENOSPC
+                    || ((ErrnoException) cause).errno == OsConstants.EDQUOT)
+                    || message.contains("ENOSPC") || message.contains("EDQUOT")
+                    || lower.contains("no space left on device") || lower.contains("disk quota exceeded");
+            if (noSpace) return UiText.string(context, R.string.video_storage_full);
+            boolean missing = cause instanceof NoSuchFileException
+                    || cause instanceof ErrnoException && ((ErrnoException) cause).errno == OsConstants.ENOENT
+                    || message.contains("ENOENT") || lower.contains("no such file or directory");
+            if (missing && (message.contains("phistudio-export-") || message.contains("phistudio-video-"))) {
+                missingTemporary = true;
+            }
+        }
+        if (missingTemporary) return UiText.string(context, R.string.video_temporary_missing);
+        return describe(context, error);
     }
 }

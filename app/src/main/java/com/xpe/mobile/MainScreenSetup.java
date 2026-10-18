@@ -121,6 +121,8 @@ final class MainScreenSetup {
         delegateOwner.previewExecutor = MainActivity.newSingleThreadExecutor("phistudio-preview-prepare");
         delegateOwner.scheduleAutosave();
         delegateOwner.hideSystemUi();
+        delegateOwner.mainVideoExport.restoreState(savedInstanceState);
+        delegateOwner.newProjectDialog.restoreState(savedInstanceState);
         delegateOwner.mainProjectSession.loadInitialChart();
     }
 }

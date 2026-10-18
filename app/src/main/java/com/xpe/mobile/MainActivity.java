@@ -160,6 +160,8 @@ public final class MainActivity extends Activity implements EditorView.Callback,
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         mainActivityResults.saveState(state);
+        mainVideoExport.saveState(state);
+        newProjectDialog.saveState(state);
     }
 
     @Override

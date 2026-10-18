@@ -57,13 +57,13 @@ final class MainProjectSession {
                     delegateOwner.mainHandler.post(() -> {
                         if (delegateOwner.isFinishing() || delegateOwner.isDestroyed()) return;
                         progress.dismiss();
-                        delegateOwner.showMessage(delegateOwner.getString(R.string.project_memory_error));
+                        failure.accept(new IOException(delegateOwner.getString(R.string.project_memory_error), error));
                     });
                 }
             });
         } catch (RuntimeException exception) {
             progress.dismiss();
-            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, UiErrors.describe(delegateOwner, exception)));
+            failure.accept(exception);
         }
     }
 

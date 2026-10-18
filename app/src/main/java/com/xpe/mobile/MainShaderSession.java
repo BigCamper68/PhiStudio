@@ -55,10 +55,7 @@ final class MainShaderSession {
                 delegateOwner.shaderEditor = new ShaderEditorView(delegateOwner, delegateOwner.editorView, delegateOwner.shaderDocument, new ShaderEditorView.Host() {
                     public void changed() { delegateOwner.mainShaderSession.scheduleShaderPreview(); }
                     public void importShader() {
-                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("*/*");
-                        delegateOwner.startActivityForResult(intent, MainActivity.OPEN_SHADER);
+                        requestImport();
                     }
                     public void save() { delegateOwner.requestProjectSave(); }
                 });
@@ -68,6 +65,14 @@ final class MainShaderSession {
         } catch (Exception exception) {
             delegateOwner.showMessage(delegateOwner.getString(R.string.shader_error, UiErrors.describe(delegateOwner, exception)));
         }
+    }
+
+    void requestImport() {
+        if (!delegateOwner.mainFileActions.prepareFilePicker()) return;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        delegateOwner.startActivityForResult(intent, MainActivity.OPEN_SHADER);
     }
 
     void scheduleShaderPreview() {
@@ -99,6 +104,9 @@ final class MainShaderSession {
     }
 
     void importShader(Uri uri, Intent data) {
+        if (delegateOwner.shaderDocument == null || delegateOwner.shaderPackage != delegateOwner.currentPackage) {
+            openShaderEditor();
+        }
         if (delegateOwner.shaderDocument == null || delegateOwner.shaderPackage != delegateOwner.currentPackage) return;
         final ShaderDocument document = delegateOwner.shaderDocument;
         final ChartPackage pack = delegateOwner.shaderPackage;

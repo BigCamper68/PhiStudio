@@ -49,26 +49,29 @@ final class MainActivityResults {
         initialContentLoading = false;
         ArrayList<Bundle> results = new ArrayList<>(pendingResults);
         pendingResults.clear();
+        boolean restoredDraft = delegateOwner.newProjectDialog.resumeDraft();
         for (Bundle result : results) {
-            onActivityResult(result.getInt("request"), MainActivity.RESULT_OK, result.getParcelable("data"));
+            onActivityResult(result.getInt("request"), result.getInt("result", MainActivity.RESULT_OK), result.getParcelable("data"));
         }
-        return !results.isEmpty();
+        return delegateOwner.mainVideoExport.resumePendingSave() || restoredDraft || !results.isEmpty();
     }
 
     void onActivityResult(int requestCode, int resultCode, Intent data) {
+        boolean validData = resultCode == MainActivity.RESULT_OK && data != null && data.getData() != null;
+        // Keep video cancellations too: the rendered file remains available for another save.
+        if (initialContentLoading && (validData || requestCode == MainActivity.SAVE_VIDEO)) {
+            Bundle result = new Bundle();
+            result.putInt("request", requestCode);
+            result.putInt("result", resultCode);
+            if (data != null) result.putParcelable("data", new Intent(data));
+            pendingResults.add(result);
+            return;
+        }
         if (requestCode == MainActivity.SAVE_VIDEO) {
             delegateOwner.mainVideoExport.acceptDestination(resultCode, data);
             return;
         }
-        if (resultCode != MainActivity.RESULT_OK || data == null || data.getData() == null) return;
-        // A picker result can arrive before the recreated Activity has restored its project.
-        if (initialContentLoading) {
-            Bundle result = new Bundle();
-            result.putInt("request", requestCode);
-            result.putParcelable("data", new Intent(data));
-            pendingResults.add(result);
-            return;
-        }
+        if (!validData) return;
         Uri uri = data.getData();
         if (requestCode == MainActivity.OPEN_SHADER) {
             delegateOwner.mainShaderSession.importShader(uri, data);
@@ -107,7 +110,7 @@ final class MainActivityResults {
                         }, exception -> delegateOwner.showMessage(delegateOwner.getString(
                                 R.string.file_error, UiErrors.describe(delegateOwner, exception))));
             } else if (requestCode == MainActivity.SAVE_CHART) {
-                ChartIo.writeChart(delegateOwner.getContentResolver(), uri, delegateOwner.editorView.getChart());
+                ChartIo.writeChart(delegateOwner, uri, delegateOwner.editorView.getChart());
                 delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_chart_exported));
             } else if (requestCode == MainActivity.OPEN_AUDIO) {
                 delegateOwner.takeReadPermission(uri, data);

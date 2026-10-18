@@ -18,4 +18,6 @@ final class NewProjectDraft {
     Uri illustrationUri;
     String audioExtension;
     String illustrationExtension;
+    String audioDisplayName;
+    String illustrationDisplayName;
 }

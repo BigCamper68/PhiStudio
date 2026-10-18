@@ -10,6 +10,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 public final class JudgeLineCommandTest {
+    @Test public void insertingAParentedLineKeepsTheParentIdentityAcrossUndoRedo() {
+        ChartDocument chart=new ChartDocument();
+        JudgeLine parent=new JudgeLine(); chart.judgeLines.add(parent);
+        JudgeLine inserted=new JudgeLine(); inserted.father=0; inserted.rotateWithFather=true;
+        EditHistory history=new EditHistory(10);
+        history.execute(JudgeLineCommand.add(chart,inserted,0));
+        assertEquals(1,inserted.father); assertSame(parent,chart.judgeLines.get(inserted.father));
+        history.undo(); assertEquals(0,inserted.father); assertSame(parent,chart.judgeLines.get(0));
+        history.redo(); assertEquals(1,inserted.father); assertSame(parent,chart.judgeLines.get(inserted.father));
+    }
+
     @Test
     public void lineZeroIsProtectedAndDeleteRemapsReferencesWithUndoRedo() {
         ChartDocument chart = new ChartDocument();

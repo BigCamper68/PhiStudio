@@ -18,7 +18,8 @@ public final class JudgeLineCommand {
             int father = beforeFathers[oldIndex];
             afterFathers[newIndex] = father >= safeIndex ? father + 1 : father;
         }
-        afterFathers[safeIndex] = line.father;
+        int originalFather = line.father;
+        afterFathers[safeIndex] = originalFather >= safeIndex ? originalFather + 1 : originalFather;
         return new EditHistory.Command() {
             @Override
             public void apply() {
@@ -29,6 +30,7 @@ public final class JudgeLineCommand {
             @Override
             public void revert() {
                 chart.judgeLines.remove(line);
+                line.father = originalFather;
                 applyFathers(chart.judgeLines, beforeFathers);
             }
         };

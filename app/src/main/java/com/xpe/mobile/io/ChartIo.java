@@ -3,6 +3,7 @@ package com.xpe.mobile.io;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
+import android.util.AtomicFile;
 
 import com.xpe.mobile.model.ChartDocument;
 
@@ -10,6 +11,9 @@ import org.json.JSONException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.BufferedWriter;
@@ -34,21 +38,40 @@ public final class ChartIo {
         }
     }
 
-    public static void writeChart(ContentResolver resolver, Uri uri, ChartDocument chart) throws IOException, JSONException {
-        try (OutputStream stream = resolver.openOutputStream(uri, "wt")) {
-            if (stream == null) throw new IOException("Unable to create output document");
-            writeUtf8(stream, chart);
-        }
+    public static void writeChart(Context context, Uri uri, ChartDocument chart) throws IOException, JSONException {
+        File staging = File.createTempFile("phistudio-chart-export-", ".json", context.getCacheDir());
+        try {
+            try (OutputStream stream = new FileOutputStream(staging)) { writeUtf8(stream, chart); }
+            try (InputStream input = new FileInputStream(staging);
+                 OutputStream output = context.getContentResolver().openOutputStream(uri, "wt")) {
+                if (output == null) throw new IOException("Unable to create output document");
+                byte[] buffer = new byte[32 * 1024];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            }
+        } finally { staging.delete(); }
+    }
+
+    private static AtomicFile autosave(Context context) {
+        return new AtomicFile(context.getFileStreamPath("autosave.json"));
     }
 
     public static void writeAutosave(Context context, ChartDocument chart) throws IOException, JSONException {
-        try (OutputStream stream = context.openFileOutput("autosave.json", Context.MODE_PRIVATE)) {
+        AtomicFile file = autosave(context);
+        FileOutputStream stream = null;
+        try {
+            stream = file.startWrite();
             writeUtf8(stream, chart);
+            stream.getFD().sync();
+            file.finishWrite(stream);
+            stream = null;
+        } finally {
+            if (stream != null) file.failWrite(stream);
         }
     }
 
     public static ChartDocument readAutosave(Context context) throws IOException, JSONException {
-        try (InputStream stream = context.openFileInput("autosave.json")) {
+        try (InputStream stream = autosave(context).openRead()) {
             return ChartDocument.fromJson(readUtf8(stream));
         }
     }

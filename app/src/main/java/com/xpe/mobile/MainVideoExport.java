@@ -7,6 +7,7 @@ import com.xpe.mobile.i18n.UiErrors;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -20,6 +21,7 @@ import com.xpe.mobile.preview.PreviewShaderLoader;
 import com.xpe.mobile.preview.ShaderTimeline;
 import com.xpe.mobile.video.Mp4Exporter;
 import com.xpe.mobile.video.VideoExportOptions;
+import com.xpe.mobile.video.VideoExportStorage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -41,7 +43,9 @@ final class MainVideoExport implements AutoCloseable {
     private TextView progressText;
     private File readyFile;
     private String readyName;
-    private boolean busy, closed;
+    private Uri pendingDestination;
+    private boolean busy;
+    private volatile boolean closed, preserveReadyFile;
     private VideoExportDialog settingsDialog;
 
     void relocalizeUi() {
@@ -55,9 +59,53 @@ final class MainVideoExport implements AutoCloseable {
 
     MainVideoExport(MainActivity activity) { this.activity = activity; }
 
+    void saveState(Bundle state) {
+        if (!hasReadyVideo()) return;
+        preserveReadyFile = true;
+        state.putString("video_ready_file", readyFile.getName());
+        state.putBoolean("video_ready_private", !readyFile.getParentFile().equals(activity.getCacheDir()));
+        state.putString("video_ready_name", readyName);
+        if (pendingDestination != null && (cancelled == null || !cancelled.get())) {
+            state.putString("video_save_destination", pendingDestination.toString());
+        }
+    }
+
+    void restoreState(Bundle state) {
+        if (state == null) return;
+        String name = state.getString("video_ready_file");
+        if (name == null || !name.startsWith("phistudio-video-") || !name.endsWith(".mp4")
+                || name.contains("/") || name.contains("\\")) return;
+        File directory;
+        try {
+            directory = state.getBoolean("video_ready_private")
+                    ? VideoExportStorage.directory(activity) : activity.getCacheDir();
+        } catch (IOException exception) { return; }
+        File file = new File(directory, name);
+        try {
+            if (!file.getCanonicalFile().getParentFile().equals(directory.getCanonicalFile())) return;
+        } catch (IOException exception) { return; }
+        if (!file.isFile() || file.length() == 0) return;
+        readyFile = file;
+        readyName = state.getString("video_ready_name", "PhiStudio.mp4");
+        String destination = state.getString("video_save_destination");
+        if (destination != null) pendingDestination = Uri.parse(destination);
+    }
+
+    boolean resumePendingSave() {
+        if (closed || busy || pendingDestination == null) return false;
+        Uri destination = pendingDestination;
+        pendingDestination = null;
+        acceptDestination(MainActivity.RESULT_OK, new Intent().setData(destination));
+        return true;
+    }
+
+    private boolean hasReadyVideo() {
+        return readyFile != null && readyFile.isFile() && readyFile.length() > 0;
+    }
+
     void show() {
         if (closed || busy) return;
-        if (readyFile != null && readyFile.isFile()) { showReady(); return; }
+        if (hasReadyVideo()) { showReady(); return; }
         showSettings();
     }
 
@@ -182,12 +230,16 @@ final class MainVideoExport implements AutoCloseable {
         progressDialog = new UiDialogs.Builder(activity).setTitle(R.string.menu_export_video).setView(content)
                 .setNegativeButton(R.string.action_cancel, null).create();
         progressDialog.setCanceledOnTouchOutside(false);
-        progressDialog.setOnCancelListener(dialog -> cancel());
-        progressDialog.setOnShowListener(dialog -> progressDialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-                .setOnClickListener(view -> {
-                    cancel(); UiText.text(progressText, R.string.video_cancelling);
-                    progressDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
-                }));
+        progressDialog.setOnCancelListener(dialog -> { if (progressDialog == dialog) cancel(); });
+        progressDialog.setOnShowListener(dialog -> {
+            AlertDialog shown = (AlertDialog) dialog;
+            if (closed || progressDialog != shown) return;
+            shown.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(view -> {
+                if (closed || progressDialog != shown) return;
+                cancel(); UiText.text(progressText, R.string.video_cancelling);
+                shown.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+            });
+        });
         progressDialog.show();
     }
 
@@ -203,7 +255,9 @@ final class MainVideoExport implements AutoCloseable {
     }
 
     private void requestSave() {
-        if (closed || readyFile == null) return;
+        if (closed) return;
+        if (!hasReadyVideo()) { showFailure(new IOException(activity.getString(R.string.video_ready_missing))); return; }
+        if (!activity.mainFileActions.prepareFilePicker()) return;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("video/mp4").putExtra(Intent.EXTRA_TITLE, readyName);
         try { activity.startActivityForResult(intent, MainActivity.SAVE_VIDEO); }
@@ -211,10 +265,15 @@ final class MainVideoExport implements AutoCloseable {
     }
 
     void acceptDestination(int resultCode, Intent data) {
-        if (closed || readyFile == null || busy) return;
-        if (resultCode != MainActivity.RESULT_OK || data == null || data.getData() == null) { showReady(); return; }
+        if (closed || busy) return;
+        if (!hasReadyVideo()) { showFailure(new IOException(activity.getString(R.string.video_ready_missing))); return; }
+        if (resultCode != MainActivity.RESULT_OK || data == null || data.getData() == null) {
+            pendingDestination = null; showReady(); return;
+        }
         Uri destination = data.getData();
         File source = readyFile;
+        long expectedBytes = source.length();
+        pendingDestination = destination;
         beginProgress(R.string.video_saving);
         AtomicBoolean token = cancelled;
         executor.execute(() -> {
@@ -232,10 +291,11 @@ final class MainVideoExport implements AutoCloseable {
                     output.write(buffer, 0, read); copied += read;
                     progress.update(Mp4Exporter.Stage.SAVING, copied, source.length());
                 }
+                if (copied == 0 || copied != expectedBytes) throw new IOException(activity.getString(R.string.video_incomplete_save));
                 output.flush();
             } catch (Exception exception) { failure = exception; }
             finally { workerThread = null; }
-            if (failure != null || token.get()) {
+            if ((failure != null || token.get()) && !(closed && preserveReadyFile)) {
                 try {
                     if (DocumentsContract.isDocumentUri(activity, destination))
                         DocumentsContract.deleteDocument(activity.getContentResolver(), destination);
@@ -244,7 +304,8 @@ final class MainVideoExport implements AutoCloseable {
             Exception error = failure;
             activity.mainHandler.post(() -> {
                 finishProgress();
-                if (closed) { source.delete(); return; }
+                if (closed) { if (!preserveReadyFile) source.delete(); return; }
+                pendingDestination = null;
                 if (error != null || token.get()) {
                     if (token.get()) activity.showMessage(activity.getString(R.string.video_save_cancelled));
                     else showFailure(error);
@@ -273,11 +334,19 @@ final class MainVideoExport implements AutoCloseable {
                 }).show();
     }
     private void showFailure(Exception exception) {
-        if (!closed) new UiDialogs.Builder(activity).setTitle(R.string.video_failed_title)
-                .setMessage(UiErrors.describe(activity, exception)).setPositiveButton(android.R.string.ok, null).show();
+        if (closed) return;
+        UiDialogs.Builder dialog = new UiDialogs.Builder(activity).setTitle(R.string.video_failed_title)
+                .setMessage(() -> UiErrors.video(activity, exception)).setPositiveButton(android.R.string.ok, null);
+        if (!UiErrors.video(activity, exception).equals(UiErrors.describe(activity, exception))) {
+            dialog.setNeutralButton(R.string.error_details, (ignored, which) ->
+                    new UiDialogs.Builder(activity).setTitle(R.string.error_details)
+                            .setMessage(UiErrors.describe(activity, exception))
+                            .setPositiveButton(android.R.string.ok, null).show());
+        }
+        dialog.show();
     }
     @Override public void close() {
         closed = true; cancel(); executor.shutdownNow(); finishProgress();
-        if (readyFile != null) readyFile.delete(); readyFile = null;
+        if (readyFile != null && !preserveReadyFile) readyFile.delete(); readyFile = null;
     }
 }
