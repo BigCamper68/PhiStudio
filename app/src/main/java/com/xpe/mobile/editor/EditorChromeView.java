@@ -182,6 +182,14 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
 
     public double getCurrentBeat() { return currentBeat; }
+    public org.json.JSONObject saveEditorSession() throws org.json.JSONException { return EditorSessionState.capture(this); }
+    public void restoreEditorSession(org.json.JSONObject state) throws org.json.JSONException { EditorSessionState.restore(this, state); }
+    public void pauseForBackground() {
+        if (playing && !playbackScrubbing && callback != null && callback.isAudioReady())
+            editorPlayback.setAudioPositionSeconds(callback.audioPositionSeconds());
+        stopPlayback();
+        cancelActiveGesture();
+    }
     public boolean usesRpe170Speed() { return useRpe170Speed; }
     /** Borrowed resources stay owned by the editor for the lifetime of its playtest window. */
     public Bitmap playtestBackground() { return blurredBackgroundIllustration; }

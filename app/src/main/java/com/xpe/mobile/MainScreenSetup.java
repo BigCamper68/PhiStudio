@@ -27,6 +27,7 @@ final class MainScreenSetup {
 
     void onCreate(Bundle savedInstanceState) {
         delegateOwner.mainActivityResults.restoreState(savedInstanceState);
+        delegateOwner.mainEditorSession.restoreState(savedInstanceState);
         delegateOwner.requestWindowFeature(Window.FEATURE_NO_TITLE);
         delegateOwner.getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -41,6 +42,7 @@ final class MainScreenSetup {
                 new EditorAudioController.Listener() {
                     @Override
                     public void onAudioStateChanged() {
+                        delegateOwner.mainEditorSession.audioStateChanged();
                         delegateOwner.editorView.audioStateChanged();
                     }
 

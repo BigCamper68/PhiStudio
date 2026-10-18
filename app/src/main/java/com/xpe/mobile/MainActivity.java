@@ -71,6 +71,7 @@ public final class MainActivity extends Activity implements EditorView.Callback,
         setTitle(getText(R.string.app_name));
     }
     final MainActivityResults mainActivityResults = new MainActivityResults(this);
+    final MainEditorSession mainEditorSession = new MainEditorSession(this);
     final MainFileActions mainFileActions = new MainFileActions(this);
     final MainVideoExport mainVideoExport = new MainVideoExport(this);
     private final MainScreenSetup mainScreenSetup = new MainScreenSetup(this);
@@ -160,6 +161,7 @@ public final class MainActivity extends Activity implements EditorView.Callback,
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         mainActivityResults.saveState(state);
+        mainEditorSession.saveState(state);
         mainVideoExport.saveState(state);
         newProjectDialog.saveState(state);
     }
@@ -334,21 +336,8 @@ public final class MainActivity extends Activity implements EditorView.Callback,
     protected void onPause() {
         super.onPause();
         mainPlaytest.pause();
-        pauseAudio();
-        ChartDocument chart = editorView.getChart();
-        if (chart != null && (editorView.isChartDirty() || mainShaderSession.shadersDirty())
-                && editorSettings != null && editorSettings.autosaveEnabled) {
-            try {
-                if (currentPackage != null && currentProjectId != null) {
-                    mainProjectSession.saveCurrentProject();
-                } else {
-                    ChartIo.writeAutosave(this, chart);
-                }
-                editorView.markChartSaved();
-            } catch (Exception ignored) {
-                // Explicit export remains available even if private autosave fails.
-            }
-        }
+        if (editorView != null) editorView.pauseForBackground(); else pauseAudio();
+        mainEditorSession.checkpoint();
     }
 
     @Override

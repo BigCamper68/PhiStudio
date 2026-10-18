@@ -45,6 +45,7 @@ public final class EditorAudioController implements AutoCloseable {
     private PcmAudioPlayer pcmAudioPlayer;
     private Future<?> audioDecodeTask;
     private File decodedPcmFile;
+    private PlaybackAudioCache.Entry cachedAudio;
     private Uri sourceUri;
     private EditorSettings settings = new EditorSettings();
     private HitSoundTimeline timeline = HitSoundTimeline.empty();
@@ -215,6 +216,13 @@ public final class EditorAudioController implements AutoCloseable {
         clearSource();
         sourceUri = uri;
         final int generation = ++audioLoadGeneration;
+        String cacheKey = PlaybackAudioCache.key(activity, uri);
+        cachedAudio = PlaybackAudioCache.find(activity, cacheKey);
+        if (cachedAudio != null) {
+            installAudio(generation, cachedAudio.asset);
+            return;
+        }
+        PlaybackAudioCache.discardUnused(activity);
         File output = PlaybackPcmFiles.create(activity.getNoBackupFilesDir());
         decodedPcmFile = output;
         listener.showMessage(activity.getString(R.string.audio_preparing));
@@ -225,20 +233,9 @@ public final class EditorAudioController implements AutoCloseable {
                     mainHandler.post(() -> {
                         if (!isCurrentLoad(generation)) { asset.file.delete(); return; }
                         audioDecodeTask = null;
-                        decodedPcmFile = asset.file;
-                        pcmAudioPlayer = new PcmAudioPlayer(asset, mainHandler, new PcmAudioPlayer.Listener() {
-                            public void onCompletion() {
-                                if (isCurrentLoad(generation)) listener.onAudioCompleted();
-                            }
-                            public void onError(String message) {
-                                if (!isCurrentLoad(generation)) return;
-                                listener.onAudioCompleted();
-                                listener.showMessage(activity.getString(R.string.audio_pcm_error, message));
-                            }
-                        });
-                        configurePlayerHitSounds();
-                        applySettings(settings);
-                        notifyAudioStateChanged();
+                        cachedAudio = PlaybackAudioCache.remember(activity,
+                                java.util.Objects.equals(cacheKey, PlaybackAudioCache.key(activity, uri)) ? cacheKey : null, asset);
+                        installAudio(generation, cachedAudio.asset);
                         listener.showMessage(activity.getString(R.string.audio_loaded));
                     });
                 } catch (Exception exception) {
@@ -259,6 +256,19 @@ public final class EditorAudioController implements AutoCloseable {
         }
     }
 
+    private void installAudio(int generation, PcmAudioAsset asset) {
+        decodedPcmFile = asset.file;
+        pcmAudioPlayer = new PcmAudioPlayer(asset, mainHandler, new PcmAudioPlayer.Listener() {
+            public void onCompletion() { if (isCurrentLoad(generation)) listener.onAudioCompleted(); }
+            public void onError(String message) {
+                if (!isCurrentLoad(generation)) return;
+                listener.onAudioCompleted();
+                listener.showMessage(activity.getString(R.string.audio_pcm_error, message));
+            }
+        });
+        configurePlayerHitSounds(); applySettings(settings); notifyAudioStateChanged();
+    }
+
     public void clearSource() {
         sourceUri = null;
         hitSoundStartGate.cancel();
@@ -273,9 +283,10 @@ public final class EditorAudioController implements AutoCloseable {
             pcmAudioPlayer = null;
         }
         if (decodedPcmFile != null) {
-            decodedPcmFile.delete();
+            if (cachedAudio == null || !cachedAudio.persistent) decodedPcmFile.delete();
             decodedPcmFile = null;
         }
+        PlaybackAudioCache.release(cachedAudio); cachedAudio = null;
     }
 
     public Uri sourceUri() { return sourceUri; }

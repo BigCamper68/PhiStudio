@@ -84,8 +84,10 @@ final class MainProjectSession {
                     } else {
                         delegateOwner.mainProjectSession.activateFallbackContent(content);
                     }
+                    delegateOwner.mainEditorSession.apply();
                     if (!delegateOwner.mainActivityResults.finishInitialLoad()
-                            && !restoringInstance) {
+                            && ((!restoringInstance && !delegateOwner.mainEditorSession.restoredSession())
+                                || delegateOwner.mainEditorSession.restoreProjects())) {
                         delegateOwner.mainProjectActions.showProjectLibrary(true);
                     }
                 }, exception -> {
@@ -97,6 +99,7 @@ final class MainProjectSession {
     }
 
     InitialContent readInitialContent() throws IOException {
+        delegateOwner.mainEditorSession.readPendingState();
         Exception libraryWarning = null;
         boolean memoryWarning = false;
         try {
@@ -158,9 +161,11 @@ final class MainProjectSession {
         delegateOwner.mainPreviewResources.loadEditorIllustration(chartPackage);
         delegateOwner.getPreferences(MainActivity.MODE_PRIVATE).edit().remove("audio_uri").apply();
         File packageAudio = chartPackage.getAudioFile();
-        if (packageAudio != null && packageAudio.isFile()) {
+        Uri audioSource = delegateOwner.mainEditorSession.restoredAudioSource(projectId, chartPackage.getChart());
+        if (audioSource == null && packageAudio != null && packageAudio.isFile()) audioSource = Uri.fromFile(packageAudio);
+        if (audioSource != null) {
             try {
-                delegateOwner.mainPreviewResources.loadAudio(Uri.fromFile(packageAudio), false);
+                delegateOwner.mainPreviewResources.loadAudio(audioSource, false);
             } catch (IOException exception) {
                 delegateOwner.mainPreviewResources.releaseAudio();
                 delegateOwner.editorView.audioStateChanged();

@@ -69,6 +69,8 @@ public final class ProjectBrowserDialog {
         }
     }
 
+    public boolean isShowing() { return activeDialog != null && activeDialog.isShowing(); }
+
     public void relocalizeUi() {
         if (activeDialog != null && activeDialog.isShowing())
             UiText.relocalize(activeDialog.getWindow().getDecorView());

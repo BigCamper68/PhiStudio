@@ -70,6 +70,27 @@ public final class ChartClipboard {
     private ChartClipboard() {
     }
 
+    static org.json.JSONObject toSessionJson(Snapshot snapshot) throws org.json.JSONException {
+        if (snapshot == null) return null;
+        org.json.JSONArray notes = new org.json.JSONArray(), events = new org.json.JSONArray();
+        for (Note note : snapshot.notes) notes.put(note.toJson());
+        for (LineEvent event : snapshot.events) events.put(new org.json.JSONObject()
+                .put("type", event.type.name()).put("value", event.toJson()));
+        return new org.json.JSONObject().put("notes", notes).put("events", events);
+    }
+
+    static Snapshot fromSessionJson(org.json.JSONObject state) throws org.json.JSONException {
+        if (state == null) return null;
+        List<Note> notes = new ArrayList<>(); List<LineEvent> events = new ArrayList<>();
+        org.json.JSONArray noteData = state.optJSONArray("notes"), eventData = state.optJSONArray("events");
+        if (noteData != null) for (int i = 0; i < noteData.length(); i++) notes.add(Note.fromJson(noteData.getJSONObject(i)));
+        if (eventData != null) for (int i = 0; i < eventData.length(); i++) {
+            org.json.JSONObject ref = eventData.getJSONObject(i);
+            events.add(LineEvent.fromJson(EventType.valueOf(ref.getString("type")), ref.getJSONObject("value")));
+        }
+        return copy(notes, events);
+    }
+
     public static Snapshot copy(Collection<Note> sourceNotes,
                                 Collection<LineEvent> sourceEvents) {
         List<Note> notes = new ArrayList<>();
