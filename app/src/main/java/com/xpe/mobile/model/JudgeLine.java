@@ -49,11 +49,7 @@ public final class JudgeLine {
         line.texture = object.optString("Texture", "line.png");
         line.bpmFactor = object.optDouble("bpmfactor", 1.0);
         line.father = object.optInt("father", -1);
-        Object rotateWithFather = object.opt("rotateWithFather");
-        line.rotateWithFather = rotateWithFather instanceof Boolean
-                ? (Boolean) rotateWithFather
-                : rotateWithFather instanceof Number
-                && ((Number) rotateWithFather).intValue() != 0;
+        line.rotateWithFather = rotationInheritance(object.opt("rotateWithFather"));
         line.cover = object.optInt("isCover", 1) != 0;
         line.zOrder = object.optInt("zOrder", 0);
         line.attachUi = AttachedUiElement.fromJsonValue(object.opt("attachUI"));
@@ -86,6 +82,10 @@ public final class JudgeLine {
         object.put("Texture", texture);
         object.put("bpmfactor", bpmFactor);
         object.put("father", father);
+        // Preserve untouched legacy flags; edited inheritance uses RPE's boolean format.
+        if (rotateWithFather != rotationInheritance(object.opt("rotateWithFather"))) {
+            object.put("rotateWithFather", rotateWithFather);
+        }
         object.put("isCover", cover ? 1 : 0);
         object.put("zOrder", zOrder);
         // Preserve untouched future values/spellings, but serialize edited HUD bindings.
@@ -136,6 +136,11 @@ public final class JudgeLine {
         copy.attachUi = attachUi;
         copy.raw = raw;
         return copy;
+    }
+
+    private static boolean rotationInheritance(Object value) {
+        return value instanceof Boolean ? (Boolean) value
+                : value instanceof Number && ((Number) value).intValue() != 0;
     }
 
     public EventLayer layer(int index) {

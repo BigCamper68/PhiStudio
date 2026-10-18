@@ -31,9 +31,14 @@ public final class LanguageController {
                 store.edit().putBoolean("platform_migrated", true).apply();
             }
             selection = manager.getApplicationLocales().toLanguageTags();
+            if (selection.isEmpty()) {
+                selection = "en";
+                manager.setApplicationLocales(LocaleList.forLanguageTags(selection));
+            }
         } else {
-            selection = store.getString("locale", "");
-            if (!supported(selection)) selection = "";
+            selection = store.getString("locale", "en");
+            if (!supported(selection)) selection = "en";
+            store.edit().putString("locale", selection).apply();
         }
         refreshResources();
     }
@@ -46,7 +51,7 @@ public final class LanguageController {
     public String[] names() { return resources.getStringArray(R.array.i18n_locale_names); }
 
     public void select(String tag) {
-        if (!tag.isEmpty() && !supported(tag)) throw new IllegalArgumentException("Unsupported locale: " + tag);
+        if (!supported(tag)) throw new IllegalArgumentException("Unsupported locale: " + tag);
         if (selection.equals(tag)) return;
         selection = tag;
         if (Build.VERSION.SDK_INT >= 33) base.getSystemService(LocaleManager.class)
@@ -57,8 +62,14 @@ public final class LanguageController {
     }
 
     public void onConfigurationChanged() {
-        if (Build.VERSION.SDK_INT >= 33) selection = base.getSystemService(LocaleManager.class)
-                .getApplicationLocales().toLanguageTags();
+        if (Build.VERSION.SDK_INT >= 33) {
+            LocaleManager manager = base.getSystemService(LocaleManager.class);
+            selection = manager.getApplicationLocales().toLanguageTags();
+            if (selection.isEmpty()) {
+                selection = "en";
+                manager.setApplicationLocales(LocaleList.forLanguageTags(selection));
+            }
+        }
         refreshResources();
         if (languageChanged != null) languageChanged.run();
     }
@@ -76,8 +87,7 @@ public final class LanguageController {
                 ? base.getSystemService(LocaleManager.class).getSystemLocales()
                 : Resources.getSystem().getConfiguration().getLocales();
         // Preserve Android's locale-list fallback after an explicit app choice.
-        String tags = selection.isEmpty() ? system.toLanguageTags()
-                : selection + (system.isEmpty() ? "" : "," + system.toLanguageTags());
+        String tags = selection + (system.isEmpty() ? "" : "," + system.toLanguageTags());
         config.setLocales(LocaleList.forLanguageTags(tags));
         resources = base.createConfigurationContext(config).getResources();
     }

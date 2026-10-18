@@ -48,7 +48,7 @@ public final class JudgeLineCommandTest {
     }
 
     @Test
-    public void propertyEditRoundTripsRpeFieldsAndUnknownDataWithoutParenting() throws Exception {
+    public void propertyEditRoundTripsRpeFieldsAndParentingWithUndoRedo() throws Exception {
         ChartDocument chart = ChartDocument.fromJson("{"
                 + "\"BPMList\":[{\"bpm\":120,\"startTime\":[0,0,1]}],"
                 + "\"META\":{},\"judgeLineList\":[{"
@@ -56,6 +56,7 @@ public final class JudgeLineCommandTest {
                 + "\"bpmfactor\":1,\"father\":-1,\"isCover\":1,\"zOrder\":0,"
                 + "\"futureLineData\":{\"keep\":true},\"notes\":[],\"eventLayers\":[]}]}");
         JudgeLine target = chart.judgeLines.get(0);
+        chart.judgeLines.add(new JudgeLine());
         JudgeLine edited = target.copyProperties();
         edited.name = "Foreground";
         edited.texture = "custom-line.png";
@@ -63,10 +64,11 @@ public final class JudgeLineCommandTest {
         edited.bpmFactor = 1.5;
         edited.cover = false;
         edited.zOrder = 9;
-        edited.father = 99;
+        edited.father = 1;
+        edited.rotateWithFather = true;
 
         assertEquals(JudgeLineValidator.Error.NONE,
-                JudgeLineValidator.validateProperties(edited));
+                JudgeLineValidator.validateProperties(chart, target, edited));
         EditHistory history = new EditHistory(10);
         history.execute(JudgeLineCommand.edit(target, target.copyProperties(), edited));
 
@@ -78,13 +80,20 @@ public final class JudgeLineCommandTest {
         assertEquals(1.5, line.getDouble("bpmfactor"), 0.0);
         assertEquals(0, line.getInt("isCover"));
         assertEquals(9, line.getInt("zOrder"));
-        assertEquals(-1, line.getInt("father"));
+        assertEquals(1, line.getInt("father"));
+        assertEquals(true, line.getBoolean("rotateWithFather"));
         assertEquals(true, line.getJSONObject("futureLineData").getBoolean("keep"));
 
         history.undo();
         assertEquals("Base", target.name);
+        assertEquals(-1, target.father);
+        assertEquals(false, target.rotateWithFather);
+        assertEquals(false, target.toJson().has("rotateWithFather"));
         history.redo();
         assertEquals("Foreground", target.name);
+        JudgeLine reopened = ChartDocument.fromJson(chart.toJsonString()).judgeLines.get(0);
+        assertEquals(1, reopened.father);
+        assertEquals(true, reopened.rotateWithFather);
     }
 
     @Test

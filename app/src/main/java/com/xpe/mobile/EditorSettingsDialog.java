@@ -1,6 +1,5 @@
 package com.xpe.mobile;
 
-import com.xpe.mobile.i18n.UiText;
 import com.xpe.mobile.i18n.LanguageController;
 
 import android.app.AlertDialog;
@@ -29,19 +28,14 @@ final class EditorSettingsDialog {
         if (language != null) {
             delegateOwner.addMenuSection(content, R.string.language_title);
             java.util.List<String> choices = new java.util.ArrayList<>();
-            choices.add(delegateOwner.getString(R.string.language_system));
             java.util.Collections.addAll(choices, language.names());
             String[] codes = language.codes();
             int languageIndex = 0;
-            for (int i = 0; i < codes.length; i++) if (codes[i].equals(language.selection())) languageIndex = i + 1;
+            for (int i = 0; i < codes.length; i++) if (codes[i].equals(language.selection())) languageIndex = i;
             android.widget.Spinner picker = delegateOwner.addStringSpinner(content, R.string.language_title, choices, languageIndex);
-            UiText.onRelocalize(picker, () -> {
-                choices.set(0, delegateOwner.getString(R.string.language_system));
-                ((android.widget.ArrayAdapter<?>) picker.getAdapter()).notifyDataSetChanged();
-            });
             picker.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                 @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                    language.select(position == 0 ? "" : codes[position - 1]);
+                    language.select(codes[position]);
                 }
                 @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
             });

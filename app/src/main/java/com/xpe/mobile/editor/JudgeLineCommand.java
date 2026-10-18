@@ -88,6 +88,8 @@ public final class JudgeLineCommand {
         target.name = source.name;
         target.texture = source.texture;
         target.bpmFactor = source.bpmFactor;
+        target.father = source.father;
+        target.rotateWithFather = source.rotateWithFather;
         target.cover = source.cover;
         target.zOrder = source.zOrder;
         target.attachUi = source.attachUi;

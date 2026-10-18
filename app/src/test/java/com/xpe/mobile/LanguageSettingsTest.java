@@ -52,7 +52,7 @@ public class LanguageSettingsTest {
         });
         Shadows.shadowOf(Looper.getMainLooper()).idle();
     }
-    @After public void teardown(){activity.mainPlaytest.close();activity.languageController.select("");activity.mainVideoExport.close();}
+    @After public void teardown(){activity.mainPlaytest.close();activity.languageController.select("en");activity.mainVideoExport.close();}
     private <T> List<T> views(View root,Class<T> type){
         List<T> found=new ArrayList<>();if(type.isInstance(root))found.add(type.cast(root));
         if(root instanceof ViewGroup)for(int i=0;i<((ViewGroup)root).getChildCount();i++)found.addAll(views(((ViewGroup)root).getChildAt(i),type));
@@ -185,17 +185,74 @@ public class LanguageSettingsTest {
         EditText volume=views(activity.workbench,EditText.class).get(0);volume.setText("0.321");volume.setSelection(3);
         Spinner language=views(activity.workbench,Spinner.class).get(0);
         double saved=activity.editorSettings.musicVolume;ChartDocument chart=activity.editorView.getChart();
-        language.setSelection(Arrays.asList(activity.languageController.codes()).indexOf("zh-CN")+1);
+        assertEquals(2, language.getCount());
+        language.setSelection(Arrays.asList(activity.languageController.codes()).indexOf("zh-CN"));
         Shadows.shadowOf(Looper.getMainLooper()).idle();
         assertEquals("zh-CN",activity.languageController.selection());assertEquals("0.321",volume.getText().toString());assertEquals(3,volume.getSelectionStart());
         assertEquals(saved,activity.editorSettings.musicVolume,0);assertSame(chart,activity.editorView.getChart());
         assertTrue(views(activity.workbench,TextView.class).stream().anyMatch(v->v.getText().toString().equals("应用")));
-        assertEquals("跟随系统",language.getAdapter().getItem(0).toString());
+        assertEquals("English",language.getAdapter().getItem(0).toString());
+        assertEquals("简体中文",language.getAdapter().getItem(1).toString());
         assertTrue(views(activity.workbench,CheckBox.class).stream()
                 .anyMatch(v->v.getText().toString().equals("点击谱面跳转时间")));
         assertTrue(views(activity.workbench,TextView.class).stream()
                 .anyMatch(v->v.getText().toString().startsWith("外接键盘快捷键")));
     }
+
+    @Test public void linePropertiesRetainParentDraftAcrossLanguagesAndApplyWithUndoRedo() throws Exception {
+        ChartDocument chart = activity.editorView.getChart();
+        JudgeLine child = new JudgeLine(); child.name = "Child"; chart.judgeLines.add(child);
+        JudgeLine descendant = new JudgeLine(); descendant.father = 1; chart.judgeLines.add(descendant);
+        activity.editorView.selectLine(1);
+        activity.editorDialogs.showLineManager();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        button(activity.workbench,R.string.properties_button).performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        Spinner parent = labeled(activity.workbench,R.string.field_line_parent,Spinner.class);
+        CheckBox inherit = views(activity.workbench,CheckBox.class).stream()
+                .filter(v -> v.getText().toString().equals(activity.getString(R.string.field_line_inherit_rotation)))
+                .findFirst().orElseThrow();
+        assertEquals(2,parent.getCount()); // None and line 0; self and descendants are excluded.
+        assertEquals("None",parent.getSelectedItem());
+        assertFalse(inherit.isEnabled());
+        String before = chart.toJsonString();
+        parent.setSelection(1); Shadows.shadowOf(Looper.getMainLooper()).idle();
+        assertTrue(inherit.isEnabled()); inherit.setChecked(true);
+        activity.languageController.select("zh-CN"); Shadows.shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(1,parent.getSelectedItemPosition()); assertTrue(inherit.isChecked());
+        assertEquals("继承旋转",inherit.getText().toString());
+        assertTrue(parent.getSelectedItem().toString().startsWith("判定线 0"));
+        assertEquals(before,chart.toJsonString());
+        assertFalse(activity.editorView.isChartDirty());
+        button(activity.workbench,R.string.action_apply).performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(0,child.father); assertTrue(child.rotateWithFather);
+        JudgeLine reopened = ChartDocument.fromJson(chart.toJsonString()).judgeLines.get(1);
+        assertEquals(0,reopened.father); assertTrue(reopened.rotateWithFather);
+        activity.editorView.performUndo(); assertEquals(before,chart.toJsonString());
+        activity.editorView.performRedo(); assertEquals(0,child.father); assertTrue(child.rotateWithFather);
+        button(activity.workbench,R.string.properties_button).performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        parent = labeled(activity.workbench,R.string.field_line_parent,Spinner.class);
+        assertEquals(1,parent.getSelectedItemPosition());
+        parent.setSelection(0); Shadows.shadowOf(Looper.getMainLooper()).idle();
+        button(activity.workbench,R.string.action_apply).performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(-1,child.father);
+        activity.editorView.performUndo(); assertEquals(0,child.father);
+    }
+
+    @Test public void parentValidationRejectsCyclesWithoutChangingTheChartOrHistory() throws Exception {
+        ChartDocument chart = activity.editorView.getChart();
+        JudgeLine target = chart.judgeLines.get(0), child = new JudgeLine();
+        child.father = 0; chart.judgeLines.add(child);
+        String before = chart.toJsonString();
+        JudgeLine edited = target.copyProperties(); edited.father = 1; edited.rotateWithFather = true;
+        assertEquals(EditorView.LineApplyResult.INVALID_PARENT,activity.editorView.applyJudgeLineProperties(target,edited));
+        assertEquals(before,chart.toJsonString()); assertFalse(activity.editorView.isChartDirty());
+        activity.editorView.performUndo(); assertEquals(before,chart.toJsonString());
+    }
+
     @Test public void existingNativeDialogAndVideoDraftUpdateInPlace() {
         new VideoExportDialog(activity,false,3000).show(options->fail("Language switch cannot start export"));
         Shadows.shadowOf(Looper.getMainLooper()).idle();AlertDialog dialog=ShadowAlertDialog.getLatestAlertDialog();

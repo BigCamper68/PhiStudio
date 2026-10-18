@@ -109,7 +109,7 @@ final class EditorLineEdits {
         if (delegateOwner.chart == null || target == null || edited == null || !delegateOwner.chart.judgeLines.contains(target)) {
             return LineApplyResult.TARGET_NOT_FOUND;
         }
-        JudgeLineValidator.Error validation = JudgeLineValidator.validateProperties(edited);
+        JudgeLineValidator.Error validation = JudgeLineValidator.validateProperties(delegateOwner.chart, target, edited);
         if (validation != JudgeLineValidator.Error.NONE) return EditorLineEdits.mapLineValidation(validation);
         delegateOwner.history.execute(JudgeLineCommand.edit(target, target.copyProperties(), edited.copyProperties()));
         delegateOwner.invalidate();
@@ -122,6 +122,7 @@ final class EditorLineEdits {
             case LINE_ZERO_PROTECTED: return LineApplyResult.LINE_ZERO_PROTECTED;
             case LAST_LINE_REQUIRED: return LineApplyResult.LAST_LINE_REQUIRED;
             case TARGET_NOT_FOUND: return LineApplyResult.TARGET_NOT_FOUND;
+            case INVALID_PARENT: return LineApplyResult.INVALID_PARENT;
             default: return LineApplyResult.INVALID_PROPERTIES;
         }
     }

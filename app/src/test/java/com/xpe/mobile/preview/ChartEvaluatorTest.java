@@ -88,7 +88,7 @@ public final class ChartEvaluatorTest extends ChartEvaluatorTestSupport {
     }
 
     @Test
-    public void resolvesParentPositionAndOptionalRotation() {
+    public void resolvesParentPositionAndOptionalRotation() throws Exception {
         ChartDocument chart = chart();
         JudgeLine parent = new JudgeLine();
         setConstant(parent, EventType.MOVE_X, 100.0);
@@ -106,6 +106,17 @@ public final class ChartEvaluatorTest extends ChartEvaluatorTestSupport {
         assertEquals(100.0, evaluated.x, EPSILON);
         assertEquals(-10.0, evaluated.y, EPSILON);
         assertEquals(-120.0, evaluated.rotationDegrees, EPSILON);
+        RenderScene.RenderLine reopened = ChartEvaluator.evaluate(
+                ChartDocument.fromJson(chart.toJsonString()), 0.0, false).lines.get(1);
+        assertEquals(evaluated.x, reopened.x, EPSILON);
+        assertEquals(evaluated.y, reopened.y, EPSILON);
+        assertEquals(evaluated.rotationDegrees, reopened.rotationDegrees, EPSILON);
+        child.rotateWithFather = false;
+        RenderScene.RenderLine independent = ChartEvaluator.evaluate(
+                ChartDocument.fromJson(chart.toJsonString()), 0.0, false).lines.get(1);
+        assertEquals(evaluated.x, independent.x, EPSILON);
+        assertEquals(evaluated.y, independent.y, EPSILON);
+        assertEquals(-30.0, independent.rotationDegrees, EPSILON);
     }
 
     @Test

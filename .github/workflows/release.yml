@@ -97,7 +97,10 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon clean testDebugUnitTest lintRelease assembleRelease
+          ./gradlew -p buildSrc --no-daemon test
+          python3 tools/i18n/verify_translations.py
+          ./gradlew --no-daemon clean validateI18n testDebugUnitTest lintRelease assembleRelease
+          python3 tools/i18n/verify_locale_config.py
 
       - name: Verify and package release artifacts
         shell: bash

@@ -64,7 +64,7 @@ public class LanguageSwitchTest {
         activity.setTheme(R.style.AppTheme);
         activity.languages.select("en");
     }
-    @After public void teardown() { activity.languages.select(""); activity.finish(); }
+    @After public void teardown() { activity.languages.select("en"); activity.finish(); }
 
     @Test public void resourcesFallbackPluralArrayAndThemeWrapperUseSelectedLanguage() {
         Locale processLocale = Locale.getDefault();
@@ -82,8 +82,8 @@ public class LanguageSwitchTest {
         assertEquals(processLocale, Locale.getDefault());
         if (Build.VERSION.SDK_INT >= 33)
             assertEquals("zh-CN",activity.getSystemService(LocaleManager.class).getApplicationLocales().toLanguageTags());
-        activity.languages.select("");
-        if (Build.VERSION.SDK_INT >= 33) assertTrue(activity.getSystemService(LocaleManager.class).getApplicationLocales().isEmpty());
+        activity.languages.select("en");
+        if (Build.VERSION.SDK_INT >= 33) assertEquals("en", activity.getSystemService(LocaleManager.class).getApplicationLocales().toLanguageTags());
     }
 
     @Test public void chineseEditorCanvasAndEventLabelsKeepNoteNamesAndChartData() throws Exception {
@@ -249,6 +249,20 @@ public class LanguageSwitchTest {
         assertNotEquals("Settings",title.getText().toString());
         assertTrue(title.getText().toString(),title.getText().toString().contains("["));
         manager.setApplicationLocales(LocaleList.getEmptyLocaleList());activity.languages.onConfigurationChanged();
-        assertEquals("",activity.languages.selection());
+        assertEquals("en",activity.languages.selection());
+        assertEquals("Settings",title.getText().toString());
+        assertEquals("en",manager.getApplicationLocales().toLanguageTags());
+    }
+
+    @Test public void emptyLegacyChoiceBecomesPersistedEnglish() {
+        Context base = activity.getBaseContext();
+        base.getSharedPreferences("phistudio_language", 0).edit().clear().commit();
+        if (Build.VERSION.SDK_INT >= 33) base.getSystemService(LocaleManager.class)
+                .setApplicationLocales(LocaleList.getEmptyLocaleList());
+        LanguageController fresh = new LanguageController(base);
+        assertEquals("en", fresh.selection());
+        assertEquals("Settings", fresh.resources().getString(R.string.settings_title));
+        assertEquals("en", new LanguageController(base).selection());
+        assertThrows(IllegalArgumentException.class, () -> fresh.select(""));
     }
 }
