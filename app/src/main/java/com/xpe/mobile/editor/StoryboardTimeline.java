@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.view.ViewConfiguration;
 
 import com.xpe.mobile.R;
 import com.xpe.mobile.model.BeatTime;
@@ -27,6 +28,9 @@ final class StoryboardTimeline {
     private ExtendedLineEvents.TimedEvent selection;
     private StoryboardEventType type = TYPES[0];
     private ExtendedLineEvents.TimedEvent candidate;
+    private ExtendedLineEvents.TimedEvent pendingSelection;
+    private StoryboardEventType pendingType;
+    private final int touchSlop;
     private Gesture gesture = Gesture.NONE;
     private float left, top, right, bottom, scroll, initialScroll, downX, downY;
     private double initialBeat;
@@ -41,11 +45,14 @@ final class StoryboardTimeline {
         Item(StoryboardEventType type, ExtendedLineEvents.TimedEvent event) { this.type = type; this.event = event; }
     }
 
-    StoryboardTimeline(EditorChromeView view) { this.view = view; }
+    StoryboardTimeline(EditorChromeView view) {
+        this.view = view;
+        touchSlop = ViewConfiguration.get(view.getContext()).getScaledTouchSlop();
+    }
     boolean active() { return gesture != Gesture.NONE; }
     void reset() { scope = null; selection = null; selectedItems.clear(); copied.clear(); clipboardActive = false;
         type = TYPES[0]; scroll = 0; cancel(); }
-    void cancel() { gesture = Gesture.NONE; candidate = null; }
+    void cancel() { gesture = Gesture.NONE; candidate = null; pendingSelection = null; }
     void clearSelection() { selection = null; selectedItems.clear(); candidate = null; view.invalidate(); }
     void select(StoryboardEventType type, ExtendedLineEvents.TimedEvent event) {
         syncScope();
@@ -206,17 +213,16 @@ final class StoryboardTimeline {
 
     boolean down(float x, float y) {
         syncScope();
-        if (view.tool != EditorSurfaceView.Tool.SELECT && view.tool != EditorSurfaceView.Tool.EVENT) return true;
         int index = laneAt(x);
         if (index < 0) return true;
         downX = x; downY = y; initialBeat = view.currentBeat; initialScroll = scroll;
-        moved = false; horizontal = false; handleMoved = false; candidate = null;
+        moved = false; horizontal = false; handleMoved = false; candidate = null; pendingSelection = null;
         if (view.tool == EditorSurfaceView.Tool.EVENT) {
             view.clearSelection();
             type = TYPES[index]; candidate = fresh(type, snapped(y)); gesture = Gesture.CREATE;
             view.invalidate(); return true;
         }
-        if (selectionCount() == 1 && type == TYPES[index]) {
+        if (view.tool == EditorSurfaceView.Tool.SELECT && selectionCount() == 1 && type == TYPES[index]) {
             float sy = view.beatToY(selection.startTime.toDouble(), view.timelineY(bottom));
             float ey = view.beatToY(selection.endTime.toDouble(), view.timelineY(bottom));
             if (Math.abs(y - sy) <= 12 * view.density || Math.abs(y - ey) <= 12 * view.density) {
@@ -225,12 +231,10 @@ final class StoryboardTimeline {
                 return true;
             }
         }
-        ExtendedLineEvents.TimedEvent hit = hit(index, x, y);
+        ExtendedLineEvents.TimedEvent hit = view.tool == EditorSurfaceView.Tool.SELECT ? hit(index, x, y) : null;
         if (hit != null) {
-            view.clearSelection();
-            type = TYPES[index]; selection = hit; selectedItems.put(hit, type);
+            pendingSelection = hit; pendingType = TYPES[index];
             gesture = Gesture.SELECT;
-            view.activateEditPanel();
         } else {
             if (selectedItems.isEmpty()) type = TYPES[index];
             gesture = Gesture.PAN;
@@ -243,8 +247,13 @@ final class StoryboardTimeline {
     boolean move(float x, float y) {
         if (gesture == Gesture.NONE) return false;
         float dx = x - downX, dy = y - downY;
-        if (!moved && Math.max(Math.abs(dx), Math.abs(dy)) > 3 * view.density) {
+        if (!moved && Math.max(Math.abs(dx), Math.abs(dy)) > touchSlop) {
             moved = true;
+            if (gesture == Gesture.SELECT) {
+                pendingSelection = null;
+                gesture = Gesture.PAN;
+                view.beginPanGesture();
+            }
             horizontal = gesture == Gesture.PAN && Math.abs(dx) > Math.abs(dy) * 1.2f;
         }
         if (horizontal) {
@@ -268,12 +277,19 @@ final class StoryboardTimeline {
     }
 
     boolean up(float x, float y) {
+        if (!moved && Math.max(Math.abs(x - downX), Math.abs(y - downY)) > touchSlop) move(x, y);
         Gesture previous = gesture;
         if (previous == Gesture.NONE) return false;
         if (previous == Gesture.CREATE) creationEnd(y);
         ExtendedLineEvents.TimedEvent edited = candidate;
+        ExtendedLineEvents.TimedEvent tapped = pendingSelection;
+        StoryboardEventType tappedType = pendingType;
         cancel();
-        if (previous == Gesture.CREATE && edited != null) {
+        if (previous == Gesture.SELECT && !moved && tapped != null) {
+            view.clearSelection();
+            type = tappedType; selection = tapped; selectedItems.put(tapped, type);
+            view.activateEditPanel();
+        } else if (previous == Gesture.CREATE && edited != null) {
             if (result(view.addStoryboardEvent(type, edited))) {
                 select(type, edited); view.activateEditPanel();
             }

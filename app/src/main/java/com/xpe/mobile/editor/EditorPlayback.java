@@ -3,6 +3,7 @@ package com.xpe.mobile.editor;
 import android.os.SystemClock;
 import com.xpe.mobile.R;
 import com.xpe.mobile.audio.HitSoundTimeline;
+import com.xpe.mobile.audio.PlaybackTimeline;
 import com.xpe.mobile.editor.EditorSurfaceView.GestureMode;
 
 /** EditorPlayback responsibilities extracted from EditorChromeView. */
@@ -24,6 +25,20 @@ final class EditorPlayback {
         }
     }
 
+    long audioPositionMillis() {
+        return Math.round(timeCursor.audioSeconds(delegateOwner.chart, delegateOwner.currentBeat,
+                delegateOwner.packageOffsetMs) * 1000);
+    }
+
+    void setAudioPositionSeconds(double seconds) {
+        if (delegateOwner.chart != null) delegateOwner.currentBeat = timeCursor.beatAtAudioSeconds(
+                delegateOwner.chart, seconds, delegateOwner.packageOffsetMs);
+    }
+
+    long audioStartMillis() {
+        return PlaybackTimeline.startMillis(delegateOwner.chart.offsetMs, delegateOwner.packageOffsetMs);
+    }
+
     void togglePlay() {
         if (delegateOwner.playing) {
             delegateOwner.playing = false;
@@ -36,8 +51,7 @@ final class EditorPlayback {
             delegateOwner.editorPlayback.prepareHitSoundPlayback(true);
             delegateOwner.lastFrameMs = SystemClock.elapsedRealtime();
             if (delegateOwner.callback != null && delegateOwner.callback.isAudioReady()) {
-                delegateOwner.callback.startAudio(delegateOwner.chart.beatToAudioMillis(
-                        delegateOwner.currentBeat, delegateOwner.packageOffsetMs), delegateOwner.playbackSpeed);
+                delegateOwner.callback.startAudio(audioPositionMillis(), delegateOwner.playbackSpeed);
             }
         }
         delegateOwner.invalidate();
@@ -49,8 +63,7 @@ final class EditorPlayback {
         else delegateOwner.playbackSpeed = 1.0f;
         if (delegateOwner.playing && delegateOwner.callback != null && delegateOwner.callback.isAudioReady()) {
             delegateOwner.editorPlayback.prepareHitSoundPlayback(false);
-            delegateOwner.callback.startAudio(delegateOwner.chart.beatToAudioMillis(
-                    delegateOwner.currentBeat, delegateOwner.packageOffsetMs), delegateOwner.playbackSpeed);
+            delegateOwner.callback.startAudio(audioPositionMillis(), delegateOwner.playbackSpeed);
         }
         delegateOwner.invalidate();
     }
@@ -63,12 +76,11 @@ final class EditorPlayback {
             return;
         }
         if (delegateOwner.callback != null && delegateOwner.callback.isAudioReady()) {
+            setAudioPositionSeconds(delegateOwner.callback.audioPositionSeconds());
             if (!delegateOwner.callback.isAudioPlaying()) {
                 delegateOwner.playing = false;
                 delegateOwner.editorPlayback.clearHitSoundPlayback();
             } else {
-                setCurrentSeconds((delegateOwner.callback.audioPositionMs()
-                        - (double) delegateOwner.chart.offsetMs - delegateOwner.packageOffsetMs) / 1000.0);
                 delegateOwner.editorPlayback.dispatchHitSounds();
             }
         } else {
@@ -84,8 +96,7 @@ final class EditorPlayback {
         delegateOwner.previewPlayback.reset();
         if (delegateOwner.callback != null && delegateOwner.callback.isAudioReady()) {
             if (delegateOwner.playing) delegateOwner.editorPlayback.prepareHitSoundPlayback(false);
-            delegateOwner.callback.startAudio(delegateOwner.chart.beatToAudioMillis(
-                    delegateOwner.currentBeat, delegateOwner.packageOffsetMs), delegateOwner.playbackSpeed);
+            delegateOwner.callback.startAudio(audioPositionMillis(), delegateOwner.playbackSpeed);
         }
     }
 
@@ -120,9 +131,8 @@ final class EditorPlayback {
         long duration = delegateOwner.callback.audioDurationMs();
         double fraction = PlaybackScrubMapper.fractionForX(
                 x, delegateOwner.playbackSeekBounds.left, delegateOwner.playbackSeekBounds.right);
-        long position = PlaybackScrubMapper.positionForFraction(fraction, duration);
-        setCurrentSeconds((position - (double) delegateOwner.chart.offsetMs
-                - delegateOwner.packageOffsetMs) / 1000.0);
+        long position = PlaybackScrubMapper.positionForFraction(fraction, audioStartMillis(), duration);
+        setAudioPositionSeconds(position / 1000.0);
     }
 
     final void finishPlaybackScrub() {
@@ -130,7 +140,7 @@ final class EditorPlayback {
         delegateOwner.playbackScrubbing = false;
         delegateOwner.lastFrameMs = SystemClock.elapsedRealtime();
         if (delegateOwner.callback != null && delegateOwner.callback.isAudioReady()) {
-            long position = delegateOwner.chart.beatToAudioMillis(delegateOwner.currentBeat, delegateOwner.packageOffsetMs);
+            long position = audioPositionMillis();
             if (delegateOwner.playing) {
                 delegateOwner.editorPlayback.prepareHitSoundPlayback(false);
                 delegateOwner.callback.startAudio(position, delegateOwner.playbackSpeed);

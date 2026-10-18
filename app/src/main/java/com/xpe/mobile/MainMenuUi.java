@@ -28,6 +28,8 @@ final class MainMenuUi {
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.setPadding(delegateOwner.dp(10), delegateOwner.dp(4), delegateOwner.dp(10), delegateOwner.dp(12));
         scroll.addView(actions);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_playtest),
+                delegateOwner.mainPlaytest::showOptions);
         delegateOwner.mainMenuUi.addMenuSection(actions, R.string.menu_section_projects);
         delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_projects), () -> delegateOwner.mainProjectActions.showProjectLibrary(false));
         delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_import_package), delegateOwner.mainFileActions::requestPackageOpen);

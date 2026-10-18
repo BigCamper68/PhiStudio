@@ -1,92 +1,61 @@
 # PhiStudio
 
-PhiStudio is a native, touch-first Android chart editor for RPE and compatible
-rhythm-game chart packages. It runs directly on Android without Winlator or
-bundled Windows executables.
+PhiStudio is a native Android chart editor for RPE and compatible rhythm-game
+chart packages. It runs directly on Android without Winlator.
 
 ## Features
 
-- RPE chart editing for notes, judge lines, BPM changes and events.
-- Persistent right-hand workbench with Events / Storyboard / Shaders / Menu tabs.
-- Shader editing
-- Synchronized, horizontally scrollable storyboard lanes with direct touch editing.
-- Embedded tool/property forms and a compact menu with centered page titles.
-- Narrower workbench with scrollable fields/actions and coordinated nested list scrolling.
-- Create / Edit / Arrange controls below the note grid, on the left.
-- Compact two-row footer without selection hints, four-row BPM/line lists and equal-height actions.
-- Live selection properties without duplicate pages; Event Back returns to Events.
-- Identical easing-curve geometry and numeric typography in ordinary/storyboard timelines.
-- Matching note/event/storyboard beat-grid strokes and event-column widths.
-- Continuous equal-thickness beat cursor across note, event and storyboard grids.
-- Reliable nested list gestures, 29-type Complex Move easing dropdowns and pinch-only zoom.
-- Storyboard Box+ selection and ordinary event-style touch creation and playback seeking.
-- Import and conversion of RPE, official Phigros and legacy PEC charts.
-- Local project library with explicit Save and package export.
-- Native audio-synchronized preview.
-- Offline MP4 export through Menu → Export chart to MP4: PhiStudio rendering and shaders,
-  H.264/AAC, resolution/FPS/bitrate, music/hit volumes, time range and HUD controls.
-- Hardware Canvas to external GL textures for shader playback, without full-frame CPU bitmap uploads.
-- Shaders workbench: Preview on the left, vertical effects/keyframe timeline on the right, parameters below.
-- prpr GLSL presets/imports, typed uniforms/color picker, 29 named easings, independent FX BPM, Undo/Redo and project/package persistence.
-- Events / Storyboard / Shaders / Menu navigation preserves drafts and playback position.
-- Live uniform edits reuse compiled GPU programs.
-- Phira-matched preview HUD fonts, glyph metrics, anchors and attachUI transforms.
-- Phira-matched multiline storyboard text with shared fonts and bounded layout caching.
-- Large-chart memory and playback optimizations.
-- Preservation of unsupported JSON fields and safe unknown package entries.
+- Edit notes, judge lines, BPM changes, events, storyboard and shaders.
+- Subdivide events using the beat grid, batch-edit values and clone events across
+  lines with configurable timing, offsets and a preview. Undo/Redo is supported.
+- Choose from 29 named easing curves with live graphs.
+- Use touch selection, swipe scrolling and the Create / Edit / Arrange toolbar.
+- Import RPE, official Phigros and legacy PEC charts; save projects and export packages.
+- Preview charts with synchronized audio, custom hit sounds and shader effects.
+- Play charts in full-screen Playtest with Phira-style judgement, multitouch,
+  scoring, pause/retry, configurable start positions and countdowns.
+- Export MP4 videos with resolution, FPS, bitrate, time range, volume and HUD controls.
 
-## Requirements
+## Playtest
 
-- Android 8.0 (API 26) or newer.
-- Landscape orientation.
+Open **Menu → Playtest**. Start from the beginning, the playhead, or a custom time
+or beat. Countdown options are off, 2, 3 or 5 seconds. The last selections are
+remembered. Playtest uses the current chart, including unsaved changes.
+Pause offers Resume, Retry and Back to editor; exiting restores the playhead.
 
 ## Build
 
-The project requires JDK 17 and Android SDK 35.
+Requires JDK 17 and Android SDK / Build Tools 35. The app supports Android 8.0+
+(API 26) in landscape orientation.
 
 ```sh
-./gradlew clean testDebugUnitTest lintDebug assembleDebug
+./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+Add `-PcheckpointBuild=true` for a separate `com.xpe.mobile.checkpoint` app.
 
-Release builds use the existing PhiStudio signing certificate. Set
-`PHISTUDIO_KEYSTORE_PATH` (PKCS12), `PHISTUDIO_KEYSTORE_PASSWORD`,
-`PHISTUDIO_KEY_ALIAS` and `PHISTUDIO_KEY_PASSWORD`, then run
-`./gradlew clean testDebugUnitTest lintRelease assembleRelease`.
-Without these variables Gradle produces an unsigned release APK.
-Keep keystores and passwords outside the repository.
+For a signed release, set `PHISTUDIO_KEYSTORE_PATH` (PKCS12),
+`PHISTUDIO_KEYSTORE_PASSWORD`, `PHISTUDIO_KEY_ALIAS` and `PHISTUDIO_KEY_PASSWORD`:
 
-The release workflow publishes **PhiStudio 1.0.6** as tag `v1.0.6` after a
-push to `main`, using the existing Actions signing secrets. It attaches the
-signed APK, a source archive and SHA-256 checksums. Release notes are stored in
-`.github/release-notes/v1.0.6.md`.
+```sh
+./gradlew testDebugUnitTest lintRelease assembleRelease
+```
 
-See [architecture](ARCHITECTURE.md), [rendering compatibility](docs/rendering-parity.md)
-and [release validation](docs/validation.md) for implementation and test details.
+The signed APK is `app/build/outputs/apk/release/app-release.apk`.
+Without signing variables, the release APK is unsigned. Keep keys and passwords
+outside the repository.
 
-## Video export
+The optional `tools/termux-tests.gradle` profile excludes desktop native-graphics
+tests that cannot run on an ARM64 Termux host. GitHub Actions runs the full suite.
+`tools/phira-fonts` and `tools/prpr-audit` regenerate font metrics and reference
+test data from the corresponding upstream sources.
 
-Open a chart and choose **Menu → Export chart to MP4**. The export
-uses the current chart and shader drafts. Set resolution (including custom sizes
-and the player preset), 30/60 FPS, bitrate, start/end in seconds, audio volumes,
-shaders and HUD. Rendering pauses editor playback and runs offline; performance
-does not change the video's timing. Keep PhiStudio open until it finishes.
+## Releases
 
-After rendering, select a destination in Android's file picker. Cancelling the
-picker keeps the completed MP4 available from the export button for the rest of
-the session. Music and hit sounds use the preview's chart/package offsets and
-hit-sound settings, including custom hit sounds. A selected time range retains
-hit-sound tails that cross its start; audio after the song ends is silent.
+Download the APK and source archive from [GitHub Releases](https://github.com/BigCamper68/PhiStudio/releases).
+The release workflow validates, signs and publishes new versions pushed to `main`.
+See the [1.0.7 changelog](.github/release-notes/v1.0.7.md).
 
-Export uses the device's Android H.264 encoder. Unsupported size/FPS/bitrate
-combinations produce an error suggesting a smaller preset. Temporary storage is
-needed for decoded PCM, intermediate tracks and the final MP4. A failing chart
-shader or missing custom hit sound produces an export error; their respective
-switches allow an export without that feature.
-
-## Installation
-
-Download the APK from the GitHub Releases page and allow installation from your
-browser or file manager. Back up important projects before editing them with a
-new release.
+Bundled third-party notices are in `app/src/main/assets/licenses` and
+`app/src/main/assets/shaders`.

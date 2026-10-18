@@ -60,11 +60,10 @@ final class PreviewHitEvaluator {
         double localY = yOffset * noteSpeed * (note.above == 1 ? 1.0 : -1.0);
         ResolvedLine transform = PreviewLineEvaluator.resolveSingleLineAt(chart, prepared, lineIndex, effectBeat,
                 new boolean[chart.judgeLines.size()], localYScale);
-        double radians = Math.toRadians(transform.rotationDegrees);
-        double worldX = transform.x + Math.cos(radians) * localX
-                - Math.sin(radians) * localY * localYScale;
-        double worldY = transform.y + Math.sin(radians) * localX / localYScale
-                + Math.cos(radians) * localY;
+        double worldX = transform.x + transform.cos * localX
+                - transform.sin * localY * localYScale;
+        double worldY = transform.y + transform.sin * localX / localYScale
+                + transform.cos * localY;
         if (!Double.isFinite(worldX) || !Double.isFinite(worldY)) return;
         int seed = 31 * (31 * (lineIndex + 1)
                 + (note.startTime == null ? 0 : note.startTime.hashCode()))

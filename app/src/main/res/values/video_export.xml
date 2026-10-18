@@ -26,7 +26,7 @@
     <string name="video_estimate">Frames: %1$d · %2$.2f s · approximately %3$.1f MiB</string>
     <string name="video_estimate_pending">Enter a valid resolution, bitrate and time range to estimate file size.</string>
     <string name="video_invalid_settings">Check settings: %1$s</string>
-    <string name="video_numeric_limits">Use a positive bitrate (1–80 Mbps) and times between 0 and 86400 seconds.</string>
+    <string name="video_numeric_limits">Use a bitrate of 1–80 Mbps, a start within the chart timeline, and an end no later than 86400 seconds.</string>
     <string name="video_enter_numbers">Enter numeric values in all video and time fields.</string>
     <string name="video_render">Render MP4</string>
     <string name="video_preparing">Preparing chart and audio…</string>

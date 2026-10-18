@@ -45,8 +45,9 @@ public final class ChartNoteEvaluationTest extends ChartEvaluatorTestSupport {
                     + Math.cos(r)*180*width/1350 - Math.sin(r)*90*height/900;
             double expectedY = 200*height/900
                     + Math.sin(r)*180*width/1350 + Math.cos(r)*90*height/900;
-            assertEquals(expectedX,line.x*width/1350,1e-8);
-            assertEquals(expectedY,line.y*height/900,1e-8);
+            // prpr uses an f32 basis; allow its subpixel rounding against this double reference.
+            assertEquals(expectedX,line.x*width/1350,1e-4);
+            assertEquals(expectedY,line.y*height/900,1e-4);
             assertEquals(line.x,line.hitEffects.get(0).lineX,1e-8);
             assertEquals(line.y,line.hitEffects.get(0).lineY,1e-8);
             assertEquals(50,line.hitEffects.get(0).localY,1e-8);

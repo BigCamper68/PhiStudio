@@ -97,9 +97,9 @@ public class MenuPanelDisplayScaleTest {
             LinearLayout pane = (LinearLayout) workbench.getChildAt(1);
             ScrollView menu = (ScrollView) pane.getChildAt(1);
             List<Button> tools = descendants(menu, Button.class);
-            assertEquals("Actual Menu tools", 11, tools.size());
+            assertEquals("Actual Menu tools", 12, tools.size());
             for (Button button : tools) assertReachable(menu, button);
-            System.out.println("MENU_CASE " + configuration(dpi, font, height) + " page=Menu tools=11 reachable=true");
+            System.out.println("MENU_CASE " + configuration(dpi, font, height) + " page=Menu tools=12 reachable=true");
 
             String[] names = {"Metadata", "BPM", "Line List", "Curve Notes", "Complex Move",
                     "Settings", "Diagnostics", "Line Properties"};

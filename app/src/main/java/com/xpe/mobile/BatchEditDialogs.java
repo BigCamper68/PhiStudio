@@ -4,15 +4,12 @@ import android.app.AlertDialog;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import com.xpe.mobile.editor.BatchEditOperation;
 import com.xpe.mobile.editor.BatchValueTransform;
-import com.xpe.mobile.editor.EventCloneOperation;
-import com.xpe.mobile.model.BeatTime;
 import com.xpe.mobile.model.EventType;
 import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
@@ -36,7 +33,6 @@ final class BatchEditDialogs {
         }
         ScrollView scroll = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scroll);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.batch_help));
 
         List<String> targetEntries = new ArrayList<>();
         List<Boolean> noteTargets = new ArrayList<>();
@@ -51,19 +47,41 @@ final class BatchEditDialogs {
         Spinner target = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_target),
                 targetEntries, 0);
         Spinner eventType = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_event_type),
-                delegateOwner.eventTypeLabels(), 0);
+                delegateOwner.eventTypeLabels(), events.isEmpty() ? 0 : events.get(0).type.ordinal());
         Spinner field = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_data_type),
                 delegateOwner.resourceEntries(R.array.batch_note_fields), 0);
-        EditText lower = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_lower_bound), "0", true);
-        EditText upper = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_upper_bound), "0", true);
-        EditText easing = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_easing), "1", true);
-        EditText sequence = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_periodic_sequence),
+        LinearLayout values = new LinearLayout(delegateOwner);
+        values.setOrientation(LinearLayout.VERTICAL);
+        content.addView(values, new LinearLayout.LayoutParams(-1, -2));
+        delegateOwner.addHint(values, delegateOwner.getString(R.string.batch_help));
+        EditText lower = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_lower_bound), "0", true);
+        EditText upper = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_upper_bound), "0", true);
+        EasingSelector progression = EasingSelector.addTo(values,
+                delegateOwner.getString(R.string.batch_easing), 1);
+        EditText sequence = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_periodic_sequence),
                 "1", false);
-        EditText disturbance = delegateOwner.addField(content, delegateOwner.getString(R.string.batch_disturbance),
+        EditText disturbance = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_disturbance),
                 "0", true);
-        Spinner mode = delegateOwner.addSpinner(content, R.string.batch_edit_mode,
+        Spinner mode = delegateOwner.addSpinner(values, R.string.batch_edit_mode,
                 R.array.batch_edit_modes, 0);
-
+        LinearLayout curveValues = new LinearLayout(delegateOwner);
+        curveValues.setOrientation(LinearLayout.VERTICAL);
+        content.addView(curveValues, new LinearLayout.LayoutParams(-1, -2));
+        EasingSelector eventCurve = EasingSelector.addTo(curveValues,
+                delegateOwner.getString(R.string.field_event_easing_type), events.isEmpty() ? 1 : events.get(0).easingType);
+        android.widget.TextView curveHelp = delegateOwner.addHint(curveValues, delegateOwner.getString(R.string.batch_curve_help));
+        Runnable updateField = () -> {
+            boolean curveMode = !noteTargets.get(target.getSelectedItemPosition())
+                    && field.getSelectedItemPosition() == BatchEditOperation.EventField.EASING_TYPE.ordinal();
+            values.setVisibility(curveMode ? View.GONE : View.VISIBLE);
+            curveValues.setVisibility(curveMode ? View.VISIBLE : View.GONE);
+            boolean speedCurve = curveMode && eventType.getSelectedItemPosition() == EventType.SPEED.ordinal();
+            eventCurve.spinner.setEnabled(!speedCurve);
+            if (speedCurve) eventCurve.spinner.setSelection(0);
+            curveHelp.setText(speedCurve ? R.string.batch_unsupported_field : R.string.batch_curve_help);
+        };
+        EditorDialogSection.setSpinnerChangeListener(field, updateField);
+        EditorDialogSection.setSpinnerChangeListener(eventType, updateField);
         Runnable updateTarget = () -> {
             boolean noteMode = noteTargets.get(target.getSelectedItemPosition());
             eventType.setEnabled(!noteMode);
@@ -73,12 +91,14 @@ final class BatchEditDialogs {
                             : R.array.batch_event_fields));
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             field.setAdapter(adapter);
+            updateField.run();
         };
         EditorOperationDialogSection.setSpinnerChangeListener(target, updateTarget);
         updateTarget.run();
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())
                 .setTitle(R.string.batch_title)
+                .setWorkbenchTab(delegateOwner.editorView.getWorkbenchTab())
                 .setView(scroll)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setNeutralButton(R.string.batch_stick, null)
@@ -101,14 +121,17 @@ final class BatchEditDialogs {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                 BatchValueTransform.Spec profile;
                 try {
-                    profile = delegateOwner.batchProfile(lower, upper, easing, sequence, disturbance,
+                    if (curveValues.getVisibility() == View.VISIBLE) {
+                        profile = new BatchValueTransform.Spec();
+                        profile.lowerBound = profile.upperBound = eventCurve.type();
+                    } else profile = delegateOwner.batchProfile(lower, upper, progression.type(), sequence, disturbance,
                             System.nanoTime());
                 } catch (IllegalArgumentException exception) {
                     delegateOwner.showMessage(delegateOwner.getString(R.string.batch_invalid_profile));
                     return;
                 }
-                BatchValueTransform.Mode selectedMode = BatchValueTransform.Mode.values()[
-                        mode.getSelectedItemPosition()];
+                BatchValueTransform.Mode selectedMode = curveValues.getVisibility() == View.VISIBLE
+                        ? BatchValueTransform.Mode.TO : BatchValueTransform.Mode.values()[mode.getSelectedItemPosition()];
                 boolean noteMode = noteTargets.get(target.getSelectedItemPosition());
                 BatchEditOperation.Result result;
                 if (noteMode) {
@@ -134,69 +157,6 @@ final class BatchEditDialogs {
     }
 
     void showEventClone() {
-        List<LineEvent> events = delegateOwner.editorView.getSelectedEventsForBatch();
-        if (events.isEmpty()) {
-            delegateOwner.showMessage(delegateOwner.getString(R.string.event_clone_empty));
-            return;
-        }
-        ScrollView scroll = new ScrollView(delegateOwner);
-        LinearLayout content = delegateOwner.createDialogContent(scroll);
-        delegateOwner.addHint(content, delegateOwner.getResources().getQuantityString(R.plurals.event_clone_help,
-                events.size(), events.size(), delegateOwner.editorView.getEventLayerIndex()));
-        EditText lines = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_line_sequence),
-                Integer.toString(delegateOwner.editorView.getLineIndex()), false);
-        EditText timeIncrement = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_time_increment), "0:0/1", false);
-        EditText xUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_x_uled),
-                "0 0 1 0", false);
-        EditText xSequence = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_x_sequence),
-                "1", false);
-        EditText yUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_y_uled),
-                "0 0 1 0", false);
-        EditText ySequence = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_y_sequence),
-                "1", false);
-        EditText rotateUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_rotate_uled),
-                "0 0 1 0", false);
-        EditText rotateSequence = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_rotate_sequence), "1", false);
-        EditText alphaUled = delegateOwner.addField(content, delegateOwner.getString(R.string.event_clone_alpha_uled),
-                "0 0 1 0", false);
-        EditText alphaSequence = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.event_clone_alpha_sequence), "1", false);
-        CheckBox keepSource = delegateOwner.addCheckBox(content, R.string.event_clone_keep_source, false);
-
-        EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())
-                .setTitle(R.string.event_clone_title)
-                .setView(scroll)
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.event_clone_apply, null)
-                .create();
-        delegateOwner.showEditorWindow(dialog, () -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> {
-                    EventCloneOperation.Spec spec = new EventCloneOperation.Spec();
-                    long seed = System.nanoTime();
-                    try {
-                        spec.lineSequence = EventCloneOperation.parseLineSequence(
-                                lines.getText().toString());
-                        spec.timeIncrement = BeatTime.parseFlexible(
-                                timeIncrement.getText().toString());
-                        spec.xProfile = delegateOwner.cloneProfile(xUled, xSequence, seed + 1);
-                        spec.yProfile = delegateOwner.cloneProfile(yUled, ySequence, seed + 2);
-                        spec.rotateProfile = delegateOwner.cloneProfile(rotateUled, rotateSequence, seed + 3);
-                        spec.alphaProfile = delegateOwner.cloneProfile(alphaUled, alphaSequence, seed + 4);
-                        spec.keepSource = keepSource.isChecked();
-                    } catch (IllegalArgumentException exception) {
-                        delegateOwner.showMessage(delegateOwner.getString(R.string.event_clone_invalid));
-                        return;
-                    }
-                    EventCloneOperation.Result result = delegateOwner.editorView.applyEventClone(spec);
-                    if (result.error != EventCloneOperation.Error.NONE) {
-                        delegateOwner.showMessage(delegateOwner.eventCloneErrorMessage(result.error));
-                        return;
-                    }
-                    dialog.dismiss();
-                    delegateOwner.showMessage(delegateOwner.getResources().getQuantityString(R.plurals.event_clone_applied,
-                            result.events.size(), result.events.size()));
-                }));
+        new EventCloneDialog(delegateOwner).show();
     }
 }

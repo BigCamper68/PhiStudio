@@ -27,6 +27,15 @@ import static org.junit.Assert.*;
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 @org.robolectric.annotation.ConscryptMode(org.robolectric.annotation.ConscryptMode.Mode.OFF)
 public class VideoExportDialogTest {
+    @Test public void negativeChartOffsetStartsExportAtSignedAudioTime() {
+        MainActivity activity = activity(); AtomicReference<VideoExportOptions> chosen = new AtomicReference<>();
+        new VideoExportDialog(activity, true, 1000, -21).show(chosen::set);
+        AlertDialog dialog = latestDialog();
+        assertEquals("-0.021", views(dialog.getWindow().getDecorView(), EditText.class).get(3).getText().toString());
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        assertNotNull(chosen.get()); assertEquals(-21, chosen.get().startMs);
+        assertEquals(0, chosen.get().chartSeconds(0, -21, 0), 0);
+    }
     private MainActivity activity() {
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).get();
         activity.setTheme(R.style.AppTheme); activity.editorSettings = new EditorSettings();

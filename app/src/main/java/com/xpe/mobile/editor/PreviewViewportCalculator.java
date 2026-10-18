@@ -7,10 +7,15 @@ public final class PreviewViewportCalculator {
 
     public static Result fit(double left, double top, double right, double bottom,
                              int playerWidth, int playerHeight) {
+        return fit(left, top, right, bottom, (double) playerWidth, (double) playerHeight);
+    }
+
+    public static Result fit(double left, double top, double right, double bottom,
+                             double playerWidth, double playerHeight) {
         double availableWidth = Math.max(0.0, right - left);
         double availableHeight = Math.max(0.0, bottom - top);
         double ratio = playerWidth > 0 && playerHeight > 0
-                ? playerWidth / (double) playerHeight : 16.0 / 9.0;
+                ? playerWidth / playerHeight : 16.0 / 9.0;
         if (!Double.isFinite(ratio) || ratio <= 0.0
                 || availableWidth <= 0.0 || availableHeight <= 0.0) {
             return new Result(left, top, right, bottom);

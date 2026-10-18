@@ -279,6 +279,7 @@ final class PreviewChartIndex {
         double valueAt(EventType type, double beat, double seconds, boolean constructorZero) {
             double result = 0.0;
             boolean alpha = type == EventType.ALPHA;
+            boolean rotation = type == EventType.ROTATE;
             boolean pecAlpha = phiPecAlphaExtension && alpha;
             LineEvent[][] layers = events.get(type);
             if (layers == null) return LineEvent.defaultValue(type);
@@ -286,7 +287,7 @@ final class PreviewChartIndex {
             EventSample[] cached = samples.get(type);
             // Anim::chain rounds float additions from the final layer backwards.
             for (int index = 0; index < layers.length; index++) {
-                int layerIndex = alpha ? layers.length - index - 1 : index;
+                int layerIndex = alpha || rotation ? layers.length - index - 1 : index;
                 LineEvent[] layer = layers[layerIndex];
                 int low = 0;
                 int high = layer.length;
@@ -308,13 +309,13 @@ final class PreviewChartIndex {
                 if (low > 0) {
                     LineEvent latest = layer[low - 1];
                     if (latest != null) {
-                        double value = cached[layerIndex].value(latest, time, seconds, alpha, pecAlpha);
-                        result = alpha ? (float) ((float) value + (float) result) : result + value;
+                        double value = cached[layerIndex].value(latest, time, seconds, alpha, pecAlpha, rotation);
+                        result = alpha || rotation ? (float) ((float) value + (float) result) : result + value;
                     }
                 } else if (layer.length > 0
                         && (EventLayer.isSpatial(type) || type == EventType.ALPHA)) {
-                    double value = cached[layerIndex].value(layer[0], time, seconds, alpha, pecAlpha);
-                    result = alpha ? (float) ((float) value + (float) result) : result + value;
+                    double value = cached[layerIndex].value(layer[0], time, seconds, alpha, pecAlpha, rotation);
+                    result = alpha || rotation ? (float) ((float) value + (float) result) : result + value;
                 }
             }
             if (!alpha) return result;
@@ -329,7 +330,7 @@ final class PreviewChartIndex {
         private BeatTime startTime, endTime;
         private double startSeconds, endSeconds;
 
-        double value(LineEvent next, PrprTime time, double seconds, boolean alpha, boolean pecAlpha) {
+        double value(LineEvent next, PrprTime time, double seconds, boolean alpha, boolean pecAlpha, boolean rotation) {
             // BeatTime is immutable. Keep live scalar/easing fields and refresh replaced endpoints,
             // including callers that replace a timestamp before marking the chart edited.
             if (event != next || startTime != next.startTime || endTime != next.endTime) {
@@ -337,6 +338,7 @@ final class PreviewChartIndex {
                 startSeconds = time.seconds(startTime.toDouble());
                 endSeconds = time.seconds(endTime.toDouble());
             }
+            if (rotation) return PrprEvents.rotationValue(next, startSeconds, endSeconds, seconds);
             if (!alpha) return PrprEvents.value(next, startSeconds, endSeconds, seconds);
             return pecAlpha ? PrprEvents.pecAlphaValue(next, startSeconds, endSeconds, seconds)
                     : PrprEvents.rpeAlphaValue(next, startSeconds, endSeconds, seconds);

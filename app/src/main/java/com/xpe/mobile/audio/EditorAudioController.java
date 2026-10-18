@@ -50,6 +50,7 @@ public final class EditorAudioController implements AutoCloseable {
     private HitSoundTimeline timeline = HitSoundTimeline.empty();
     private long audioOffsetMs;
     private boolean closed;
+    private boolean manualJudgements;
     private int audioLoadGeneration;
 
     public EditorAudioController(Activity activity, Handler mainHandler, Listener listener) {
@@ -94,15 +95,28 @@ public final class EditorAudioController implements AutoCloseable {
 
     public boolean isReady() { return !closed && pcmAudioPlayer != null; }
     public boolean isPlaying() { return isReady() && (hitSoundStartGate.isWaiting() || pcmAudioPlayer.isPlaying()); }
-    public boolean schedulesHitSounds() { return isReady() && scheduledSamples != null; }
+    public boolean schedulesHitSounds() { return !manualJudgements && isReady() && scheduledSamples != null; }
+
+    public boolean isLoading() { return audioDecodeTask != null || customHitSounds.isLoading(); }
+
+    /** Music remains sample-clocked; only actual successful touches produce hit sounds. */
+    public void setManualJudgements(boolean manual) {
+        pause();
+        manualJudgements = manual;
+        configurePlayerHitSounds();
+    }
+
+    private void configurePlayerHitSounds() {
+        if (pcmAudioPlayer != null) pcmAudioPlayer.configureHitSounds(
+                manualJudgements ? HitSoundTimeline.empty() : timeline,
+                audioOffsetMs, scheduledSamples, customHitSounds.samples());
+    }
 
     public void configureHitSounds(HitSoundTimeline schedule, long chartOffsetMs, long packageOffsetMs) {
         timeline = schedule == null ? HitSoundTimeline.empty() : schedule;
         audioOffsetMs = ScheduledHitSoundMixer.addSaturated(chartOffsetMs, packageOffsetMs);
         customHitSounds.ensure(timeline.customPaths());
-        if (pcmAudioPlayer != null) {
-            pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples, customHitSounds.samples());
-        }
+        configurePlayerHitSounds();
     }
 
     public void setHitSoundPackage(ChartPackage pack) {
@@ -123,9 +137,7 @@ public final class EditorAudioController implements AutoCloseable {
         if (closed) return;
         if (!failures.isEmpty()) listener.showMessage("Custom hit sounds unavailable; using note defaults: "
                 + String.join(", ", failures.subList(0, Math.min(3, failures.size()))));
-        if (pcmAudioPlayer != null) {
-            pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples, customHitSounds.samples());
-        }
+        configurePlayerHitSounds();
         if (hitSoundPlayer != null) {
             try { hitSoundPlayer.setCustomSounds(customHitSounds.samples()); }
             catch (OutOfMemoryError exception) {
@@ -147,14 +159,20 @@ public final class EditorAudioController implements AutoCloseable {
     }
 
     public void playHitSound(HitSoundTimeline.Cue cue) {
-        // Scheduled music playback owns hits. UI-triggered sounds are only the no-music fallback.
+        // Scheduled preview owns its hits; manual playtest submits successful judgements.
         if (closed || cue == null || cue.noteCount() == 0 || schedulesHitSounds()) return;
         if (hitSoundPlayer != null) hitSoundPlayer.play(cue);
         else playHitSoundFallback(cue);
     }
 
+    /** Warm the interactive output during countdown, including charts without music. */
+    public void prepareManualHitSounds() {
+        if (!closed && manualJudgements && hitSoundPlayer != null) hitSoundPlayer.prepare();
+    }
+
     public void start(long positionMs, float speed) {
-        if (hitSoundPlayer != null) hitSoundPlayer.stop();
+        if (manualJudgements) prepareManualHitSounds();
+        else if (hitSoundPlayer != null) hitSoundPlayer.stop();
         if (isReady()) {
             if (hitSoundStartGate.request(positionMs, speed, customHitSounds.isLoading())) {
                 pcmAudioPlayer.start(positionMs, speed);
@@ -187,6 +205,11 @@ public final class EditorAudioController implements AutoCloseable {
     }
     public long durationMillis() { return isReady() ? pcmAudioPlayer.durationMillis() : 0; }
 
+    public double positionSeconds() {
+        return hitSoundStartGate.isWaiting() ? hitSoundStartGate.positionMillis() / 1000.0
+                : isReady() ? pcmAudioPlayer.positionSeconds() : 0;
+    }
+
     public void load(Uri uri) throws IOException {
         if (closed) throw new IOException("Audio controller is closed");
         if (uri == null) throw new IOException("Audio source is missing");
@@ -214,8 +237,7 @@ public final class EditorAudioController implements AutoCloseable {
                                 listener.showMessage("PCM playback error: " + message);
                             }
                         });
-                        pcmAudioPlayer.configureHitSounds(timeline, audioOffsetMs, scheduledSamples,
-                                customHitSounds.samples());
+                        configurePlayerHitSounds();
                         applySettings(settings);
                         notifyAudioStateChanged();
                         listener.showMessage("Audio loaded");

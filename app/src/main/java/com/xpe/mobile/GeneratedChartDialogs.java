@@ -52,10 +52,11 @@ final class GeneratedChartDialogs {
         EditText yEquation = delegateOwner.addField(content, delegateOwner.getString(R.string.complex_move_y_equation),
                 delegateOwner.getString(R.string.complex_move_default_y), false);
         delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_equation_help));
-        Spinner xEasingType = delegateOwner.addSpinner(content, R.string.complex_move_x_time_easing,
-                R.array.event_easing_entries, 0);
-        Spinner yEasingType = delegateOwner.addSpinner(content, R.string.complex_move_y_time_easing,
-                R.array.event_easing_entries, 0);
+        EasingSelector xCurve = EasingSelector.addTo(content,
+                delegateOwner.getString(R.string.complex_move_x_time_easing), 1);
+        EasingSelector yCurve = EasingSelector.addTo(content,
+                delegateOwner.getString(R.string.complex_move_y_time_easing), 1);
+        Spinner xEasingType = xCurve.spinner, yEasingType = yCurve.spinner;
         delegateOwner.addHint(content, delegateOwner.getString(R.string.complex_move_time_easing_help));
         CheckBox easingWindows = delegateOwner.addCheckBox(content, R.string.complex_move_easing_windows, false);
         LinearLayout windowFields = new LinearLayout(delegateOwner);
@@ -78,8 +79,14 @@ final class GeneratedChartDialogs {
                 LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(190)));
         TextView previewStatus = delegateOwner.addHint(content, "");
 
+        xCurve.bindWindow(xLeft, xRight, easingWindows::isChecked);
+        yCurve.bindWindow(yLeft, yRight, easingWindows::isChecked);
         Runnable refreshPreview = () -> {
             try {
+                xCurve.setWindow(easingWindows.isChecked() ? EditorDialogSection.parseDouble(xLeft) : 0,
+                        easingWindows.isChecked() ? EditorDialogSection.parseDouble(xRight) : 1);
+                yCurve.setWindow(easingWindows.isChecked() ? EditorDialogSection.parseDouble(yLeft) : 0,
+                        easingWindows.isChecked() ? EditorDialogSection.parseDouble(yRight) : 1);
                 ComplexMoveGenerator.Result result = ComplexMoveGenerator.preview(
                         delegateOwner.readComplexMoveSpec(startTime, endTime, xEquation, yEquation,
                                 xTimeEasing, yTimeEasing, generationDensity));
@@ -99,8 +106,8 @@ final class GeneratedChartDialogs {
         };
         EditorOperationDialogSection.watch(refreshPreview, startTime, endTime, xEquation, yEquation,
                 generationDensity, xLeft, xRight, yLeft, yRight);
-        EditorOperationDialogSection.setSpinnerChangeListener(xEasingType, refreshPreview);
-        EditorOperationDialogSection.setSpinnerChangeListener(yEasingType, refreshPreview);
+        xCurve.setOnChanged(refreshPreview);
+        yCurve.setOnChanged(refreshPreview);
         easingWindows.setOnCheckedChangeListener((button, enabled) -> {
             windowFields.setVisibility(enabled ? View.VISIBLE : View.GONE);
             refreshPreview.run();
@@ -171,8 +178,9 @@ final class GeneratedChartDialogs {
                 delegateOwner.editorView.getSubdivision()));
         Spinner noteType = delegateOwner.addSpinner(content, R.string.curve_notes_type,
                 R.array.curve_note_types, 1);
-        Spinner easing = delegateOwner.addSpinner(content, R.string.curve_notes_easing,
-                R.array.event_easing_entries, 0);
+        EasingSelector curve = EasingSelector.addTo(content,
+                delegateOwner.getString(R.string.curve_notes_easing), 1);
+        Spinner easing = curve.spinner;
         CurveNotePreviewView preview = new CurveNotePreviewView(delegateOwner);
         preview.setContentDescription(delegateOwner.getString(R.string.curve_notes_preview_description));
         content.addView(preview, new LinearLayout.LayoutParams(
@@ -204,7 +212,7 @@ final class GeneratedChartDialogs {
         EditorOperationDialogSection.setSpinnerChangeListener(startNote, refreshPreview);
         EditorOperationDialogSection.setSpinnerChangeListener(endNote, refreshPreview);
         EditorOperationDialogSection.setSpinnerChangeListener(noteType, refreshPreview);
-        EditorOperationDialogSection.setSpinnerChangeListener(easing, refreshPreview);
+        curve.setOnChanged(refreshPreview);
         EditorOperationDialogSection.watch(refreshPreview, curveDensity);
         refreshPreview.run();
 

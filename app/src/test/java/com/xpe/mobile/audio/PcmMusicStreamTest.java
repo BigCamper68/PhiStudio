@@ -7,6 +7,21 @@ import java.io.*;
 import static org.junit.Assert.*;
 
 public final class PcmMusicStreamTest {
+    @Test public void negativeStartWritesSilenceThenMusicWithoutDroppingItsFirstSample() throws Exception {
+        for (int rate : new int[]{44100, 48000}) {
+            File file = temporary.newFile();
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                for (int i = 0; i < rate; i++) writeSample(out, 1000 + i % 500);
+            }
+            PcmAudioAsset asset = new PcmAudioAsset(file, rate, 1, rate);
+            long start = asset.timelineFrameForPositionMillis(-21);
+            byte[] output = render(asset, start, 1);
+            assertEquals((rate - start) * 2, output.length);
+            for (int i = 0; i < -start * 2; i++) assertEquals(0, output[i]);
+            assertArrayEquals(java.nio.file.Files.readAllBytes(file.toPath()),
+                    java.util.Arrays.copyOfRange(output, (int) -start * 2, output.length));
+        }
+    }
     @Rule public TemporaryFolder temporary = new TemporaryFolder();
 
     private static void writeSample(OutputStream output, int value) throws IOException {

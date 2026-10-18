@@ -107,20 +107,10 @@ final class StoryboardDialogSection extends EditorDialogSection {
         }
         CheckBox locked = addCheckBox(content, R.string.field_event_locked,
                 storyboardValuesEqual(source));
-        Spinner easingType = addSpinner(content, R.string.field_event_easing_type,
-                R.array.event_easing_entries,
-                Math.max(Easing.MIN_TYPE,
-                        Math.min(Easing.MAX_TYPE, source.easingType)) - 1);
-        TextView previewLabel = new TextView(this);
-        previewLabel.setText(R.string.field_event_easing_preview);
-        previewLabel.setTextSize(14f);
-        previewLabel.setPadding(0, dp(8), 0, dp(3));
-        content.addView(previewLabel);
-        EasingPreviewView easingPreview = new EasingPreviewView(this);
-        easingPreview.setContentDescription(
-                getString(R.string.field_event_easing_preview_description));
-        content.addView(easingPreview, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(148)));
+        EasingSelector curve = EasingSelector.addTo(content,
+                getString(R.string.field_event_easing_type), source.easingType);
+        Spinner easingType = curve.spinner;
+        EasingPreviewView easingPreview = curve.preview;
         EditText easingLeft = addField(content, getString(R.string.field_event_easing_left),
                 formatNumber(source.easingLeft), true);
         EditText easingRight = addField(content, getString(R.string.field_event_easing_right),
@@ -140,7 +130,7 @@ final class StoryboardDialogSection extends EditorDialogSection {
         Runnable refreshEasing = () -> updateEasingEditor(
                 false, easingType, easingLeft, easingRight, bezier,
                 bezierX1, bezierY1, bezierX2, bezierY2, easingPreview);
-        setSpinnerChangeListener(easingType, refreshEasing);
+        curve.setOnChanged(refreshEasing);
         bezier.setOnCheckedChangeListener((button, checked) -> refreshEasing.run());
         watch(refreshEasing, easingLeft, easingRight,
                 bezierX1, bezierY1, bezierX2, bezierY2);

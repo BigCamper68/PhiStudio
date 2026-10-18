@@ -36,7 +36,8 @@ public final class BatchEditOperation {
     public enum EventField {
         START_VALUE,
         END_VALUE,
-        EASING_TYPE
+        EASING_TYPE,
+        BOTH_VALUES
     }
 
     public static final class Result {
@@ -141,6 +142,10 @@ public final class BatchEditOperation {
                 LineEvent edited = after.get(index);
                 double generated = values[index];
                 switch (field) {
+                    case BOTH_VALUES:
+                        edited.start = BatchValueTransform.apply(mode, edited.start, generated);
+                        edited.end = BatchValueTransform.apply(mode, edited.end, generated);
+                        break;
                     case START_VALUE:
                         edited.start = BatchValueTransform.apply(mode, edited.start, generated);
                         break;
@@ -150,6 +155,9 @@ public final class BatchEditOperation {
                     case EASING_TYPE:
                         edited.easingType = (int) Math.round(BatchValueTransform.apply(
                                 mode, edited.easingType, generated));
+                        edited.easingLeft = 0;
+                        edited.easingRight = 1;
+                        edited.bezier = false;
                         break;
                 }
                 if (PropertyValidator.validate(edited) != PropertyValidator.Error.NONE) {

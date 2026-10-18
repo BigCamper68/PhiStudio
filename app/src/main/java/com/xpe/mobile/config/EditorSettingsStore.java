@@ -43,7 +43,6 @@ public final class EditorSettingsStore {
         result.skipWhenUndoRedo = preferences.getBoolean(key("skipWhenUndoRedo"), defaults.skipWhenUndoRedo);
         result.autoStickEvents = preferences.getBoolean(key("autoStickEvents"), defaults.autoStickEvents);
         result.splitSnapToGrid = preferences.getBoolean(key("splitSnapToGrid"), defaults.splitSnapToGrid);
-        result.cutDensity = getDouble(preferences, "cutDensity", defaults.cutDensity);
         result.drawEventCurves = preferences.getBoolean(key("drawEventCurves"), defaults.drawEventCurves);
         result.drawEventNumbers = preferences.getBoolean(key("drawEventNumbers"), defaults.drawEventNumbers);
         result.correctionXThreshold = getDouble(preferences, "correctionXThreshold", defaults.correctionXThreshold);
@@ -98,7 +97,7 @@ public final class EditorSettingsStore {
         editor.putBoolean(key("skipWhenUndoRedo"), value.skipWhenUndoRedo);
         editor.putBoolean(key("autoStickEvents"), value.autoStickEvents);
         editor.putBoolean(key("splitSnapToGrid"), value.splitSnapToGrid);
-        putDouble(editor, "cutDensity", value.cutDensity);
+        editor.remove(key("cutDensity"));
         editor.putBoolean(key("drawEventCurves"), value.drawEventCurves);
         editor.putBoolean(key("drawEventNumbers"), value.drawEventNumbers);
         putDouble(editor, "correctionXThreshold", value.correctionXThreshold);

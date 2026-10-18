@@ -36,36 +36,18 @@ final class EditorOperationDialogSection extends EditorDialogSection {
     }
 
     BatchValueTransform.Spec batchProfile(EditText lower, EditText upper,
-                                                  EditText easing, EditText sequence,
+                                                  int easingType, EditText sequence,
                                                   EditText disturbance, long seed) {
         BatchValueTransform.Spec result = new BatchValueTransform.Spec();
         result.lowerBound = parseDouble(lower);
         result.upperBound = parseDouble(upper);
-        result.easingType = parseInteger(easing);
+        result.easingType = easingType;
         result.periodicSequence = BatchValueTransform.parseSequence(
                 sequence.getText().toString());
         result.disturbance = parseDouble(disturbance);
         result.randomSeed = seed;
         if (!BatchValueTransform.isValid(result)) {
             throw new IllegalArgumentException("invalid profile");
-        }
-        return result;
-    }
-
-    BatchValueTransform.Spec cloneProfile(EditText uled, EditText sequence,
-                                                  long seed) {
-        String[] values = uled.getText().toString().trim().split("[\\s,;]+", -1);
-        if (values.length != 4) throw new IllegalArgumentException("U.L.E.D needs four values");
-        BatchValueTransform.Spec result = new BatchValueTransform.Spec();
-        result.lowerBound = Double.parseDouble(values[0]);
-        result.upperBound = Double.parseDouble(values[1]);
-        result.easingType = Integer.parseInt(values[2]);
-        result.disturbance = Double.parseDouble(values[3]);
-        result.periodicSequence = BatchValueTransform.parseSequence(
-                sequence.getText().toString());
-        result.randomSeed = seed;
-        if (!BatchValueTransform.isValid(result)) {
-            throw new IllegalArgumentException("invalid U.L.E.D profile");
         }
         return result;
     }

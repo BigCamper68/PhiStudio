@@ -9,6 +9,7 @@ import android.view.View;
 
 import com.xpe.mobile.model.EventType;
 import com.xpe.mobile.model.LineEvent;
+import java.util.function.DoubleUnaryOperator;
 
 /** Compact live preview used by the event easing property sheet. */
 public final class EasingPreviewView extends View {
@@ -19,6 +20,7 @@ public final class EasingPreviewView extends View {
     private final Path curvePath = new Path();
     private final LineEvent previewEvent = new LineEvent();
     private final float density;
+    private DoubleUnaryOperator evaluator = previewEvent::easedProgressAt;
 
     public EasingPreviewView(Context context) {
         super(context);
@@ -38,6 +40,13 @@ public final class EasingPreviewView extends View {
         previewEvent.bezierPoints[1] = y1;
         previewEvent.bezierPoints[2] = x2;
         previewEvent.bezierPoints[3] = y2;
+        evaluator = previewEvent::easedProgressAt;
+        invalidate();
+    }
+
+    /** Lets shader forms use their playback evaluator rather than approximating it. */
+    public void setEvaluator(DoubleUnaryOperator evaluator) {
+        this.evaluator = evaluator;
         invalidate();
     }
 
@@ -52,8 +61,14 @@ public final class EasingPreviewView extends View {
         if (right <= left || bottom <= top) return;
 
         // Equal coordinate units must occupy equal pixel distances on both axes.
+        double minimum = 0, maximum = 1;
+        for (int index = 0; index <= 128; index++) {
+            double value = evaluator.applyAsDouble(index / 128.0);
+            if (Double.isFinite(value)) { minimum = Math.min(minimum, value); maximum = Math.max(maximum, value); }
+        }
+        double span = maximum - minimum;
         PreviewViewportCalculator.Result plot = PreviewViewportCalculator.fit(
-                left, top, right, bottom, 1, 1);
+                left, top, right, bottom, span, 1);
         left = (float) plot.left;
         top = (float) plot.top;
         right = (float) plot.right;
@@ -75,8 +90,9 @@ public final class EasingPreviewView extends View {
         int samples = Math.max(32, Math.min(128, Math.round((right - left) / density)));
         for (int index = 0; index <= samples; index++) {
             double t = index / (double) samples;
-            double progress = previewEvent.easedProgressAt(t);
-            float x = left + (float) progress * (right - left);
+            double progress = evaluator.applyAsDouble(t);
+            if (!Double.isFinite(progress)) continue;
+            float x = left + (float) ((progress - minimum) / span) * (right - left);
             float y = bottom - (float) t * (bottom - top);
             if (index == 0) curvePath.moveTo(x, y);
             else curvePath.lineTo(x, y);

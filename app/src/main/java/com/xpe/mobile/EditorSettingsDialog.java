@@ -76,8 +76,6 @@ final class EditorSettingsDialog {
                 draft.autoStickEvents);
         CheckBox splitSnap = delegateOwner.addCheckBox(content, R.string.settings_split_snap_to_grid,
                 draft.splitSnapToGrid);
-        EditText cutDensity = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_cut_density),
-                EditorDialogController.formatNumber(draft.cutDensity), true);
         CheckBox drawCurves = delegateOwner.addCheckBox(content, R.string.settings_draw_event_curves,
                 draft.drawEventCurves);
         CheckBox drawNumbers = delegateOwner.addCheckBox(content, R.string.settings_draw_event_numbers,
@@ -153,7 +151,6 @@ final class EditorSettingsDialog {
                         draft.skipWhenUndoRedo = skipUndo.isChecked();
                         draft.autoStickEvents = autoStick.isChecked();
                         draft.splitSnapToGrid = splitSnap.isChecked();
-                        draft.cutDensity = EditorDialogController.parseDouble(cutDensity);
                         draft.drawEventCurves = drawCurves.isChecked();
                         draft.drawEventNumbers = drawNumbers.isChecked();
                         draft.shortcutPlayPause = shortcutPlay.getText().toString().trim();

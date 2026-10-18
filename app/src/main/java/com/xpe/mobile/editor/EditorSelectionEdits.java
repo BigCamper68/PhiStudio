@@ -162,6 +162,64 @@ final class EditorSelectionEdits {
         delegateOwner.editorSelectionEdits.mutateSelectedEvent(event -> event.linkGroup = event.linkGroup == 0 ? 1 : 0);
     }
 
+    void subdivideSelectedEvents() {
+        List<LineEvent> originalEvents = delegateOwner.getSelectedEventsForBatch();
+        List<Note> originalNotes = delegateOwner.getSelectedNotesForBatch();
+        LineEvent previousEvent = delegateOwner.selectedEvent;
+        Note previousNote = delegateOwner.selectedNote;
+        int originalLine = delegateOwner.lineIndex;
+        int originalLayer = delegateOwner.eventLayerIndex;
+        EventSubdivisionOperation.Result result = EventSubdivisionOperation.prepare(
+                delegateOwner.currentLayer(), delegateOwner.eventLayerIndex, originalEvents,
+                delegateOwner.getCurrentBeatTime(), delegateOwner.subdivision,
+                delegateOwner.xyBindingEnabled,
+                delegateOwner.chart::beatToSeconds);
+        if (result.error != EventSubdivisionOperation.Error.NONE) {
+            int message;
+            switch (result.error) {
+                case TOO_MANY_SEGMENTS: message = R.string.event_subdivide_too_many; break;
+                case NO_CUTS: message = R.string.event_subdivide_no_cuts; break;
+                case UNSUPPORTED_CURVE: message = R.string.event_subdivide_unsupported; break;
+                case XY_BINDING_INVALID: message = R.string.event_subdivide_xy; break;
+                case EVENT_OVERLAP: message = R.string.validation_event_overlap; break;
+                default: message = R.string.event_subdivide_invalid; break;
+            }
+            if (delegateOwner.callback != null) {
+                delegateOwner.callback.showMessage(delegateOwner.getResources().getString(message));
+            }
+            return;
+        }
+        delegateOwner.history.execute(new EditHistory.Command() {
+            @Override public void apply() {
+                result.command.apply();
+                delegateOwner.lineIndex = originalLine;
+                delegateOwner.eventLayerIndex = originalLayer;
+                delegateOwner.clearSelection();
+                delegateOwner.selectedEvents.addAll(result.events);
+                delegateOwner.selectedEvent = result.events.get(0);
+                delegateOwner.activateEditPanel();
+            }
+
+            @Override public void revert() {
+                result.command.revert();
+                delegateOwner.lineIndex = originalLine;
+                delegateOwner.eventLayerIndex = originalLayer;
+                delegateOwner.clearSelection();
+                delegateOwner.selectedEvents.addAll(originalEvents);
+                delegateOwner.selectedNotes.addAll(originalNotes);
+                delegateOwner.selectedEvent = previousEvent;
+                delegateOwner.selectedNote = previousNote;
+                delegateOwner.activateEditPanel();
+            }
+        });
+        if (delegateOwner.callback != null) {
+            delegateOwner.callback.showMessage(delegateOwner.getResources().getQuantityString(
+                    R.plurals.event_subdivide_applied, result.events.size(), result.sourceCount, result.events.size(),
+                    result.step.toString()));
+        }
+        delegateOwner.invalidate();
+    }
+
     void splitSelectedEvent() {
         if (delegateOwner.selectedEvent == null) return;
         EventLayer layer = delegateOwner.currentLayer();

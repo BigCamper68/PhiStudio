@@ -32,6 +32,35 @@ public class HitSoundStreamMixerTest {
         return (short) ((output[frame * 4] & 255) | output[frame * 4 + 1] << 8);
     }
 
+    private static PcmHitSound impulse(int value) {
+        short[] samples = new short[960 * 2]; samples[0] = samples[1] = (short) value;
+        return new PcmHitSound(48000, 2, samples);
+    }
+
+    @Test public void aLiveChordHasOnePcmOnsetIncludingItsCustomSounds() {
+        HitSoundStreamMixer mixer = new HitSoundStreamMixer(impulse(1000), impulse(3000), impulse(4000));
+        mixer.setCustomSounds(java.util.Map.of("chord.wav", impulse(2000)));
+        Note tap = new Note(), hold = new Note(), custom = new Note(); hold.type = NoteType.HOLD;
+        custom.hitSound = "chord.wav";
+        mixer.add(HitSoundTimeline.forNotes(Arrays.asList(tap, hold, custom, custom)));
+        byte[] pcm = new byte[960 * 4]; mixer.render(pcm, 1);
+        assertEquals(6000, sample(pcm, 0));
+        for (int frame = 1; frame < 960; frame++) assertEquals("Unexpected delayed onset at " + frame, 0, sample(pcm, frame));
+        assertFalse(mixer.hasAudio());
+    }
+
+    @Test public void missingCustomFilesKeepAllFallbackVoicesOnTheSamePcmFrame() {
+        HitSoundStreamMixer mixer = new HitSoundStreamMixer(impulse(1000), impulse(3000), impulse(4000));
+        Note tap = new Note(), hold = new Note(), flick = new Note();
+        hold.type = NoteType.HOLD; flick.type = NoteType.FLICK;
+        hold.hitSound = flick.hitSound = "unavailable.wav";
+        mixer.add(HitSoundTimeline.forNotes(Arrays.asList(tap, hold, flick)));
+        byte[] pcm = new byte[960 * 4]; mixer.render(pcm, 1);
+        assertEquals(5000, sample(pcm, 0));
+        for (int frame = 1; frame < 960; frame++) assertEquals("Unexpected delayed fallback at " + frame, 0, sample(pcm, frame));
+        assertFalse(mixer.hasAudio());
+    }
+
     @Test public void overlappingHitsSumBeforeClippingAndVolume() {
         HitSoundStreamMixer mixer = new HitSoundStreamMixer(tone(25000, 480), tone(-10000, 480), tone(0, 0));
         byte[] block = new byte[240 * 4];

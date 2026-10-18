@@ -18,6 +18,40 @@ import static org.junit.Assert.*;
 @Config(sdk = 34)
 @org.robolectric.annotation.ConscryptMode(org.robolectric.annotation.ConscryptMode.Mode.OFF)
 public class ExportAudioMixerTest {
+    @Test public void negativeRangePadsOnlyPrerollAndKeepsTheFirstMusicSample() throws Exception {
+        File file = File.createTempFile("preroll-music-", ".pcm", context.getCacheDir());
+        try {
+            byte[] music = new byte[2000];
+            for (int i = 0; i < music.length; i += 2) { music[i] = (byte) 0xD0; music[i + 1] = 7; }
+            Files.write(file.toPath(), music);
+            PcmAudioAsset asset = new PcmAudioAsset(file, 1000, 1, 1000);
+            ChartDocument chart = chart(); chart.offsetMs = -21;
+            try (ExportAudioMixer mixer = new ExportAudioMixer(context, asset, chart, null, 0,
+                    options(-21, 100, true, false), new EditorSettings())) {
+                byte[] output = render(mixer, 17);
+                for (int i = 0; i < 42; i++) assertEquals(0, output[i]);
+                for (int i = 42; i < output.length; i += 2) {
+                    assertEquals((byte) 0xE8, output[i]); assertEquals(3, output[i + 1]);
+                }
+            }
+        } finally { file.delete(); }
+    }
+
+    @Test public void hitsAtChartZeroSurviveNegativePrerollAndPartialRanges() throws Exception {
+        ChartDocument chart = chart(0); chart.offsetMs = -21;
+        byte[] full;
+        try (ExportAudioMixer mixer = new ExportAudioMixer(context, null, chart, null, 0,
+                options(-21, 300, false, true), new EditorSettings())) { full = render(mixer, 337); }
+        byte[] hit = Files.readAllBytes(new File("src/main/res/raw/hitsound_click_pcm.pcm").toPath());
+        assertArrayEquals(hit, java.util.Arrays.copyOf(full, hit.length));
+        try (ExportAudioMixer mixer = new ExportAudioMixer(context, null, chart, null, 0,
+                options(-10, 300, false, true), new EditorSettings())) {
+            byte[] partial = render(mixer, 101);
+            int offset = 11 * 48 * 4;
+            assertArrayEquals(java.util.Arrays.copyOfRange(hit, offset, hit.length),
+                    java.util.Arrays.copyOf(partial, hit.length - offset));
+        }
+    }
     private final Context context = RuntimeEnvironment.getApplication();
     private static ChartDocument chart(double... noteBeats) {
         ChartDocument chart = new ChartDocument();

@@ -9,6 +9,76 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class PcmAudioPlayerTransportTest {
+    @Test public void timestampLagCannotLeaveAnAlreadyConsumedHitAheadOfThePreviewClock() throws Exception {
+        CountDownLatch consumed = new CountDownLatch(1), queued = new CountDownLatch(1);
+        FakeOutput output = new FakeOutput() {
+            public synchronized int write(byte[] pcm, int offset, int length) {
+                int result = super.write(pcm, offset, length);
+                if (data.size() == 4000) queued.countDown();
+                return result;
+            }
+            public boolean timestamp(PcmPresentationClock.Timestamp value) {
+                if (head < 1001) return false;
+                value.framePosition = head - 100;
+                value.nanoTime = System.nanoTime();
+                consumed.countDown();
+                return true;
+            }
+        };
+        output.capacity = 4000;
+        PcmAudioPlayer player = player((asset, speed) -> output, 2000);
+        player.configureHitSounds(ScheduledHitSoundMixerTest.timeline(1000), 0,
+                ScheduledHitSoundMixerTest.sounds(1000, 1, new short[]{12345}));
+        player.setVolume(0); player.start(0, 1); await(queued);
+        assertEquals(12345, ScheduledHitSoundMixerTest.sample(output.data.toByteArray(), 1000, 1));
+        output.head = 1001; await(consumed); // The cue's sample has left the output queue.
+        assertTrue("Preview must have crossed the same hit as checkpoint3", player.positionSeconds() >= 1.001);
+        player.pause(); await(output.released);
+    }
+
+    @Test public void previewQueriesTheCurrentHeadInsteadOfAStaleWorkerObservation() throws Exception {
+        CountDownLatch queued = new CountDownLatch(1);
+        FakeOutput output = new FakeOutput() {
+            public synchronized int write(byte[] pcm, int offset, int length) {
+                int result = super.write(pcm, offset, length);
+                if (data.size() == 4000) queued.countDown();
+                return result;
+            }
+            public long headFrames() {
+                return Thread.currentThread().getName().equals("phistudio-pcm-playback") ? 0 : 1001;
+            }
+        };
+        output.capacity = 4000;
+        PcmAudioPlayer player = player((asset, speed) -> output, 2000);
+        player.start(0, 1); await(queued);
+        assertTrue("Same live output counter as checkpoint3", player.positionSeconds() >= 1.001);
+        player.pause(); await(output.released);
+    }
+
+    @Test public void exactNegativeStartDoesNotAdvanceWhileOutputIsStillPriming() throws Exception {
+        FakeOutput output = new FakeOutput();
+        PcmAudioPlayer player = player((asset, speed) -> output, 1000);
+        player.start(-21, 1); await(output.played);
+        assertEquals(-.021, player.positionSeconds(), 0);
+        Thread.sleep(25);
+        assertEquals(-.021, player.positionSeconds(), 0);
+        assertEquals(-21, player.positionMillis());
+        player.pause(); await(output.released);
+    }
+
+    @Test public void signedPrerollIncludesAHitAtChartZeroAndCompletesAtMusicEnd() throws Exception {
+        FakeOutput output = new FakeOutput(); output.capacity = 100000; output.consume = true;
+        PcmAudioPlayer player = player((asset, speed) -> output, 1000);
+        short[] hit = new short[]{100, 200, 300, 400, 500, 600};
+        player.configureHitSounds(ScheduledHitSoundMixerTest.timeline(0), -21,
+                ScheduledHitSoundMixerTest.sounds(1000, 1, hit));
+        player.setVolume(0); player.start(-21, 1);
+        await(output.released); drainCallbacks();
+        byte[] data = output.data.toByteArray(); assertEquals(2042, data.length);
+        for (int frame = 0; frame < 1021; frame++)
+            assertEquals(frame < hit.length ? hit[frame] : 0, ScheduledHitSoundMixerTest.sample(data, frame, 1));
+        assertEquals(1000, player.positionMillis()); assertEquals(1, completions); assertEquals(0, errors);
+    }
     @Rule public TemporaryFolder temp = new TemporaryFolder();
     private final List<PcmAudioPlayer> players = new ArrayList<>();
     private final Queue<Runnable> callbacks = new ConcurrentLinkedQueue<>();

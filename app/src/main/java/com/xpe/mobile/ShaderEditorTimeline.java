@@ -10,6 +10,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import com.xpe.mobile.editor.EditorTimelineMetrics;
 import com.xpe.mobile.preview.ShaderTween;
 import com.xpe.mobile.shadereditor.ShaderDocument;
@@ -22,6 +23,7 @@ import org.json.JSONObject;
 @SuppressLint("ViewConstructor") // Created programmatically with its owning ShaderEditorView.
 final class ShaderEditorTimeline extends View {
     private final ShaderEditorView delegateOwner;
+    private final int touchSlop;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path curve = new Path();
     private float pinchSpan;
@@ -101,6 +103,7 @@ final class ShaderEditorTimeline extends View {
     ShaderEditorTimeline(Context context, ShaderEditorView delegateOwner) {
         super(context);
         this.delegateOwner = delegateOwner;
+        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         setContentDescription("Vertical shader effects timeline");
     }
     private boolean animation() {
@@ -304,6 +307,7 @@ final class ShaderEditorTimeline extends View {
             delegateOwner.invalidatePreview();
         }
         if (action == MotionEvent.ACTION_CANCEL) { cancel(); return true; }
+        if (!holdingTimeline) return true;
         if (event.getPointerCount() > 1) {
             if (!multiTouch) cancelEditing();
             multiTouch = true;
@@ -331,17 +335,17 @@ final class ShaderEditorTimeline extends View {
             Hit chosen = null;
             float bestDistance = Float.MAX_VALUE;
             if (downY > delegateOwner.dp(30) && downX >= delegateOwner.dp(36) && downX <= getWidth()) {
-                // Match the circular hit targets and S/E priority of Events.
+                // Only the selected block exposes editable S/E handles.
                 for (int i = 0; i < hitCount; i++) {
                     Hit hit = hits.get(i);
+                    if (hit.index != (animation ? delegateOwner.eventIndex : delegateOwner.document.selected)) continue;
                     float radius = Math.min(delegateOwner.dp(26), (hit.rect.width() + delegateOwner.dp(6)) * .48f);
                     float startDistance =
                         (float) Math.hypot(downX - hit.rect.centerX(), downY - hit.startY);
                     float endDistance =
                         (float) Math.hypot(downX - hit.rect.centerX(), downY - hit.endY);
                     float distance = Math.min(startDistance, endDistance);
-                    if (hit.index == (animation ? delegateOwner.eventIndex : delegateOwner.document.selected))
-                        distance -= .5f * delegateOwner.density;
+                    distance -= .5f * delegateOwner.density;
                     if (distance <= radius && distance <= bestDistance) {
                         chosen = hit;
                         handle = startDistance <= endDistance ? 1 : 2;
@@ -362,15 +366,11 @@ final class ShaderEditorTimeline extends View {
             if (chosen != null) {
                 target = chosen.index;
                 if (animation) {
-                    delegateOwner.eventIndex = target;
-                    delegateOwner.buildForm();
                     JSONArray events =
                         delegateOwner.document.selected().optJSONObject("vars").optJSONArray(delegateOwner.parameter);
                     originalStart = delegateOwner.shaderAnimationForms.eventTime(events.optJSONObject(target), "startTime");
                     originalEnd = delegateOwner.shaderAnimationForms.eventTime(events.optJSONObject(target), "endTime");
                 } else {
-                    if (delegateOwner.document.selected != target)
-                        delegateOwner.select(target, false);
                     originalStart = delegateOwner.document.start(target);
                     originalEnd = delegateOwner.document.end(target);
                 }
@@ -378,48 +378,22 @@ final class ShaderEditorTimeline extends View {
             return true;
         }
         if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-            float dx = event.getX() - lastX;
-            float dy = event.getY() - lastY;
-            boolean handleMoved =
-                target >= 0 && handle != 0 && Math.abs(event.getY() - downY) >= .5f * delegateOwner.density;
-            if (!dragging
-                && (handleMoved
-                    || Math.hypot(event.getX() - downX, event.getY() - downY) > 3f * delegateOwner.density)) {
-                dragging = true;
-                horizontalGesture = target < 0 && (downY < delegateOwner.dp(30)
-                        || Math.abs(event.getX() - downX) > Math.abs(event.getY() - downY));
-                if (target >= 0 && handle != 0)
-                    delegateOwner.document.beginGesture();
-            }
-            if (!dragging)
-                return true;
-            lastX = event.getX();
-            lastY = event.getY();
-            if (horizontalGesture) {
-                horizontal = Math.max(0, horizontal - dx);
-                lanes();
-                invalidate();
-                return true;
-            }
-            if (target < 0) {
-                delegateOwner.editor.shaderPanTo(delegateOwner.document.seconds(
-                    Math.max(0,
-                        delegateOwner.document.axis(delegateOwner.editor.shaderEditorSeconds(), delegateOwner.beats)
-                            + dy / delegateOwner.editor.timelineScale() * delegateOwner.editor.timelineScrollMultiplier()),
-                    delegateOwner.beats));
-                delegateOwner.invalidatePreview();
-                return true;
-            }
-            if (handle == 0)
-                return true; // Event bodies select; only S/E handles edit time.
-            updateHandle(event.getY());
+            movePointer(event.getX(), event.getY());
             return true;
         }
         if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+            if (!dragging && Math.hypot(event.getX() - downX, event.getY() - downY) > touchSlop)
+                movePointer(event.getX(), event.getY());
             if (dragging && target >= 0 && handle != 0) {
                 updateHandle(event.getY());
                 delegateOwner.document.endGesture();
                 delegateOwner.changed(true);
+            } else if (!dragging && target >= 0) {
+                if (animation) {
+                    delegateOwner.eventIndex = target;
+                    delegateOwner.buildForm();
+                } else if (delegateOwner.document.selected != target) delegateOwner.select(target, false);
+                invalidate();
             } else if (!dragging && target < 0 && downY > delegateOwner.dp(30)) {
                 boolean clearing = delegateOwner.editor.clearTimelineSelectionOnTap();
                 if (delegateOwner.document.selected >= 0) {
@@ -436,15 +410,47 @@ final class ShaderEditorTimeline extends View {
                 delegateOwner.invalidatePreview();
             }
             finishHold();
+            if (!dragging) performClick();
             dragging = false;
-            performClick();
-            return true;
-        }
-        if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-            cancel();
             return true;
         }
         return true;
+    }
+
+    private void movePointer(float x, float y) {
+        float dx = x - lastX;
+        float dy = y - lastY;
+        boolean handleMoved =
+            target >= 0 && handle != 0 && Math.abs(y - downY) >= .5f * delegateOwner.density;
+        if (!dragging
+            && (handleMoved
+                || Math.hypot(x - downX, y - downY) > touchSlop)) {
+            dragging = true;
+            horizontalGesture = handle == 0 && (downY < delegateOwner.dp(30)
+                    || Math.abs(x - downX) > Math.abs(y - downY));
+            if (target >= 0 && handle != 0)
+                delegateOwner.document.beginGesture();
+        }
+        if (!dragging)
+            return;
+        lastX = x;
+        lastY = y;
+        if (horizontalGesture) {
+            horizontal = Math.max(0, horizontal - dx);
+            lanes();
+            invalidate();
+            return;
+        }
+        if (handle == 0) {
+            delegateOwner.editor.shaderPanTo(delegateOwner.document.seconds(
+                Math.max(0,
+                    delegateOwner.document.axis(delegateOwner.editor.shaderEditorSeconds(), delegateOwner.beats)
+                        + dy / delegateOwner.editor.timelineScale() * delegateOwner.editor.timelineScrollMultiplier()),
+                delegateOwner.beats));
+            delegateOwner.invalidatePreview();
+            return;
+        }
+        updateHandle(y);
     }
     private void updateHandle(float pointerY) {
         double delta = -(pointerY - downY) / delegateOwner.editor.timelineScale()

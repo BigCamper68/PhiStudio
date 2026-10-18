@@ -3,6 +3,7 @@ package com.xpe.mobile.audio;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
+import android.media.AudioTimestamp;
 import android.media.PlaybackParams;
 import android.os.Handler;
 import java.io.IOException;
@@ -27,6 +28,7 @@ public final class PcmAudioPlayer {
         void pause();
         void flush();
         long headFrames();
+        default boolean timestamp(PcmPresentationClock.Timestamp value) { return false; }
         default int startThresholdFrames() { return 0; }
         void release();
     }
@@ -48,6 +50,10 @@ public final class PcmAudioPlayer {
     private long playbackStartFrame;
     private float playbackSpeed = 1f;
     private long lastPositionMs;
+    private double lastPositionSeconds;
+    private long writtenOutputFrames;
+    private PcmPresentationClock presentationClock;
+    private final PcmPresentationClock.Timestamp timestamp = new PcmPresentationClock.Timestamp();
     private boolean playRequested;
     private boolean released;
     private volatile float volume = 1f;
@@ -92,12 +98,16 @@ public final class PcmAudioPlayer {
             if (released) return;
             stopLocked();
             int expected = ++generation;
-            long targetFrame = asset.frameForPositionMillis(positionMs);
+            long targetFrame = asset.timelineFrameForPositionMillis(positionMs);
             playbackStartFrame = targetFrame;
-            lastPositionMs = asset.positionMillisForFrame(targetFrame);
+            lastPositionMs = Math.min(positionMs, asset.durationMillis());
+            lastPositionSeconds = lastPositionMs / 1000.0;
+            writtenOutputFrames = 0;
             playRequested = true;
             float rate = Float.isFinite(speed) ? Math.max(.25f, Math.min(2f, speed)) : 1f;
             playbackSpeed = rate;
+            presentationClock = new PcmPresentationClock(asset.sampleRate, lastPositionSeconds,
+                    asset.totalFrames / (double) asset.sampleRate, rate);
             HitSoundTimeline schedule = timeline;
             long offset = audioOffsetMs;
             PcmHitSound[] samples = sounds;
@@ -118,8 +128,10 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             if (released) return;
             stopLocked();
-            playbackStartFrame = asset.frameForPositionMillis(positionMs);
-            lastPositionMs = asset.positionMillisForFrame(playbackStartFrame);
+            playbackStartFrame = asset.timelineFrameForPositionMillis(positionMs);
+            lastPositionMs = Math.min(positionMs, asset.durationMillis());
+            lastPositionSeconds = lastPositionMs / 1000.0;
+            presentationClock = null;
         }
     }
 
@@ -139,6 +151,14 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             updatePositionLocked();
             return lastPositionMs;
+        }
+    }
+
+    public double positionSeconds() {
+        synchronized (lock) {
+            // Read the live counter for this frame, just as checkpoint3 did.
+            updatePositionLocked();
+            return lastPositionSeconds;
         }
     }
 
@@ -230,6 +250,11 @@ public final class PcmAudioPlayer {
                     }
                     writtenBytes += written;
                     framesWritten += written / frameSize;
+                    synchronized (lock) {
+                        if (!isCurrentLocked(expected)) return;
+                        writtenOutputFrames = framesWritten;
+                        observeClockLocked(output);
+                    }
                     if (written == 0) Thread.sleep(2);
                 }
             }
@@ -257,6 +282,7 @@ public final class PcmAudioPlayer {
             while (true) {
                 synchronized (lock) {
                     if (!isCurrentLocked(expected)) return;
+                    observeClockLocked(output);
                     if (output.headFrames() >= framesWritten) break;
                 }
                 Thread.sleep(5);
@@ -292,6 +318,7 @@ public final class PcmAudioPlayer {
         synchronized (lock) {
             if (!isCurrentLocked(expected)) return;
             lastPositionMs = asset.durationMillis();
+            lastPositionSeconds = asset.totalFrames / (double) asset.sampleRate;
             playRequested = false;
         }
         post.accept(() -> {
@@ -317,12 +344,20 @@ public final class PcmAudioPlayer {
         });
     }
 
+    private void observeClockLocked(Output output) {
+        if (presentationClock == null) return;
+        long now = System.nanoTime();
+        presentationClock.observe(output.headFrames(), now, writtenOutputFrames);
+        if (output.timestamp(timestamp)) presentationClock.timestamp(timestamp, System.nanoTime());
+    }
+
     private void updatePositionLocked() {
-        if (activeTrack == null) return;
+        if (activeTrack == null || presentationClock == null) return;
         try {
-            lastPositionMs = Math.max(lastPositionMs,
-                    PcmPlaybackClock.positionMillis(asset, playbackStartFrame,
-                            activeTrack.headFrames(), playbackSpeed));
+            // Legacy millisecond callers also work with synchronous injected outputs.
+            presentationClock.observe(activeTrack.headFrames(), System.nanoTime(), writtenOutputFrames);
+            lastPositionSeconds = Math.max(lastPositionSeconds, presentationClock.seconds(System.nanoTime()));
+            lastPositionMs = Math.round(lastPositionSeconds * 1000);
         } catch (IllegalStateException ignored) { }
     }
 
@@ -363,6 +398,12 @@ public final class PcmAudioPlayer {
             public void release(AudioTrack track) { track.release(); }
         });
         return new Output() {
+            private final AudioTimestamp nativeTimestamp = new AudioTimestamp();
+            public boolean timestamp(PcmPresentationClock.Timestamp value) {
+                if (!track.getTimestamp(nativeTimestamp)) return false;
+                value.framePosition = nativeTimestamp.framePosition; value.nanoTime = nativeTimestamp.nanoTime;
+                return true;
+            }
             public int write(byte[] pcm, int offset, int length) {
                 return track.write(pcm, offset, length, AudioTrack.WRITE_NON_BLOCKING);
             }

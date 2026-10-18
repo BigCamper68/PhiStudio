@@ -56,7 +56,7 @@ final class EditorSessionUi {
         delegateOwner.noteMoveMode = NoteMoveMode.OFF;
         delegateOwner.selectionRectangle = null;
         delegateOwner.bottomPanel = BottomPanel.CREATE;
-        delegateOwner.bottomActionPage = 0;
+        delegateOwner.editorBottomBarUi.resetScroll();
         delegateOwner.verticalGridLines = VerticalGrid.defaultCount();
         delegateOwner.gestureMode = GestureMode.NONE;
         delegateOwner.clearEventDragState();

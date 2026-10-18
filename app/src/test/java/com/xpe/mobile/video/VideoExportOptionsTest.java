@@ -22,11 +22,11 @@ public class VideoExportOptionsTest {
         assertEquals(3_600_000_000L, settings.durationUs());
         assertEquals(3_599_966_666L, settings.frameTimeUs(settings.frameCount() - 1));
     }
-    @Test public void chartClockKeepsFrameMicrosecondsAndAppliesBothOffsets() {
+    @Test public void chartClockUsesExactFrameRateAndAppliesBothOffsets() {
         VideoExportOptions settings = options(1920, 1080, 60, 12_000_000, 300010, 301000);
         assertEquals(300.0, settings.chartSeconds(0, 60, -50), 0.0);
-        assertEquals(300.016666, settings.chartSeconds(1, 60, -50), 0.0);
-        assertEquals(300.033333, settings.chartSeconds(2, 60, -50), 0.0);
+        assertEquals(300 + 1 / 60.0, settings.chartSeconds(1, 60, -50), 0.0);
+        assertEquals(300 + 2 / 60.0, settings.chartSeconds(2, 60, -50), 0.0);
         assertNotEquals(300.017, settings.chartSeconds(1, 60, -50), 0.0);
         assertEquals(0.0, options(1920, 1080, 60, 12_000_000, 0, 1000)
                 .chartSeconds(0, 60, 50), 0.0);
@@ -48,7 +48,7 @@ public class VideoExportOptionsTest {
         assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 59, 12_000_000, 0, 1000));
         assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 60, 900_000, 0, 1000));
         assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 60, 12_000_000, 1000, 999));
-        assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 60, 12_000_000, -1, 1000));
+        assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 60, 12_000_000, -86_400_001, 1000));
         assertThrows(IllegalArgumentException.class, () -> options(1920, 1080, 60, 12_000_000, 0, Long.MAX_VALUE));
     }
     @Test public void rejectsNonFiniteGain() {

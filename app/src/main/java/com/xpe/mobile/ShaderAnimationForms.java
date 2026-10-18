@@ -1,6 +1,5 @@
 package com.xpe.mobile;
 
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -92,16 +91,15 @@ final class ShaderAnimationForms {
                 ? ColorPickerButton.addTo(to, "To", delegateOwner.shaderEffectForms.rgbaColor(event.opt("end")), true) : null;
         EditText[] startValue = param.size == 4 ? null : delegateOwner.shaderEffectForms.values(from, event.opt("start"), param.size, "From "),
                    endValue = param.size == 4 ? null : delegateOwner.shaderEffectForms.values(to, event.opt("end"), param.size, "To ");
+        EasingSelector curve = EasingSelector.addTo(delegateOwner.form,
+                delegateOwner.getResources().getString(R.string.field_event_easing_type), event.optInt("easingType", 1));
+        curve.setShader(true);
+        Spinner ease = curve.spinner;
         LinearLayout easing = delegateOwner.row();
         delegateOwner.form.addView(easing);
-        Spinner ease = new Spinner(delegateOwner.getContext());
-        ease.setAdapter(
-            new ArrayAdapter<>(delegateOwner.getContext(), android.R.layout.simple_spinner_dropdown_item,
-                delegateOwner.getResources().getStringArray(R.array.event_easing_entries)));
-        ease.setSelection(Math.max(0, Math.min(28, event.optInt("easingType", 1) - 1)));
-        easing.addView(ease, new LinearLayout.LayoutParams(0, delegateOwner.dp(36), 2));
         EditText left = delegateOwner.shaderEffectForms.field(easing, "Left ", ShaderEditorView.fmt(event.optDouble("easingLeft", 0))),
                  right = delegateOwner.shaderEffectForms.field(easing, "Right ", ShaderEditorView.fmt(event.optDouble("easingRight", 1)));
+        curve.bindWindow(left, right, () -> true);
         delegateOwner.action(easing, "Apply", () -> {
             double a = delegateOwner.time(start), b = delegateOwner.time(end), l = delegateOwner.shaderEffectForms.number(left), r = delegateOwner.shaderEffectForms.number(right);
             if (b <= a || l < 0 || r > 1 || r <= l

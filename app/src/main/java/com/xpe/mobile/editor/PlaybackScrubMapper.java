@@ -10,6 +10,18 @@ public final class PlaybackScrubMapper {
         return clamp(positionMs / (double) durationMs);
     }
 
+    public static double fractionForPosition(long positionMs, long startMs, long endMs) {
+        if (endMs <= startMs) return 0;
+        return clamp((positionMs - (double) startMs) / (endMs - (double) startMs));
+    }
+
+    public static long positionForFraction(double fraction, long startMs, long endMs) {
+        if (endMs <= startMs) return startMs;
+        if (fraction <= 0) return startMs;
+        if (fraction >= 1) return endMs;
+        return Math.round(startMs + fraction * (endMs - (double) startMs));
+    }
+
     public static long positionForFraction(double fraction, long durationMs) {
         if (durationMs <= 0L) return 0L;
         return Math.round(clamp(fraction) * durationMs);

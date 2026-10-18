@@ -152,7 +152,6 @@
     <string name="complex_move_equation_help">Use $t$ (0 to 1), Pi, + − * / mod ^, parentheses, sin/cos/tan, min/max, pow, sqrt, abs, clamp and related math functions.</string>
     <string name="complex_move_default_x">300*cos($t$*2*Pi)</string>
     <string name="complex_move_default_y">300*sin($t$*2*Pi)</string>
-    <string name="complex_move_default_easing">1</string>
     <string name="complex_move_default_density">16</string>
     <string name="complex_move_x_time_easing">X time easing</string>
     <string name="complex_move_y_time_easing">Y time easing</string>
@@ -172,7 +171,7 @@
     <string name="complex_move_error_time">Start and end must be valid non-negative beats, with end after start</string>
     <string name="complex_move_error_density">Density must be a positive finite number</string>
     <string name="complex_move_error_too_many">The requested density would generate more than 4096 segments</string>
-    <string name="complex_move_error_easing">Choose easing 1–29; custom windows must satisfy 0 ≤ left ≤ right ≤ 1</string>
+    <string name="complex_move_error_easing">Choose a curve; custom windows must satisfy 0 ≤ left ≤ right ≤ 1</string>
     <string name="complex_move_error_expression">Invalid equation: %1$s</string>
     <string name="complex_move_error_result">An equation produced an undefined or infinite result</string>
     <string name="complex_move_error_x_range">The generated X path leaves the supported range −675 to 675</string>
@@ -206,7 +205,7 @@
     <string name="curve_notes_error_order">The start note must occur before the end note</string>
     <string name="curve_notes_error_density">Density must be a positive finite number</string>
     <string name="curve_notes_error_type">Curve Notes supports Tap, Drag, and Flick output</string>
-    <string name="curve_notes_error_easing">Curve easing must be between 1 and 28</string>
+    <string name="curve_notes_error_easing">Choose a curve from the easing list</string>
     <string name="curve_notes_error_too_many">The requested density would create more than 4095 intermediate notes</string>
     <string name="curve_notes_error_empty">This duration and density do not leave room for an intermediate note</string>
     <string name="curve_notes_error_x_range">The eased note curve leaves the supported X range −675 to 675</string>
@@ -233,9 +232,8 @@
     <string name="field_event_end_value">End value</string>
     <string name="field_event_locked">Lock start and end values</string>
     <string name="field_event_easing_type">Easing</string>
-    <string name="field_event_easing_help">Choose by name. Speed always uses Linear; custom Bézier overrides the numbered curve.</string>
-    <string name="field_event_easing_preview">Live easing preview</string>
-    <string name="field_event_easing_preview_description">Orange preview of the selected easing curve from event start to event end</string>
+    <string name="field_event_easing_help">Choose a curve by name and preview its shape. Speed always uses Linear; custom Bézier overrides the selected curve.</string>
+    <string name="field_event_easing_preview_description">Orange graph showing progress from start to finish for the selected curve</string>
     <string name="field_event_easing_left">Easing left (0 to 1)</string>
     <string name="field_event_easing_right">Easing right (0 to 1)</string>
     <string name="field_event_link_group">Link group (0 or greater)</string>
@@ -257,7 +255,7 @@
     <string name="validation_note_size">Note width must be greater than zero</string>
     <string name="validation_note_visible_time">Visible time cannot be negative</string>
     <string name="validation_event_alpha">Alpha event values must be between -255 and 255</string>
-    <string name="validation_event_easing">Easing must be 1 to 29; Speed events use 1</string>
+    <string name="validation_event_easing">Choose an easing curve; Speed events use Linear</string>
     <string name="validation_event_easing_window">Easing bounds must satisfy 0 ≤ left ≤ right ≤ 1</string>
     <string name="validation_event_link_group">Link group cannot be negative</string>
     <string name="validation_event_overlap">Events of the same type and layer cannot overlap</string>
@@ -273,7 +271,17 @@
     <string name="xy_binding_disabled">XY binding disabled; MoveX and MoveY can now be edited independently</string>
     <string name="xy_binding_enable_rejected">XY binding cannot be enabled until all editable MoveX/MoveY intervals are paired</string>
     <string name="event_glue_button">Glue</string>
-    <string name="event_split_button">Split</string>
+    <string name="event_split_button">Split here</string>
+    <string name="event_subdivide_button">Subdivide</string>
+    <plurals name="event_subdivide_applied">
+        <item quantity="one">Events: %1$d → %2$d part; step %3$s beats. Undo restores the whole selection.</item>
+        <item quantity="other">Events: %1$d → %2$d parts; step %3$s beats. Undo restores the whole selection.</item>
+    </plurals>
+    <string name="event_subdivide_too_many">Subdivide is limited to 4096 parts per operation, including linked X/Y. Lower the beat-grid divisions in Arrange or select fewer events.</string>
+    <string name="event_subdivide_no_cuts">No grid lines fall inside these events. Increase the beat-grid divisions in Arrange.</string>
+    <string name="event_subdivide_unsupported">This curve cannot be subdivided without changing its shape. Custom Bézier and imported nonlinear Speed curves are not supported; try a finer beat grid for a standard easing.</string>
+    <string name="event_subdivide_xy">A selected MoveX/MoveY event has no unique matching pair. Repair the pair or disable XY binding.</string>
+    <string name="event_subdivide_invalid">Select normal events on layers 0–3 with valid times and a positive beat-grid division.</string>
     <string name="event_pass_button">Pass</string>
     <string name="event_rand_button">Rand</string>
     <string name="event_split_applied_grid">Event split at the playhead, snapped to the active beat grid</string>
@@ -445,9 +453,6 @@
     <string name="controls_x_grid_increase">X grid +</string>
     <string name="controls_line_decrease">Line −</string>
     <string name="controls_line_increase">Line +</string>
-    <string name="controls_page_previous">‹</string>
-    <string name="controls_page_next">›</string>
-    <string name="controls_page_indicator">%1$d/%2$d</string>
     <string name="controls_status_summary">%1$s · L%2$d · layer %3$d · beat 1/%4$d · X grid %5$d</string>
     <string name="controls_no_selection">No selection</string>
     <plurals name="controls_selection_count">
@@ -491,7 +496,6 @@
     <string name="settings_skip_undo">Jump to the edited selection on undo/redo</string>
     <string name="settings_auto_stick">Autostick the next same-type event after an edit</string>
     <string name="settings_split_snap_to_grid">Snap Split to the active beat grid</string>
-    <string name="settings_cut_density">Event cut density per X-axis unit</string>
     <string name="settings_draw_event_curves">Draw event easing curves</string>
     <string name="settings_draw_event_numbers">Draw event values</string>
     <string name="settings_hotkeys_help">Hardware-keyboard chords use CTRL/ALT/SHIFT plus one letter, digit, function key, SPACE, DELETE, ENTER, ESC or an arrow key.</string>
@@ -522,7 +526,7 @@
     <string name="batch_data_type">Data type</string>
     <string name="batch_lower_bound">Lower bound</string>
     <string name="batch_upper_bound">Upper bound</string>
-    <string name="batch_easing">Easing ID (1 to 29)</string>
+    <string name="batch_easing">Value progression curve</string>
     <string name="batch_periodic_sequence">Periodic sequence (space/comma separated)</string>
     <string name="batch_disturbance">Random disturbance ±</string>
     <string name="batch_edit_mode">Modification mode</string>
@@ -530,7 +534,7 @@
     <string name="batch_empty_selection">Select at least one note or event for batch editing</string>
     <string name="batch_mixed_events">Choose one event type for this batch operation</string>
     <string name="batch_unsupported_field">Speed event easing is fixed to Linear and cannot be batch-edited</string>
-    <string name="batch_invalid_profile">Enter finite bounds/disturbance, easing 1–29, and a finite periodic sequence</string>
+    <string name="batch_invalid_profile">Check the value bounds, variation and repeating multipliers</string>
     <string name="batch_invalid_result">The generated batch values violate a note or event constraint</string>
     <plurals name="batch_applied">
         <item quantity="one">Batch edit applied to %1$d item</item>
@@ -542,30 +546,14 @@
     </plurals>
 
     <string name="event_clone_title">Event Clone</string>
-    <plurals name="event_clone_help">
-        <item quantity="one">Clone %1$d selected event from the active layer %2$d. U.L.E.D. is four values: lower upper easing disturbance.</item>
-        <item quantity="other">Clone %1$d selected events from the active layer %2$d. U.L.E.D. is four values: lower upper easing disturbance.</item>
-    </plurals>
-    <string name="event_clone_line_sequence">Line sequence (indices separated by spaces/commas)</string>
-    <string name="event_clone_time_increment">Time increment per target line (beat or whole:numerator/denominator)</string>
-    <string name="event_clone_x_uled">MoveX U.L.E.D.</string>
-    <string name="event_clone_x_sequence">MoveX periodic sequence</string>
-    <string name="event_clone_y_uled">MoveY U.L.E.D.</string>
-    <string name="event_clone_y_sequence">MoveY periodic sequence</string>
-    <string name="event_clone_rotate_uled">Rotate U.L.E.D.</string>
-    <string name="event_clone_rotate_sequence">Rotate periodic sequence</string>
-    <string name="event_clone_alpha_uled">Alpha U.L.E.D.</string>
-    <string name="event_clone_alpha_sequence">Alpha periodic sequence</string>
-    <string name="event_clone_keep_source">Keep source events</string>
-    <string name="event_clone_apply">Clone</string>
     <string name="event_clone_empty">Select at least one event to clone</string>
-    <string name="event_clone_invalid">Check the line sequence, time increment, U.L.E.D. values and sequences</string>
-    <string name="event_clone_invalid_lines">Every target line index must exist and appear once</string>
-    <string name="event_clone_invalid_time">The time increment creates an invalid or negative event interval</string>
-    <string name="event_clone_invalid_profile">Each U.L.E.D. profile needs finite bounds/disturbance, easing 1–29 and a finite sequence</string>
-    <string name="event_clone_too_many">Event Clone is limited to 4096 generated events per operation</string>
-    <string name="event_clone_overlap">Cloned events would overlap existing or other cloned same-type events</string>
-    <string name="event_clone_invalid_result">A cloned value violates the event constraints</string>
+    <string name="event_clone_invalid">Check the destination lines, beat delay and offset values</string>
+    <string name="event_clone_invalid_lines">Choose at least one existing destination line; each line can appear only once</string>
+    <string name="event_clone_invalid_time">The delay must produce valid event times at or after beat zero</string>
+    <string name="event_clone_invalid_profile">Check the offset values, variation and repeating multipliers</string>
+    <string name="event_clone_too_many">Event Clone is limited to 4096 generated events. Select fewer source events or destination lines.</string>
+    <string name="event_clone_overlap">Copies overlap events of the same type. Choose different lines or adjust the timing. Copying onto the source line at the same time requires Move mode.</string>
+    <string name="event_clone_invalid_result">The copies contain invalid times or values. Check the timing, offsets and variation.</string>
     <plurals name="event_clone_applied">
         <item quantity="one">Event Clone created %1$d event</item>
         <item quantity="other">Event Clone created %1$d events</item>
@@ -595,6 +583,7 @@
         <item>Start value</item>
         <item>End value</item>
         <item>Easing type</item>
+        <item>Start and end values</item>
     </string-array>
     <string-array name="batch_edit_modes">
         <item>By</item>
@@ -608,35 +597,35 @@
         <item>Down</item>
     </string-array>
     <string-array name="event_easing_entries">
-        <item>01 · Linear</item>
-        <item>02 · Out Sine</item>
-        <item>03 · In Sine</item>
-        <item>04 · Out Quad</item>
-        <item>05 · In Quad</item>
-        <item>06 · In Out Sine</item>
-        <item>07 · In Out Quad</item>
-        <item>08 · Out Cubic</item>
-        <item>09 · In Cubic</item>
-        <item>10 · Out Quart</item>
-        <item>11 · In Quart</item>
-        <item>12 · In Out Cubic</item>
-        <item>13 · In Out Quart</item>
-        <item>14 · Out Quint</item>
-        <item>15 · In Quint</item>
-        <item>16 · Out Expo</item>
-        <item>17 · In Expo</item>
-        <item>18 · Out Circ</item>
-        <item>19 · In Circ</item>
-        <item>20 · Out Back</item>
-        <item>21 · In Back</item>
-        <item>22 · In Out Circ</item>
-        <item>23 · In Out Back</item>
-        <item>24 · Out Elastic</item>
-        <item>25 · In Elastic</item>
-        <item>26 · Out Bounce</item>
-        <item>27 · In Bounce</item>
-        <item>28 · In Out Bounce</item>
-        <item>29 · In Out Elastic</item>
+        <item>Linear</item>
+        <item>Out Sine</item>
+        <item>In Sine</item>
+        <item>Out Quad</item>
+        <item>In Quad</item>
+        <item>In Out Sine</item>
+        <item>In Out Quad</item>
+        <item>Out Cubic</item>
+        <item>In Cubic</item>
+        <item>Out Quart</item>
+        <item>In Quart</item>
+        <item>In Out Cubic</item>
+        <item>In Out Quart</item>
+        <item>Out Quint</item>
+        <item>In Quint</item>
+        <item>Out Expo</item>
+        <item>In Expo</item>
+        <item>Out Circ</item>
+        <item>In Circ</item>
+        <item>Out Back</item>
+        <item>In Back</item>
+        <item>In Out Circ</item>
+        <item>In Out Back</item>
+        <item>Out Elastic</item>
+        <item>In Elastic</item>
+        <item>Out Bounce</item>
+        <item>In Bounce</item>
+        <item>In Out Bounce</item>
+        <item>In Out Elastic</item>
     </string-array>
     <string name="settings_fake_note_outline">Show fake note outlines</string>
     <string name="field_line_hud">HUD element controlled by this line</string>
@@ -655,4 +644,75 @@
     <string name="color_picker_hue">Hue</string>
     <string name="color_picker_channel">%1$s %2$d</string>
     <string name="settings_tap_to_seek">Seek time by tapping a beatmap</string>
+
+    <string name="batch_curve_help">Apply this full curve to every selected event of the chosen type, replacing custom Bézier and curve windows. Event times and values stay the same.</string>
+    <string name="clone_source_heading">Source events</string>
+    <plurals name="clone_source_summary">
+        <item quantity="one">%1$d event · %2$s · layer %3$d\nBeats %4$s → %5$s</item>
+        <item quantity="other">%1$d events · %2$s · layer %3$d\nBeats %4$s → %5$s</item>
+    </plurals>
+    <string name="clone_source_mode">Original events</string>
+    <string-array name="clone_source_modes">
+        <item>Copy — keep originals</item>
+        <item>Move — remove originals</item>
+    </string-array>
+    <string name="clone_targets_heading">1. Destination lines</string>
+    <string name="clone_choose_lines">Choose lines</string>
+    <string name="clone_choose_hint">Choose the lines that will receive copies.</string>
+    <string name="clone_order_help">Copies follow the order below. Use ↑ and ↓ to change it.</string>
+    <string name="clone_line_label">Line %1$d · %2$s</string>
+    <string name="clone_remove_line">Remove</string>
+    <string name="clone_remove_named_line">Remove %1$s from destinations</string>
+    <string name="clone_move_earlier">Move %1$s earlier</string>
+    <string name="clone_move_later">Move %1$s later</string>
+    <string name="clone_show_all">Show all selected lines</string>
+    <string name="clone_show_less">Show fewer lines</string>
+    <string name="clone_search_lines">Find a line by name or number</string>
+    <string name="clone_selected_lines">Selected lines: %1$d / 256</string>
+    <string name="clone_line_limit">Select up to 256 lines. Use search to narrow the list.</string>
+    <string name="clone_all_other_lines">All other lines</string>
+    <string name="clone_picker_line">%1$s%2$s</string>
+    <string name="clone_source_suffix"> (source)</string>
+    <string name="clone_no_lines">No matching lines</string>
+    <string name="clone_previous">Previous</string>
+    <string name="clone_next">Next</string>
+    <string name="clone_use_lines">Use selected lines</string>
+    <string name="clone_timing_heading">2. Timing</string>
+    <string name="clone_timing_mode">Copy timing</string>
+    <string-array name="clone_timing_modes">
+        <item>Same time on every line</item>
+        <item>Shift each following line</item>
+    </string-array>
+    <string name="clone_delay">Time shift between lines (beats)</string>
+    <string name="clone_delay_help" tools:ignore="TypographyFractions">The first line keeps the original time. Positive shifts place each following line later; negative shifts place it earlier. Use a decimal or a fraction such as 0:1/4.</string>
+    <string name="clone_customize_values">3. Adjust values (optional)</string>
+    <string name="clone_offset_help">Offsets are added to both ends of the copied events. A gradual offset changes from the first destination line to the last; its curve controls this progression.</string>
+    <string name="clone_speed_help">Speed values are copied unchanged.</string>
+    <string-array name="clone_offset_modes">
+        <item>Keep original values</item>
+        <item>Add the same offset to every line</item>
+        <item>Change the offset from first line to last</item>
+    </string-array>
+    <string name="clone_fixed_offset">Offset added to each copy</string>
+    <string name="clone_first_offset">Offset on the first line</string>
+    <string name="clone_last_offset">Offset on the last line</string>
+    <string name="clone_offset_curve">Offset progression curve</string>
+    <string name="clone_variation_toggle">Repeating pattern and random variation</string>
+    <string name="clone_multipliers">Repeating multipliers</string>
+    <string name="clone_variation">Random variation (±)</string>
+    <string name="clone_variation_help">Multipliers repeat in destination order: 1 -1 alternates the offset direction. Variation adds a random amount before multiplying. Preview and Apply use the same random values.</string>
+    <string name="clone_preview_heading">Preview</string>
+    <string name="clone_preview_summary">Destination lines: %1$d · Events to create: %2$d\n%3$s</string>
+    <string name="clone_preview_copy">Original events stay on the source line.</string>
+    <string name="clone_preview_move">Original events will be removed from the source line.</string>
+    <string name="clone_preview_line">%1$d. %2$s\nBeats %3$s → %4$s · shift %5$s</string>
+    <plurals name="clone_more_preview">
+        <item quantity="one">And %1$d more destination line.</item>
+        <item quantity="other">And %1$d more destination lines.</item>
+    </plurals>
+    <string name="clone_preserved_help">Copies preserve the original durations and curves. One Undo reverses the whole operation.</string>
+    <string name="clone_source_changed">The source selection changed. Reopen Event Clone for the new selection.</string>
+    <string name="clone_copy_action">Copy events</string>
+    <string name="clone_move_action">Move events</string>
+
 </resources>

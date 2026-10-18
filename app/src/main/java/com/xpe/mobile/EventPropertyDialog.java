@@ -4,13 +4,11 @@ import android.app.AlertDialog;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
-import android.widget.TextView;
 import com.xpe.mobile.editor.EasingPreviewView;
 import com.xpe.mobile.editor.EditorView;
 import com.xpe.mobile.editor.PropertyValidator;
@@ -37,23 +35,11 @@ final class EventPropertyDialog {
         EditText startValue = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_start_value), EditorDialogController.formatNumber(event.start), true);
         EditText endValue = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_end_value), EditorDialogController.formatNumber(event.end), true);
         CheckBox locked = delegateOwner.addCheckBox(content, R.string.field_event_locked, Double.compare(event.start, event.end) == 0);
-        Spinner easingType = delegateOwner.addSpinner(content, R.string.field_event_easing_type,
-                R.array.event_easing_entries,
-                Math.max(Easing.MIN_TYPE, Math.min(Easing.MAX_TYPE, event.easingType)) - 1);
-        TextView easingHelp = new TextView(delegateOwner);
-        easingHelp.setText(R.string.field_event_easing_help);
-        easingHelp.setTextSize(12f);
-        easingHelp.setPadding(0, delegateOwner.dp(2), 0, delegateOwner.dp(5));
-        content.addView(easingHelp);
-        TextView previewLabel = new TextView(delegateOwner);
-        previewLabel.setText(R.string.field_event_easing_preview);
-        previewLabel.setTextSize(14f);
-        previewLabel.setPadding(0, delegateOwner.dp(8), 0, delegateOwner.dp(3));
-        content.addView(previewLabel);
-        EasingPreviewView easingPreview = new EasingPreviewView(delegateOwner);
-        easingPreview.setContentDescription(delegateOwner.getString(R.string.field_event_easing_preview_description));
-        content.addView(easingPreview, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, delegateOwner.dp(148)));
+        EasingSelector curve = EasingSelector.addTo(content,
+                delegateOwner.getString(R.string.field_event_easing_type), event.easingType);
+        Spinner easingType = curve.spinner;
+        EasingPreviewView easingPreview = curve.preview;
+        delegateOwner.addHint(content, delegateOwner.getString(R.string.field_event_easing_help));
         EditText easingLeft = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_easing_left), EditorDialogController.formatNumber(event.easingLeft), true);
         EditText easingRight = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_easing_right), EditorDialogController.formatNumber(event.easingRight), true);
         EditText linkGroup = delegateOwner.addField(content, delegateOwner.getString(R.string.field_event_link_group), Integer.toString(event.linkGroup), true);
@@ -67,17 +53,7 @@ final class EventPropertyDialog {
         Runnable refreshEasingUi = () -> delegateOwner.updateEasingEditor(
                 speedEvent, easingType, easingLeft, easingRight, bezier,
                 bezierX1, bezierY1, bezierX2, bezierY2, easingPreview);
-        easingType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                refreshEasingUi.run();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                refreshEasingUi.run();
-            }
-        });
+        curve.setOnChanged(refreshEasingUi);
         bezier.setOnCheckedChangeListener((button, checked) -> refreshEasingUi.run());
         TextWatcher easingWatcher = new TextWatcher() {
             @Override

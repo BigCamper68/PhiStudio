@@ -16,7 +16,7 @@ public final class VideoExportOptions {
         if (fps != 30 && fps != 60) throw new IllegalArgumentException("Choose 30 or 60 FPS");
         if (bitrate < 1_000_000 || bitrate > 80_000_000)
             throw new IllegalArgumentException("Video bitrate must be between 1 and 80 Mbps");
-        if (startMs < 0 || endMs <= startMs || endMs > 24 * 60 * 60 * 1000L)
+        if (startMs < -24 * 60 * 60 * 1000L || endMs <= startMs || endMs > 24 * 60 * 60 * 1000L)
             throw new IllegalArgumentException("End must follow start; maximum end time is 24 hours");
         if (!Float.isFinite(musicVolume) || !Float.isFinite(hitVolume)
                 || musicVolume < 0 || musicVolume > 1 || hitVolume < 0 || hitVolume > 1)
@@ -32,7 +32,7 @@ public final class VideoExportOptions {
     /** Same unquantized timestamp for the scene and shader layers, excluding both offsets. */
     public double chartSeconds(long frame, int chartOffsetMs, long packageOffsetMs) {
         return Math.max(0.0, (startMs - (double) chartOffsetMs - packageOffsetMs) / 1000.0
-                + frameTimeUs(frame) / 1_000_000.0);
+                + frame / (double) fps);
     }
     public long durationUs() { return frameTimeUs(frameCount()); }
     public long estimatedBytes() {

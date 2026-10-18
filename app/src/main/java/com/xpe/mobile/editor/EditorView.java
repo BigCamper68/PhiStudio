@@ -44,6 +44,7 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (chart != null && editorBottomBarUi.onTouchEvent(event)) return true;
         boolean boxSelection = rectangleSelectionMode == RectangleSelectionMode.ADD;
         if (!boxSelection) scaleDetector.onTouchEvent(event);
         if (event.getPointerCount() > 1) {
@@ -60,9 +61,8 @@ public final class EditorView extends EditorChromeView {
             case MotionEvent.ACTION_MOVE:
                 return editorGestureRouter.handleMove(event.getX(), event.getY());
             case MotionEvent.ACTION_UP: {
-                boolean click = !movedDuringGesture;
                 boolean handled = editorGestureRouter.handleUp(event.getX(), event.getY());
-                if (click) performClick();
+                if (!movedDuringGesture) performClick();
                 return handled;
             }
             case MotionEvent.ACTION_CANCEL:
@@ -81,6 +81,8 @@ public final class EditorView extends EditorChromeView {
 
     @Override
     protected void cancelActiveGesture() {
+        editorBottomBarUi.cancelTouch();
+        editorGestureRouter.cancel();
         if (storyboardTimeline != null) storyboardTimeline.cancel();
         finishPlaybackScrub();
         gestureMode = GestureMode.NONE;
@@ -135,6 +137,11 @@ public final class EditorView extends EditorChromeView {
     @Override
     protected void splitSelectedEvent() {
         editorSelectionEdits.splitSelectedEvent();
+    }
+
+    @Override
+    protected void subdivideSelectedEvents() {
+        editorSelectionEdits.subdivideSelectedEvents();
     }
 
     @Override

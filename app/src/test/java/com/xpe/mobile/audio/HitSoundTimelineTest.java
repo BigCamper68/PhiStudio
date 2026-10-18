@@ -10,6 +10,7 @@ import com.xpe.mobile.model.NoteType;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -97,6 +98,30 @@ public final class HitSoundTimelineTest {
         HitSoundTimeline timeline = HitSoundTimeline.build(chart, 0, 0);
 
         assertEquals(Collections.emptyList(), timeline.cuesBetween(900L, 400L));
+    }
+
+    @Test public void liveBatchKeepsCustomVoicesBuiltinOverridesAndFallbackCounts() {
+        Note tap = note(NoteType.TAP, 1, false);
+        Note override = note(NoteType.HOLD, 1, false); override.hitSound = "flick.mp3";
+        Note customTap = note(NoteType.TAP, 1, false); customTap.hitSound = "sounds/chord.wav";
+        Note customFlick = note(NoteType.FLICK, 1, false); customFlick.hitSound = "sounds/chord.wav";
+        HitSoundTimeline.Cue cue = HitSoundTimeline.forNotes(Arrays.asList(tap, override, customTap,
+                customFlick, null, note(NoteType.TAP, 1, true)));
+        assertEquals(4, cue.noteCount()); assertEquals(1, cue.count(NoteType.TAP));
+        assertEquals(1, cue.count(NoteType.FLICK)); assertEquals(1, cue.customSounds().size());
+        HitSoundTimeline.CustomSound custom = cue.customSounds().get(0);
+        assertEquals("sounds/chord.wav", custom.path()); assertEquals(2, custom.count());
+        assertEquals(1, custom.fallbackCount(NoteType.TAP)); assertEquals(1, custom.fallbackCount(NoteType.FLICK));
+        customTap.hitSound = "changed.wav"; tap.type = NoteType.DRAG;
+        assertEquals("sounds/chord.wav", custom.path()); assertEquals(1, cue.count(NoteType.TAP));
+    }
+
+    @Test public void anEmptyOrInvalidLiveBatchContainsNoSound() {
+        Note invalid = new Note(); invalid.type = null;
+        assertEquals(0, HitSoundTimeline.forNotes(null).noteCount());
+        assertEquals(0, HitSoundTimeline.forNotes(Collections.emptyList()).noteCount());
+        assertEquals(0, HitSoundTimeline.forNotes(Arrays.asList(null, invalid,
+                note(NoteType.HOLD, 0, true))).noteCount());
     }
 
     private static HitSoundTimeline.Cue singleCue(HitSoundTimeline timeline,

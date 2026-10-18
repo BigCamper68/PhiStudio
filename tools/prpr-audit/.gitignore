@@ -1,7 +1,5 @@
 *.log
 oracle
 oracle.rs
-baseline/
-benchmark-*.txt
-
-device-build/
+scalar-oracle.csv
+bezier-oracle.csv

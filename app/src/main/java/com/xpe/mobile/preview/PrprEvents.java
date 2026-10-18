@@ -44,6 +44,14 @@ final class PrprEvents {
                 event.easingType, event.easingLeft, event.easingRight, event.bezier, event.bezierPoints);
     }
 
+    static float rotationValue(LineEvent event, double start, double end, double seconds) {
+        float from = (float) event.start, to = (float) event.end;
+        if (seconds >= end) return to;
+        if (end <= start) return from;
+        return from + (to - from) * (float) progress((seconds - start) / (end - start),
+                event.easingType, event.easingLeft, event.easingRight, event.bezier, event.bezierPoints);
+    }
+
     /** PEC AnimFloat interpolates normalized positive opacity and unscaled negative flags. */
     static float pecAlphaValue(LineEvent event, double start, double end, double seconds) {
         float from = pecAlphaEndpoint(event.start);

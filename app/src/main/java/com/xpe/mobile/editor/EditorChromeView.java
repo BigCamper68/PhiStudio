@@ -16,6 +16,7 @@ import com.xpe.mobile.model.Note;
 import com.xpe.mobile.model.StoryboardEventType;
 import com.xpe.mobile.preview.PreviewShaderView;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
+import com.xpe.mobile.preview.PreviewRenderer;
 import com.xpe.mobile.preview.ShaderTimeline;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         default void configureHitSounds(HitSoundTimeline timeline, long chartOffsetMs, long packageOffsetMs) { }
         default boolean schedulesHitSounds() { return false; }
         long audioPositionMs();
+        default double audioPositionSeconds() { return audioPositionMs() / 1000.0; }
         long audioDurationMs();
     }
 
@@ -72,7 +74,6 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     protected Callback callback;
     BottomPanel bottomPanel = BottomPanel.CREATE;
-    int bottomActionPage;
     protected int workbenchTab;
     protected final StoryboardTimeline storyboardTimeline;
     private Runnable workbenchListener;
@@ -112,7 +113,7 @@ abstract class EditorChromeView extends EditorDocumentView {
         playbackScrubbing = false; lastFrameMs = SystemClock.elapsedRealtime();
         if (playing) editorPlayback.prepareHitSoundPlayback(false);
         if (callback != null && callback.isAudioReady()) {
-            long position = chart.beatToAudioMillis(currentBeat, packageOffsetMs);
+            long position = editorPlayback.audioPositionMillis();
             if (playing) callback.startAudio(position, playbackSpeed); else callback.seekAudio(position);
         }
         invalidate();
@@ -179,6 +180,18 @@ abstract class EditorChromeView extends EditorDocumentView {
         return settings.copy();
     }
 
+    public double getCurrentBeat() { return currentBeat; }
+    public boolean usesRpe170Speed() { return useRpe170Speed; }
+    /** Borrowed resources stay owned by the editor for the lifetime of its playtest window. */
+    public Bitmap playtestBackground() { return blurredBackgroundIllustration; }
+    public ShaderTimeline playtestShaders() { return previewShaders; }
+    public Map<String, PreviewTextureDecoder.Texture> playtestLineTextures() { return previewLineTextures; }
+    public PreviewRenderer createPlaytestRenderer() {
+        PreviewRenderer renderer = new PreviewRenderer(noteTextures, density, "COMBO", getContext().getAssets());
+        renderer.setLineTextures(previewLineTextures);
+        return renderer;
+    }
+
     public void setChart(ChartDocument chart) {
         editorSessionUi.setChart(chart);
     }
@@ -242,6 +255,8 @@ abstract class EditorChromeView extends EditorDocumentView {
     }
 
     public void audioCompleted() {
+        if (chart != null && callback != null && callback.isAudioReady())
+            editorPlayback.setAudioPositionSeconds(callback.audioPositionSeconds());
         playing = false;
         editorPlayback.clearHitSoundPlayback();
         invalidate();
@@ -315,23 +330,18 @@ abstract class EditorChromeView extends EditorDocumentView {
         editorBottomBarUi.drawBottomBar(canvas);
     }
 
-    void changeBottomPage(int delta) {
-        bottomActionPage = Math.max(0, bottomActionPage + delta);
-        invalidate();
-    }
-
     void selectTool(Tool value) {
         tool = value;
         if (value != Tool.SELECT) rectangleSelectionMode = RectangleSelectionMode.NONE;
         bottomPanel = BottomPanel.CREATE;
-        bottomActionPage = 0;
+        editorBottomBarUi.resetScroll();
         invalidate();
     }
 
     @Override
     protected void activateEditPanel() {
         bottomPanel = BottomPanel.EDIT;
-        bottomActionPage = 0;
+        editorBottomBarUi.resetScroll();
     }
 
     void cycleNoteMoveMode() {
@@ -457,6 +467,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     protected abstract void toggleSelectedEventLink();
 
     protected abstract void splitSelectedEvent();
+    protected abstract void subdivideSelectedEvents();
 
     protected abstract void passSelectedEvent();
 
@@ -470,10 +481,6 @@ abstract class EditorChromeView extends EditorDocumentView {
         final Runnable action;
         final boolean active;
         final boolean enabled;
-        boolean startNewPage;
-
-        BottomAction nextPage() { startNewPage = true; return this; }
-
         BottomAction(String label, float width, Runnable action, boolean active, boolean enabled) {
             this.label = label;
             this.width = width;

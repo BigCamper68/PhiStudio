@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.preview.PreviewRenderer.Point;
@@ -12,6 +13,7 @@ import com.xpe.mobile.preview.PreviewRenderer.Projection;
 /** PreviewLineRenderer responsibilities extracted from PreviewRenderer. */
 final class PreviewLineRenderer {
     private final PreviewRenderer delegateOwner;
+    private final Path clippedLine = new Path();
 
     PreviewLineRenderer(PreviewRenderer delegateOwner) {
         this.delegateOwner = delegateOwner;
@@ -47,6 +49,10 @@ final class PreviewLineRenderer {
                 delegateOwner.paint.setStyle(Paint.Style.FILL);
                 delegateOwner.paint.setColor(PhiraJudgeLineStyle.color(line.colorRgb, line.rawAlpha,
                         true, active, settings.lineColorRgb));
+                if (PrprLineClipper.needsClipping(line.scaleX, line.scaleY)) {
+                    drawClippedLine(canvas, projection, line);
+                    return;
+                }
                 int save = canvas.save();
                 canvas.translate(center.x, center.y);
                 canvas.rotate(PreviewRenderer.lineScreenAngle(line.rotationDegrees));
@@ -58,6 +64,23 @@ final class PreviewLineRenderer {
             }
         }
 
+    }
+
+    private void drawClippedLine(Canvas canvas, Projection projection, RenderScene.RenderLine line) {
+        RectF viewport = projection.viewport;
+        float[][] polygons = PrprLineClipper.polygons(line.x, line.y, line.rotationDegrees,
+                line.scaleX, line.scaleY, viewport.width() / (double) viewport.height());
+        clippedLine.reset();
+        for (float[] polygon : polygons) {
+            if (polygon.length < 6) continue;
+            clippedLine.moveTo(viewport.centerX() + polygon[0] * viewport.width() * .5f,
+                    viewport.centerY() - polygon[1] * viewport.height() * .5f);
+            for (int i = 2; i < polygon.length; i += 2)
+                clippedLine.lineTo(viewport.centerX() + polygon[i] * viewport.width() * .5f,
+                        viewport.centerY() - polygon[i + 1] * viewport.height() * .5f);
+            clippedLine.close();
+        }
+        canvas.drawPath(clippedLine, delegateOwner.paint);
     }
 
     void drawLineId(Canvas canvas, Projection projection,
