@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
 import android.os.Looper;
+import android.os.Bundle;
 import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.packageio.ChartPackage;
@@ -61,18 +62,19 @@ public class EditorSessionLifecycleTest {
         return controller.create();
     }
 
-    @Test public void lastProjectOpensInTheEditorAndProjectsRemainsAvailableManually() throws Exception {
+    @Test public void coldLaunchShowsProjectsWithTheLastChartAvailable() throws Exception {
         ActivityController<MainActivity> controller = withProject();
         try {
             MainActivity activity = controller.get(); settle(activity);
             assertEquals("resume-test", activity.currentProjectId);
-            assertFalse("Restoring a project must not open Projects over the editor", browserShowing(activity));
+            assertTrue("A fresh launch must open Projects even when a last chart exists", browserShowing(activity));
+            activity.projectBrowser.dismiss(); assertFalse(browserShowing(activity));
             activity.mainProjectActions.showProjectLibrary(false); settle(activity);
             assertTrue(browserShowing(activity));
         } finally { controller.destroy(); }
     }
 
-    @Test public void standaloneAutosaveOpensInTheEditor() throws Exception {
+    @Test public void coldLaunchShowsProjectsWithAStandaloneAutosave() throws Exception {
         ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class);
         ChartDocument chart = ChartDocument.fromJson("{}"); chart.name = "Standalone session";
         ChartIo.writeAutosave(controller.get(), chart);
@@ -80,8 +82,45 @@ public class EditorSessionLifecycleTest {
         try {
             settle(controller.get());
             assertEquals("Standalone session", controller.get().editorView.getChart().name);
-            assertFalse(browserShowing(controller.get()));
+            assertTrue(browserShowing(controller.get()));
         } finally { controller.destroy(); }
+    }
+
+    @Test public void fullRestartReopensProjectsAfterAnEditorSession() throws Exception {
+        ActivityController<MainActivity> first = withProject();
+        settle(first.get()); first.get().projectBrowser.dismiss(); first.destroy();
+        ActivityController<MainActivity> second = Robolectric.buildActivity(MainActivity.class).create();
+        try {
+            settle(second.get());
+            assertEquals("resume-test", second.get().currentProjectId);
+            assertTrue("A complete restart must return to Projects", browserShowing(second.get()));
+        } finally { second.destroy(); }
+    }
+
+    @Test public void recreatedEditorDoesNotOpenProjectsOverTheRestoredChart() throws Exception {
+        ActivityController<MainActivity> first = withProject();
+        settle(first.get()); first.get().projectBrowser.dismiss();
+        Bundle state = new Bundle(); first.saveInstanceState(state).destroy();
+        ActivityController<MainActivity> second = Robolectric.buildActivity(MainActivity.class).create(state);
+        try {
+            settle(second.get());
+            assertEquals("resume-test", second.get().currentProjectId);
+            assertFalse(browserShowing(second.get()));
+        } finally { second.destroy(); }
+    }
+
+    @Test public void recreatedStandaloneSessionDoesNotOpenProjects() throws Exception {
+        ActivityController<MainActivity> first = Robolectric.buildActivity(MainActivity.class);
+        ChartDocument chart = ChartDocument.fromJson("{}"); chart.name = "Standalone session";
+        ChartIo.writeAutosave(first.get(), chart);
+        first.create(); settle(first.get()); first.get().projectBrowser.dismiss();
+        Bundle state = new Bundle(); first.saveInstanceState(state).destroy();
+        ActivityController<MainActivity> second = Robolectric.buildActivity(MainActivity.class).create(state);
+        try {
+            settle(second.get());
+            assertEquals("Standalone session", second.get().editorView.getChart().name);
+            assertFalse(browserShowing(second.get()));
+        } finally { second.destroy(); }
     }
 
     @Test public void firstLaunchStillOffersProjects() throws Exception {
@@ -108,7 +147,7 @@ public class EditorSessionLifecycleTest {
     @Test public void launcherReentryKeepsTheCurrentSession() throws Exception {
         ActivityController<MainActivity> controller = withProject().start().resume();
         try {
-            MainActivity activity = controller.get(); settle(activity);
+            MainActivity activity = controller.get(); settle(activity); activity.projectBrowser.dismiss();
             ActivityInfo info = activity.getPackageManager().getActivityInfo(
                     new ComponentName(activity, MainActivity.class), 0);
             assertEquals("Launcher reentry must reuse the existing editor task", ActivityInfo.LAUNCH_SINGLE_TASK, info.launchMode);

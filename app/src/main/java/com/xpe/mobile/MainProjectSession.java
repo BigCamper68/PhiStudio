@@ -67,7 +67,7 @@ final class MainProjectSession {
         }
     }
 
-    void loadInitialChart() {
+    void loadInitialChart(boolean restoringInstance) {
         delegateOwner.mainActivityResults.beginInitialLoad();
         delegateOwner.mainProjectSession.runProjectTask(R.string.project_library_loading, delegateOwner.mainProjectSession::readInitialContent,
                 content -> {
@@ -85,7 +85,7 @@ final class MainProjectSession {
                         delegateOwner.mainProjectSession.activateFallbackContent(content);
                     }
                     if (!delegateOwner.mainActivityResults.finishInitialLoad()
-                            && content.project == null && !content.autosave) {
+                            && !restoringInstance) {
                         delegateOwner.mainProjectActions.showProjectLibrary(true);
                     }
                 }, exception -> {

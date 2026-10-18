@@ -123,6 +123,6 @@ final class MainScreenSetup {
         delegateOwner.hideSystemUi();
         delegateOwner.mainVideoExport.restoreState(savedInstanceState);
         delegateOwner.newProjectDialog.restoreState(savedInstanceState);
-        delegateOwner.mainProjectSession.loadInitialChart();
+        delegateOwner.mainProjectSession.loadInitialChart(savedInstanceState != null);
     }
 }
