@@ -1,8 +1,5 @@
 package com.xpe.mobile;
 
-import com.xpe.mobile.i18n.UiText;
-
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -94,14 +91,15 @@ final class ShaderAnimationForms {
                 ? ColorPickerButton.addTo(to, R.string.ui_to, delegateOwner.shaderEffectForms.rgbaColor(event.opt("end")), true) : null;
         EditText[] startValue = param.size == 4 ? null : delegateOwner.shaderEffectForms.values(from, event.opt("start"), param.size, R.string.shader_from),
                    endValue = param.size == 4 ? null : delegateOwner.shaderEffectForms.values(to, event.opt("end"), param.size, R.string.shader_to);
+        EasingSelector curve = EasingSelector.addTo(delegateOwner.form,
+                R.string.field_event_easing_type, event.optInt("easingType", 1));
+        curve.setShader(true);
+        Spinner ease = curve.spinner;
         LinearLayout easing = delegateOwner.row();
         delegateOwner.form.addView(easing);
-        Spinner ease = new Spinner(delegateOwner.getContext());
-        UiText.spinner(ease, R.array.event_easing_entries);
-        ease.setSelection(Math.max(0, Math.min(28, event.optInt("easingType", 1) - 1)));
-        easing.addView(ease, new LinearLayout.LayoutParams(0, delegateOwner.dp(36), 2));
         EditText left = delegateOwner.shaderEffectForms.field(easing, R.string.ui_left, ShaderEditorView.fmt(event.optDouble("easingLeft", 0))),
                  right = delegateOwner.shaderEffectForms.field(easing, R.string.ui_right, ShaderEditorView.fmt(event.optDouble("easingRight", 1)));
+        curve.bindWindow(left, right, () -> true);
         delegateOwner.action(easing, R.string.action_apply, () -> {
             double a = delegateOwner.time(start), b = delegateOwner.time(end), l = delegateOwner.shaderEffectForms.number(left), r = delegateOwner.shaderEffectForms.number(right);
             if (b <= a || l < 0 || r > 1 || r <= l

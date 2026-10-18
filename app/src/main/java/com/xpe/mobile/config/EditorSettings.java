@@ -28,7 +28,6 @@ public final class EditorSettings {
     public boolean skipWhenUndoRedo;
     public boolean autoStickEvents;
     public boolean splitSnapToGrid = true;
-    public double cutDensity = 8.0;
     public boolean drawEventCurves = true;
     public boolean drawEventNumbers = true;
 
@@ -75,7 +74,6 @@ public final class EditorSettings {
         copy.skipWhenUndoRedo = skipWhenUndoRedo;
         copy.autoStickEvents = autoStickEvents;
         copy.splitSnapToGrid = splitSnapToGrid;
-        copy.cutDensity = cutDensity;
         copy.drawEventCurves = drawEventCurves;
         copy.drawEventNumbers = drawEventNumbers;
         copy.correctionXThreshold = correctionXThreshold;
@@ -105,7 +103,6 @@ public final class EditorSettings {
                 && finitePositive(timelineScrollSpeed)
                 && finitePositive(eventScrollSpeed)
                 && playerWidth > 0 && playerHeight > 0
-                && finitePositive(cutDensity)
                 && finiteNonNegative(correctionXThreshold)
                 && finiteNonNegative(correctionCollisionDistance)
                 && finiteNonNegative(correctionReadTimeSeconds)

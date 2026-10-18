@@ -110,6 +110,26 @@ public final class ChartEvaluator {
                                                double beat, double seconds,
                                                boolean highlightSimultaneousNotes, long trackDurationMs,
                                                double aspectRatio, PreviewPlaybackState playback) {
+        return evaluatePrepared(chart, prepared, beat, seconds, highlightSimultaneousNotes,
+                trackDurationMs, aspectRatio, playback, null);
+    }
+
+    /** The manual player supplies judgements; Preview/export keep their autoplay behaviour. */
+    public static RenderScene evaluatePlaytest(ChartDocument chart, double seconds,
+                                              boolean highlight, long durationMs, boolean rpe170,
+                                              double aspect, PreviewPlaybackState playback,
+                                              PlaytestJudge judge) {
+        PreparedChart prepared = PreviewChartIndex.prepared(chart, rpe170);
+        seconds = Math.max(0, finiteOr(seconds, 0));
+        return evaluatePrepared(chart, prepared, prepared.time.beat(seconds), seconds,
+                highlight, durationMs, aspect, playback, judge);
+    }
+
+    private static RenderScene evaluatePrepared(ChartDocument chart, PreparedChart prepared,
+                                               double beat, double seconds,
+                                               boolean highlightSimultaneousNotes, long trackDurationMs,
+                                               double aspectRatio, PreviewPlaybackState playback,
+                                               PlaytestJudge judge) {
         double localYScale = Double.isFinite(aspectRatio) && aspectRatio > 0
                 ? 1.5 / aspectRatio : 1.0;
         long chartTimeMs = Math.round(seconds * 1000.0);
@@ -168,10 +188,12 @@ public final class ChartEvaluator {
             double currentDistance = speed.distanceAtSeconds(seconds);
             List<RenderScene.RenderNote> notes = new ArrayList<>();
             List<RenderScene.HitEffect> effects = new ArrayList<>();
+            if (judge != null) judge.appendEffects(index, seconds, effects);
             NoteControlEvents controls = source.noteControls == null
                     ? new NoteControlEvents() : source.noteControls;
             for (PreparedNote cached : prepared.lines[index].notes) {
                 Note note = cached.note;
+                if (judge != null && judge.hidden(note)) continue;
                 double startBeat = cached.startBeat;
                 long startTimeMs = cached.startMs;
                 boolean hold = note.type == NoteType.HOLD;
@@ -203,14 +225,15 @@ public final class ChartEvaluator {
                         + renderedOffset;
                 if (hold && seconds >= cached.startSeconds) startDistance = renderedOffset;
 
-                if (seconds >= cached.startSeconds) PreviewHitEvaluator.appendHitEffects(chart, prepared, index, cached, controls,
+                if (judge == null && seconds >= cached.startSeconds) PreviewHitEvaluator.appendHitEffects(chart, prepared, index, cached, controls,
                         chartTimeMs, noteSpeed, yOffset, effects, localYScale);
                 // Hidden geometry remains independent of real-note judgement effects.
                 if (alphaExtension.hideLineAndNotes) continue;
 
                 if (beat < startBeat - alphaExtension.appearBeforeBeats) continue;
                 if ((!hold && note.fake && alphaExtension.cover && seconds >= cached.startSeconds)
-                        || (!hold && !note.fake && seconds >= cached.startSeconds)
+                        || (!hold && !note.fake && seconds >= cached.startSeconds
+                            && (judge == null || seconds - cached.startSeconds >= .16))
                         || (hold && seconds >= cached.endSeconds)) continue;
 
                 double secondsUntilHit = cached.startSeconds - seconds;
@@ -227,6 +250,11 @@ public final class ChartEvaluator {
                         && simultaneous.getOrDefault(note.startTime, 0) > 1;
                 double renderedSize = finiteOr(note.size, 1.0) * sizeControl;
                 int renderedAlpha = clampAlpha(Math.min(255, note.alpha) * alphaControl);
+                if (judge != null && !note.fake) {
+                    if (judge.missedHold(note)) renderedAlpha /= 2;
+                    else if (!hold && seconds > cached.startSeconds)
+                        renderedAlpha = (int) (renderedAlpha * Math.max(0, 1 - (seconds - cached.startSeconds) / .16));
+                }
                 if (PreviewLineEvaluator.farOutsideScene(transform, renderedX, startDistance, endDistance,
                         yOffset * noteSpeed, note.above == 1, hold, renderedSize,
                         chart.noteUniformScale, localYScale, Math.sin(Math.toRadians(incline)))) continue;
@@ -249,6 +277,8 @@ public final class ChartEvaluator {
             boolean paintMode = defaultTexture && extended.hasChannel(StoryboardEventType.PAINT);
             String text = !defaultTexture || paintMode || !extended.hasChannel(StoryboardEventType.TEXT) ? null
                     : PrprEvents.textAtSeconds(extended.textEvents, time, seconds);
+            if (judge != null && colorRgb < 0 && defaultTexture && !paintMode && text == null)
+                colorRgb = judge.lineColor();
             double scaleX = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, true, seconds, time);
             double scaleY = PreviewLineEvaluator.lineScaleAtSeconds(source, extended, false, seconds, time);
             GifState gif = !defaultTexture && extended.hasChannel(StoryboardEventType.GIF)
@@ -284,9 +314,12 @@ public final class ChartEvaluator {
         }
         lines.sort(Comparator.comparingInt((RenderScene.RenderLine line) -> line.zOrder)
                 .thenComparingInt(line -> line.sourceIndex));
-        return new RenderScene(beat, chartTimeMs, lines,
-                PreviewHudEvaluator.buildHudStateAtSeconds(chart, prepared, beat, seconds, chartTimeMs,
-                        trackDurationMs, hudTransforms), paintHistories);
+        RenderScene.HudState hud = PreviewHudEvaluator.buildHudStateAtSeconds(chart, prepared, beat, seconds,
+                chartTimeMs, trackDurationMs, hudTransforms);
+        if (judge != null) hud = new RenderScene.HudState(hud.name, hud.level, judge.combo(),
+                judge.score(), hud.progress, hud.transforms, hud.useAttachUiFix);
+        return new RenderScene(beat, chartTimeMs, lines, hud, paintHistories,
+                judge == null ? Collections.emptyList() : judge.badNotes(seconds));
     }
 
     static int clampAlpha(double value) {

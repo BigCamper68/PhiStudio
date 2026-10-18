@@ -65,7 +65,7 @@ public final class ExportAudioMixer implements AutoCloseable {
             for (PcmHitSound sound : custom.values())
                 maxTail = Math.max(maxTail, (long) Math.ceil(sound.frameCount() * (double) sampleRate / sound.sampleRate));
         }
-        long warmStart = Math.max(0, firstFrame - maxTail);
+        long warmStart = firstFrame - maxTail;
         mixer = new ScheduledHitSoundMixer(format, timeline,
                 (long) chart.offsetMs + packageOffsetMs, sounds, custom, warmStart, 1f);
         byte[] warmup = new byte[4096 * channels * 2];
@@ -78,7 +78,7 @@ public final class ExportAudioMixer implements AutoCloseable {
         }
         music = options.music && decoded != null ? new RandomAccessFile(decoded.file, "r") : null;
         if (music != null) {
-            try { music.seek(firstFrame * channels * 2); }
+            try { music.seek(Math.max(0, firstFrame) * channels * 2); }
             catch (IOException exception) { music.close(); throw exception; }
         }
     }
@@ -91,7 +91,7 @@ public final class ExportAudioMixer implements AutoCloseable {
         int bytes = frames * frameSize;
         Arrays.fill(output, 0, bytes, (byte) 0);
         if (music != null) {
-            int read = 0;
+            int read = (int) Math.min(frames, Math.max(0, -(firstFrame + emittedFrames))) * frameSize;
             while (read < bytes) {
                 int count = music.read(output, read, bytes - read);
                 if (count < 0) break;

@@ -151,6 +151,7 @@ final class EditorPanelWindow implements DialogInterface {
         }
         Builder setTitle(CharSequence value) { titleSource = null; title = value; return this; }
         Builder setView(View view) { content = view; return this; }
+        Builder setWorkbenchTab(int originTab) { tab = originTab; return this; }
         // Custom tool actions share the same full-width row as the standard Apply/Cancel buttons.
         Builder setActionsView(LinearLayout view) { actionsView = view; return this; }
         Builder selectionProperties(Object target, int originTab) {

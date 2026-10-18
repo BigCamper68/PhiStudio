@@ -73,7 +73,7 @@ public class LanguageSwitchTest {
         assertEquals("设置", activity.getString(R.string.settings_title));
         assertEquals("设置", UiText.string(wrapper, R.string.settings_title));
         assertEquals("已选择 3 项", activity.getResources().getQuantityString(R.plurals.controls_selection_count, 3, 3));
-        assertEquals("01 · 线性", activity.getResources().getStringArray(R.array.event_easing_entries)[0]);
+        assertEquals("线性", activity.getResources().getStringArray(R.array.event_easing_entries)[0]);
         assertTrue(activity.getString(R.string.complex_move_time_help).contains("整数:分子/分母"));
         Configuration unsupported = new Configuration(activity.getBaseContext().getResources().getConfiguration());
         unsupported.setLocales(LocaleList.forLanguageTags("fr-FR"));

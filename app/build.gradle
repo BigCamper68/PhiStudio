@@ -22,8 +22,8 @@ android {
         applicationId 'com.xpe.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 80
-        versionName '1.0.6'
+        versionCode 94
+        versionName '1.0.7'
     }
 
     signingConfigs {
@@ -39,7 +39,12 @@ android {
     }
 
     buildTypes {
-        debug { pseudoLocalesEnabled true }
+        debug {
+            pseudoLocalesEnabled true
+            if (providers.gradleProperty('checkpointBuild').orNull == 'true') {
+                applicationIdSuffix '.checkpoint'
+            }
+        }
         release {
             if (releaseSigningConfigured) {
                 signingConfig signingConfigs.getByName('release')
@@ -79,6 +84,10 @@ androidComponents {
         def task = tasks.register("generate${variant.name.capitalize()}I18nResources",
                 com.phistudio.build.GenerateI18nResources) {
             languageDirectory.set(rootProject.layout.projectDirectory.dir('languages'))
+            applicationNameOverride.set(variant.buildType == 'debug'
+                    ? providers.gradleProperty('checkpointBuild').map {
+                        it == 'true' ? 'PhiStudio Checkpoint' : ''
+                    }.orElse('') : '')
             // AGP assigns an isolated output directory when the source is registered below.
         }
         variant.sources.res.addGeneratedSourceDirectory(task, { it.outputDirectory })

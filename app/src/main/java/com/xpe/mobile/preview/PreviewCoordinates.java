@@ -16,12 +16,10 @@ public final class PreviewCoordinates {
      * Texture geometry remains uniformly width-scaled; travel distances do not.
      * Returns pixel offsets in the chart's Y-up coordinate system. */
     public static double localX(double x, double y, double rotation, double sx, double sy) {
-        double radians = Math.toRadians(rotation);
-        return Math.cos(radians) * x * sx - Math.sin(radians) * y * sy;
+        return PrprRotation.cos(rotation) * x * sx - PrprRotation.sin(rotation) * y * sy;
     }
 
     public static double localY(double x, double y, double rotation, double sx, double sy) {
-        double radians = Math.toRadians(rotation);
-        return Math.sin(radians) * x * sx + Math.cos(radians) * y * sy;
+        return PrprRotation.sin(rotation) * x * sx + PrprRotation.cos(rotation) * y * sy;
     }
 }

@@ -82,6 +82,14 @@ abstract class EditorDialogSection extends ContextThemeWrapper {
         spinner.setSelection(Math.max(0, Math.min(selected, spinner.getCount() - 1)));
         return spinner;
     }
+    protected Spinner addStringSpinner(LinearLayout parent, java.util.function.Supplier<String> label,
+            java.util.function.Supplier<List<String>> entries, int selected) {
+        Spinner spinner = addStringSpinner(parent, "", entries.get(), selected);
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(spinner) - 1), label);
+        UiText.entries(spinner, entries);
+        spinner.setSelection(Math.max(0, Math.min(selected, spinner.getCount() - 1)));
+        return spinner;
+    }
 
     protected void addMenuSection(LinearLayout parent, int textResource) {
         TextView title = new TextView(this);

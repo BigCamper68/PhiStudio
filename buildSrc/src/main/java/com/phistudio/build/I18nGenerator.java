@@ -16,6 +16,10 @@ public final class I18nGenerator {
     private final JsonObject english;
 
     public I18nGenerator(Path directory) throws IOException {
+        this(directory, "");
+    }
+
+    public I18nGenerator(Path directory, String applicationNameOverride) throws IOException {
         try (var files = Files.list(directory)) {
             for (Path path : files.filter(p -> p.toString().endsWith(".json")).sorted().toList()) {
                 String tag = path.getFileName().toString().replaceFirst("\\.json$", "");
@@ -61,6 +65,13 @@ public final class I18nGenerator {
                 if (string(token).isEmpty()) throw invalid("Empty protected token");
         }
         for (var language : languages.entrySet()) validate(language.getKey(), language.getValue());
+        if (!applicationNameOverride.isEmpty()) {
+            JsonObject strings = object(english, "strings");
+            if (!strings.has("app_name") || flag("app_name", "translatable", true))
+                throw invalid("Application name override requires a non-translatable app_name");
+            check("app_name", string(strings.get("app_name")), applicationNameOverride);
+            strings.addProperty("app_name", applicationNameOverride);
+        }
     }
 
     private void validate(String tag, JsonObject root) {

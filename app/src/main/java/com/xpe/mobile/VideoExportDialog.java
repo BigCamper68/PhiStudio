@@ -22,6 +22,7 @@ final class VideoExportDialog {
     private final SharedPreferences preferences;
     private final boolean hasMusic;
     private final long durationMs;
+    private final long minimumStartMs;
     private EditText width, height, bitrate, start, end;
     private Spinner fps;
     private CheckBox music, hits, shaders, hud;
@@ -38,7 +39,12 @@ final class VideoExportDialog {
     }
 
     VideoExportDialog(MainActivity activity, boolean hasMusic, long durationMs) {
+        this(activity, hasMusic, durationMs, 0);
+    }
+
+    VideoExportDialog(MainActivity activity, boolean hasMusic, long durationMs, long minimumStartMs) {
         this.activity = activity; this.hasMusic = hasMusic; this.durationMs = durationMs;
+        this.minimumStartMs = Math.min(0, minimumStartMs);
         preferences = activity.getSharedPreferences("video_export", MainActivity.MODE_PRIVATE);
     }
 
@@ -65,7 +71,8 @@ final class VideoExportDialog {
         text(left, R.string.video_bitrate_hint);
         text(left, R.string.video_section_range);
         LinearLayout range = row(left);
-        start = field(cell(range), R.string.video_start_seconds, "0");
+        start = field(cell(range), R.string.video_start_seconds, minimumStartMs == 0 ? "0"
+                : String.format(Locale.US, "%.3f", minimumStartMs / 1000.0));
         end = field(cell(range), R.string.video_end_seconds, String.format(Locale.US, "%.3f", durationMs / 1000.0));
         text(left, R.string.video_range_hint);
         text(right, R.string.video_section_audio);
@@ -125,7 +132,7 @@ final class VideoExportDialog {
         try {
             double startSeconds = decimal(start), endSeconds = decimal(end), mbps = decimal(bitrate);
             if (!Double.isFinite(startSeconds) || !Double.isFinite(endSeconds) || !Double.isFinite(mbps)
-                    || startSeconds < 0 || endSeconds > 86400 || mbps < 1 || mbps > 80)
+                    || startSeconds < minimumStartMs / 1000.0 || endSeconds > 86400 || mbps < 1 || mbps > 80)
                 throw new UiErrors.ValidationException(R.string.video_numeric_limits);
             return new VideoExportOptions(Integer.parseInt(width.getText().toString().trim()),
                     Integer.parseInt(height.getText().toString().trim()), fps.getSelectedItemPosition() == 0 ? 30 : 60,

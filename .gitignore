@@ -16,20 +16,11 @@ keystore.properties
 *.p12
 *-release-password.txt
 /tools/phira-fonts/target/
-/tools/shader-tests/build/
 
 # Generated validation output; retain probes and test fixtures.
 /tools/**/reports/
 /tools/**/build/
 /tools/**/device-build/
-/tools/prpr-audit/baseline/
-/tools/prpr-audit/oracle.rs
-/tools/prpr-audit/oracle
-/tools/prpr-audit/benchmark-*.txt
-/tools/prpr-audit/phigros-assets-unchanged.json
-/tools/refactor/*-equivalence.json
-/tools/refactor/source-inventory.json
-/tools/refactor/test-split-summary.json
 __pycache__/
 *.pyc
 hs_err_pid*

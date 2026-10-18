@@ -5,6 +5,12 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public final class PlaybackScrubMapperTest {
+    @Test public void signedRangeReachesBothExactEndpoints() {
+        assertEquals(-21, PlaybackScrubMapper.positionForFraction(0, -21, 123456));
+        assertEquals(123456, PlaybackScrubMapper.positionForFraction(1, -21, 123456));
+        assertEquals(0, PlaybackScrubMapper.fractionForPosition(-21, -21, 123456), 0);
+        assertEquals(1, PlaybackScrubMapper.fractionForPosition(123456, -21, 123456), 0);
+    }
     @Test
     public void mapsPositionsAndCoordinatesAcrossTheWholeTrack() {
         assertEquals(0.0, PlaybackScrubMapper.fractionForPosition(-50L, 1000L), 0.0);

@@ -75,7 +75,9 @@ final class MainVideoExport implements AutoCloseable {
             }
             duration = Math.max(1000, chart.beatToAudioMillis(lastBeat, activity.currentPackageOffsetMs()) + 1000);
         }
-        settingsDialog = new VideoExportDialog(activity, source != null, duration);
+        settingsDialog = new VideoExportDialog(activity, source != null, duration,
+                com.xpe.mobile.audio.PlaybackTimeline.startMillis(chart.offsetMs,
+                        activity.currentPackageOffsetMs()));
         settingsDialog.show(this::render);
     }
 

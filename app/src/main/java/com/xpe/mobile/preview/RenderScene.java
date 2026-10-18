@@ -15,6 +15,7 @@ public final class RenderScene {
     public final List<RenderLine> lines;
     public final HudState hud;
     final Map<Integer, PaintHistory> paintHistories;
+    final List<RenderLine> badNotes;
 
     RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud) {
         this(beat, chartTimeMs, lines, hud, Collections.emptyMap());
@@ -22,6 +23,12 @@ public final class RenderScene {
 
     RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud,
                 Map<Integer, PaintHistory> paintHistories) {
+        this(beat, chartTimeMs, lines, hud, paintHistories, Collections.emptyList());
+    }
+
+    RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud,
+                Map<Integer, PaintHistory> paintHistories, List<RenderLine> badNotes) {
+        this.badNotes = Collections.unmodifiableList(badNotes);
         this.paintHistories = Collections.unmodifiableMap(new java.util.HashMap<>(paintHistories));
         this.beat = beat;
         this.chartTimeMs = chartTimeMs;

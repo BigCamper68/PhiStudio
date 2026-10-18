@@ -67,6 +67,7 @@ abstract class EditorSurfaceView extends View {
 
     protected enum GestureMode {
         NONE,
+        GRID_TAP,
         PAN,
         HOLD_PREVIEW,
         EVENT_PREVIEW,

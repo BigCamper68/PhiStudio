@@ -1,6 +1,7 @@
 package com.xpe.mobile.editor;
 
 import android.graphics.RectF;
+import android.view.ViewConfiguration;
 import com.xpe.mobile.editor.EditorChromeView.ButtonSpec;
 import com.xpe.mobile.editor.EditorSurfaceView.GestureMode;
 import com.xpe.mobile.editor.EditorSurfaceView.RectangleSelectionMode;
@@ -14,12 +15,19 @@ import com.xpe.mobile.model.NoteType;
 /** EditorGestureRouter responsibilities extracted from EditorView. */
 final class EditorGestureRouter {
     private final EditorView delegateOwner;
+    private final int touchSlop;
+    private Runnable pendingTap;
 
     EditorGestureRouter(EditorView delegateOwner) {
         this.delegateOwner = delegateOwner;
+        touchSlop = ViewConfiguration.get(delegateOwner.getContext()).getScaledTouchSlop();
     }
 
+    void cancel() { pendingTap = null; }
+
     boolean handleDown(float x, float y) {
+        cancel();
+        delegateOwner.gestureMode = GestureMode.NONE;
         delegateOwner.movedDuringGesture = false;
         if (delegateOwner.playbackSeekBounds.contains(x, y)) {
             return delegateOwner.beginPlaybackSeek(x, y);
@@ -80,7 +88,10 @@ final class EditorGestureRouter {
         }
 
         if (delegateOwner.tool == Tool.TAP || delegateOwner.tool == Tool.DRAG || delegateOwner.tool == Tool.FLICK) {
-            if (x < split) delegateOwner.noteGestureController.addSimpleNoteAt(x, y, split, bottom);
+            if (x < split) {
+                pendingTap = () -> delegateOwner.noteGestureController.addSimpleNoteAt(x, y, split, bottom);
+                delegateOwner.gestureMode = GestureMode.GRID_TAP;
+            } else delegateOwner.beginPanGesture();
             return true;
         }
 
@@ -93,51 +104,60 @@ final class EditorGestureRouter {
                     HoldHandleHit holdHandle = alreadySelected
                             && delegateOwner.selectionCount() == 1 && note.type == NoteType.HOLD
                             ? delegateOwner.noteGestureController.findHoldHandleAt(note, x, y, split, bottom) : null;
-                    if (!alreadySelected) delegateOwner.clearSelection();
-                    delegateOwner.selectedNote = note;
-                    delegateOwner.selectedNotes.add(note);
-                    delegateOwner.selectedEvent = null;
-                    delegateOwner.activateEditPanel();
                     if (holdHandle != null) delegateOwner.noteGestureController.beginHoldResize(note, holdHandle.startHandle);
-                    else if (delegateOwner.noteMoveMode.enabled()) delegateOwner.noteGestureController.beginNoteDrag(note, x, y, split, bottom);
-                    else delegateOwner.gestureMode = GestureMode.NONE;
+                    else if (alreadySelected && delegateOwner.noteMoveMode.enabled()) {
+                        delegateOwner.selectedNote = note;
+                        delegateOwner.noteGestureController.beginNoteDrag(note, x, y, split, bottom);
+                    } else {
+                        pendingTap = () -> {
+                            if (!alreadySelected) delegateOwner.clearSelection();
+                            delegateOwner.selectedNote = note;
+                            delegateOwner.selectedNotes.add(note);
+                            delegateOwner.selectedEvent = null;
+                            delegateOwner.activateEditPanel();
+                        };
+                        delegateOwner.gestureMode = GestureMode.GRID_TAP;
+                    }
                 } else {
                     delegateOwner.beginPanGesture();
                 }
             } else {
                 EventHandleHit handle = delegateOwner.eventGestureController.findEventHandleAt(x, y, split, bottom);
-                if (handle != null) {
-                    delegateOwner.clearSelection();
-                    delegateOwner.selectedEvent = handle.event;
-                    delegateOwner.selectedEvents.add(handle.event);
-                    delegateOwner.selectedNote = null;
-                    delegateOwner.selectedEventType = handle.event.type;
-                    delegateOwner.activateEditPanel();
+                if (handle != null && handle.event == delegateOwner.selectedEvent
+                        && delegateOwner.selectionCount() == 1) {
                     delegateOwner.eventGestureController.beginEventDrag(handle.event, handle.startHandle);
                 } else {
-                    LineEvent event = delegateOwner.eventGestureController.findEventAt(x, y, split, bottom);
+                    LineEvent event = handle != null ? handle.event
+                            : delegateOwner.eventGestureController.findEventAt(x, y, split, bottom);
                     if (event != null) {
-                        delegateOwner.clearSelection();
-                        delegateOwner.selectedEvent = event;
-                        delegateOwner.selectedEvents.add(event);
-                        delegateOwner.selectedNote = null;
-                        delegateOwner.selectedEventType = event.type;
-                        delegateOwner.gestureMode = GestureMode.NONE;
-                        delegateOwner.activateEditPanel();
+                        pendingTap = () -> {
+                            delegateOwner.clearSelection();
+                            delegateOwner.selectedEvent = event;
+                            delegateOwner.selectedEvents.add(event);
+                            delegateOwner.selectedNote = null;
+                            delegateOwner.selectedEventType = event.type;
+                            delegateOwner.activateEditPanel();
+                        };
+                        delegateOwner.gestureMode = GestureMode.GRID_TAP;
                     } else {
                         delegateOwner.beginPanGesture();
                     }
                 }
             }
             delegateOwner.invalidate();
-        }
+        } else delegateOwner.beginPanGesture();
         return true;
     }
 
     boolean handleMove(float x, float y) {
         float bottom = delegateOwner.getHeight() - delegateOwner.bottomBarHeight();
-        if (Math.abs(y - delegateOwner.gestureStartY) > 3f * delegateOwner.density || Math.abs(x - delegateOwner.gestureStartX) > 3f * delegateOwner.density) delegateOwner.movedDuringGesture = true;
+        if (Math.abs(y - delegateOwner.gestureStartY) > touchSlop
+                || Math.abs(x - delegateOwner.gestureStartX) > touchSlop) delegateOwner.movedDuringGesture = true;
         if (delegateOwner.storyboardTimeline.active()) return delegateOwner.storyboardTimeline.move(x, y);
+        if (delegateOwner.gestureMode == GestureMode.GRID_TAP && delegateOwner.movedDuringGesture) {
+            cancel();
+            delegateOwner.beginPanGesture();
+        }
         if (delegateOwner.gestureMode == GestureMode.SEEK_BAR) {
             delegateOwner.updatePlaybackSeek(x);
             delegateOwner.invalidate();
@@ -175,10 +195,19 @@ final class EditorGestureRouter {
     }
 
     boolean handleUp(float x, float y) {
+        if (Math.abs(y - delegateOwner.gestureStartY) > touchSlop
+                || Math.abs(x - delegateOwner.gestureStartX) > touchSlop) {
+            delegateOwner.movedDuringGesture = true;
+            if (delegateOwner.gestureMode == GestureMode.GRID_TAP) handleMove(x, y);
+        }
         if (delegateOwner.storyboardTimeline.active()) return delegateOwner.storyboardTimeline.up(x, y);
         float split = delegateOwner.editorSplitX();
         float bottom = delegateOwner.getHeight() - delegateOwner.bottomBarHeight();
-        if (delegateOwner.gestureMode == GestureMode.SEEK_BAR) {
+        if (delegateOwner.gestureMode == GestureMode.GRID_TAP) {
+            Runnable tap = pendingTap;
+            cancel();
+            if (!delegateOwner.movedDuringGesture && delegateOwner.isInEditor(y) && tap != null) tap.run();
+        } else if (delegateOwner.gestureMode == GestureMode.SEEK_BAR) {
             delegateOwner.updatePlaybackSeek(x);
             delegateOwner.finishPlaybackScrub();
         } else if (delegateOwner.gestureMode == GestureMode.HOLD_PREVIEW) {
@@ -233,6 +262,7 @@ final class EditorGestureRouter {
             delegateOwner.finishPlaybackScrub();
         }
         delegateOwner.gestureMode = GestureMode.NONE;
+        cancel();
         delegateOwner.invalidate();
         return true;
     }

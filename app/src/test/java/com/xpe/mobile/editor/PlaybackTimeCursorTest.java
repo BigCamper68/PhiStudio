@@ -7,6 +7,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class PlaybackTimeCursorTest {
+    @Test public void signedAudioCursorPreservesBothExactStartAndPositiveOffsetPreroll() {
+        ChartDocument chart = chart(); chart.offsetMs = -21;
+        PlaybackTimeCursor cursor = new PlaybackTimeCursor();
+        double beat = cursor.beatAtAudioSeconds(chart, -.021, 0);
+        assertEquals(0, beat, 0); assertEquals(0, cursor.seconds(chart, beat), 0);
+        assertEquals(-.021, cursor.audioSeconds(chart, beat, 0), 0);
+        chart.offsetMs = 200; chart.markEdited();
+        beat = cursor.beatAtAudioSeconds(chart, .050, 0);
+        assertEquals(0, beat, 0); assertEquals(.050, cursor.audioSeconds(chart, beat, 0), 0);
+        beat = cursor.beatAtSeconds(chart, 0);
+        assertEquals(0, cursor.audioSeconds(chart, beat, 0), 0);
+    }
     private static ChartDocument chart() {
         ChartDocument chart = new ChartDocument();
         BpmChange bpm = new BpmChange(); bpm.bpm = 202.99999999999997;

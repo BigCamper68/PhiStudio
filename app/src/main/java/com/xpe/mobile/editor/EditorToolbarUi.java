@@ -95,10 +95,10 @@ final class EditorToolbarUi {
         long position = 0L;
         if (ready) {
             position = !delegateOwner.playing || delegateOwner.playbackScrubbing || delegateOwner.gestureMode == GestureMode.SEEK_BAR
-                    ? delegateOwner.chart.beatToAudioMillis(delegateOwner.currentBeat, delegateOwner.packageOffsetMs)
+                    ? delegateOwner.editorPlayback.audioPositionMillis()
                     : delegateOwner.callback.audioPositionMs();
         }
-        double fraction = PlaybackScrubMapper.fractionForPosition(position, duration);
+        double fraction = PlaybackScrubMapper.fractionForPosition(position, delegateOwner.editorPlayback.audioStartMillis(), duration);
 
         delegateOwner.paint.setTextAlign(Paint.Align.RIGHT);
         delegateOwner.paint.setTextSize(9.5f * delegateOwner.density);
@@ -132,9 +132,9 @@ final class EditorToolbarUi {
         delegateOwner.paint.setColor(Color.rgb(185, 195, 204));
         long audioPosition = delegateOwner.callback != null && delegateOwner.callback.isAudioReady()
                 ? (delegateOwner.playbackScrubbing || delegateOwner.gestureMode == GestureMode.SEEK_BAR
-                ? delegateOwner.chart.beatToAudioMillis(delegateOwner.currentBeat, delegateOwner.packageOffsetMs)
+                ? delegateOwner.editorPlayback.audioPositionMillis()
                 : delegateOwner.callback.audioPositionMs())
-                : delegateOwner.chart.beatToAudioMillis(delegateOwner.currentBeat, delegateOwner.packageOffsetMs);
+                : delegateOwner.editorPlayback.audioPositionMillis();
         long audioDuration = delegateOwner.callback != null && delegateOwner.callback.isAudioReady() ? delegateOwner.callback.audioDurationMs() : 0L;
         String audioText = audioDuration > 0
                 ? EditorChromeView.formatMillis(audioPosition) + "/" + EditorChromeView.formatMillis(audioDuration)

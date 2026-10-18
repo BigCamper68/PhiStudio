@@ -97,11 +97,11 @@ final class EditorDrawingStyle {
     }
 
     static String formatMillis(long milliseconds) {
-        long safe = Math.max(0L, milliseconds);
+        long safe = milliseconds == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(milliseconds);
         long minutes = safe / 60000L;
         long seconds = (safe / 1000L) % 60L;
         long millis = safe % 1000L;
-        return String.format(Locale.US, "%d:%02d.%03d", minutes, seconds, millis);
+        return (milliseconds < 0 ? "-" : "") + String.format(Locale.US, "%d:%02d.%03d", minutes, seconds, millis);
     }
 
     static float clamp(float value, float min, float max) {

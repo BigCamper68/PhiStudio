@@ -8,6 +8,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public final class EditorSettingsMigrationTest {
+    @Test public void obsoleteCutDensityIsIgnoredAndRemovedWithoutResettingSettings() {
+        Map<String,Object> values = new HashMap<>();
+        values.put("editor_settings.cutDensity", Double.doubleToRawLongBits(Double.NaN));
+        values.put("editor_settings.musicVolume", Double.doubleToRawLongBits(.35));
+        SharedPreferences prefs = preferences(values);
+        EditorSettings settings = EditorSettingsStore.load(prefs);
+        assertEquals(.35, settings.musicVolume, 0);
+        EditorSettingsStore.save(prefs, settings);
+        assertFalse(values.containsKey("editor_settings.cutDensity"));
+        assertEquals(.35, EditorSettingsStore.load(prefs).musicVolume, 0);
+    }
+
     @Test public void tapToSeekDefaultsOffAndSurvivesCopySaveAndReload() {
         SharedPreferences prefs=preferences(new HashMap<>());
         EditorSettings settings=EditorSettingsStore.load(prefs);

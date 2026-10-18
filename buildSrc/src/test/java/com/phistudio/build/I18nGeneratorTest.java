@@ -65,4 +65,14 @@ public class I18nGeneratorTest {
         assertArrayEquals(Files.readAllBytes(output.resolve("values/strings.xml")),Files.readAllBytes(other.resolve("values/strings.xml")));
         assertTrue(Files.readString(output.resolve("values/strings.xml")).contains("&amp; &lt;world&gt;"));
     }
+    @Test public void checkpointNameIsIsolatedFromNormalBuildAndSourcePacks() throws Exception {
+        write("en","{\"meta\":{\"name\":\"English\"},\"strings\":{\"app_name\":\"PhiStudio\"},\"options\":{\"app_name\":{\"translatable\":false}}}");
+        byte[] source = Files.readAllBytes(input.resolve("en.json"));
+        Path checkpoint = temp.newFolder("checkpoint").toPath(), normal = temp.newFolder("normal").toPath();
+        new I18nGenerator(input,"PhiStudio Checkpoint").generate(checkpoint);
+        new I18nGenerator(input).generate(normal);
+        assertTrue(Files.readString(checkpoint.resolve("values/strings.xml")).contains("PhiStudio Checkpoint"));
+        assertFalse(Files.readString(normal.resolve("values/strings.xml")).contains("Checkpoint"));
+        assertArrayEquals(source,Files.readAllBytes(input.resolve("en.json")));
+    }
 }

@@ -112,6 +112,7 @@ public final class PreviewRenderer {
         int save = overlay.save();
         overlay.clipRect(viewport);
         Projection projection = new Projection(viewport);
+        drawBadNotes(overlay, projection, scene);
         previewHitEffects.drawHitEffects(overlay, projection, scene);
         if (showHud) previewHudRenderer.drawHud(overlay, projection, scene.hud);
         overlay.restoreToCount(save);
@@ -147,7 +148,10 @@ public final class PreviewRenderer {
         }
         // Hit effects belong to the whole scene, including effects emitted by
         // hidden lines. Later line textures and notes must not cover them.
-        if (includeParticles) previewHitEffects.drawHitEffects(canvas, projection, scene);
+        if (includeParticles) {
+            drawBadNotes(canvas, projection, scene);
+            previewHitEffects.drawHitEffects(canvas, projection, scene);
+        }
         if (settings.markLineId) {
             for (RenderScene.RenderLine line : scene.lines) {
                 if (line.alpha > 0 || !line.notes.isEmpty()) {
@@ -161,6 +165,12 @@ public final class PreviewRenderer {
 
     interface HudContent {
         void draw(Canvas canvas, int colorRgb, int alpha);
+    }
+
+    private void drawBadNotes(Canvas canvas, Projection projection, RenderScene scene) {
+        for (RenderScene.RenderLine line : scene.badNotes)
+            for (RenderScene.RenderNote note : line.notes)
+                previewNoteRenderer.drawNote(canvas, projection, line, note, false);
     }
 
     private void drawBackground(Canvas canvas, RectF bounds, Bitmap background) {
@@ -198,7 +208,7 @@ public final class PreviewRenderer {
 
     static float lineScreenAngle(double rotationDegrees) {
         // Rotations belong to local geometry, not the normalized chart-position axes.
-        return (float) -rotationDegrees;
+        return PrprRotation.screenAngle(rotationDegrees);
     }
 
     static boolean isNearViewport(RectF viewport, Point point, float margin) {

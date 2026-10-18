@@ -5,6 +5,7 @@ import com.xpe.mobile.R;
 import com.xpe.mobile.packageio.PackageException;
 import com.xpe.mobile.project.ProjectLibrary;
 import com.xpe.mobile.video.VideoExportOptions;
+import com.xpe.mobile.playtest.PlaytestOptions;
 
 /** Domain codes stay Android-free; technical details remain available after a translated explanation. */
 public final class UiErrors {
@@ -16,6 +17,11 @@ public final class UiErrors {
     public static String describe(Context context, Throwable error) {
         if (error instanceof ValidationException)
             return UiText.string(context, ((ValidationException) error).resource);
+        if (error instanceof PlaytestOptions.ValidationException) {
+            int resource = ((PlaytestOptions.ValidationException) error).reason == PlaytestOptions.ValidationError.NUMBER
+                    ? R.string.playtest_invalid_number : R.string.playtest_invalid_time;
+            return UiText.string(context, resource);
+        }
         if (error instanceof VideoExportOptions.ValidationException) {
             int resource = switch (((VideoExportOptions.ValidationException) error).reason) {
                 case RESOLUTION -> R.string.video_validation_resolution;

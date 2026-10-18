@@ -67,12 +67,11 @@ final class PreviewLineEvaluator {
         } else {
             PreviewLineEvaluator.resolveLine(chart, parentIndex, local, resolved, state, localYScale);
             ResolvedLine parent = resolved[parentIndex];
-            double radians = Math.toRadians(parent.rotationDegrees);
-            double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians) * localYScale;
-            double rotatedY = own.x * Math.sin(radians) / localYScale + own.y * Math.cos(radians);
+            double rotatedX = own.x * parent.cos - own.y * parent.sin * localYScale;
+            double rotatedY = own.x * parent.sin / localYScale + own.y * parent.cos;
             resolved[index] = new ResolvedLine(parent.x + rotatedX, parent.y + rotatedY,
-                    own.rotationDegrees + (line.rotateWithFather
-                            ? parent.rotationDegrees : 0.0));
+                    line.rotateWithFather ? (float) ((float) own.rotationDegrees + (float) parent.rotationDegrees)
+                            : own.rotationDegrees);
         }
         state[index] = 2;
     }
@@ -97,12 +96,11 @@ final class PreviewLineEvaluator {
         visiting[index] = true;
         ResolvedLine parent = PreviewLineEvaluator.resolveSingleLineAtSeconds(chart, prepared, parentIndex, seconds, visiting, localYScale);
         visiting[index] = false;
-        double radians = Math.toRadians(parent.rotationDegrees);
-        double rotatedX = own.x * Math.cos(radians) - own.y * Math.sin(radians) * localYScale;
-        double rotatedY = own.x * Math.sin(radians) / localYScale + own.y * Math.cos(radians);
+        double rotatedX = own.x * parent.cos - own.y * parent.sin * localYScale;
+        double rotatedY = own.x * parent.sin / localYScale + own.y * parent.cos;
         return new ResolvedLine(parent.x + rotatedX, parent.y + rotatedY,
-                own.rotationDegrees + (line.rotateWithFather
-                        ? parent.rotationDegrees : 0.0));
+                line.rotateWithFather ? (float) ((float) own.rotationDegrees + (float) parent.rotationDegrees)
+                        : own.rotationDegrees);
     }
 
     static final class LocalLine {
@@ -165,8 +163,8 @@ final class PreviewLineEvaluator {
             this.x = x;
             this.y = y;
             this.rotationDegrees = rotationDegrees;
-            cos = Math.cos(Math.toRadians(rotationDegrees));
-            sin = Math.sin(Math.toRadians(rotationDegrees));
+            cos = PrprRotation.cos(rotationDegrees);
+            sin = PrprRotation.sin(rotationDegrees);
         }
     }
 }

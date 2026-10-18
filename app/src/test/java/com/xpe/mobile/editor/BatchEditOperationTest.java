@@ -15,6 +15,54 @@ import static org.junit.Assert.assertEquals;
 
 public final class BatchEditOperationTest {
     @Test
+    public void bothEndpointsCreateUndoableAlternatingAlphaSteps() {
+        EventLayer layer = new EventLayer();
+        LineEvent first = event(1, 2, 10, 20);
+        LineEvent second = event(2, 3, 30, 40);
+        first.type = second.type = EventType.ALPHA;
+        layer.events(EventType.ALPHA).add(first);
+        layer.events(EventType.ALPHA).add(second);
+        BatchValueTransform.Spec profile = profile(1, 1);
+        profile.periodicSequence = new double[]{0, -1};
+        BatchEditOperation.Result result = BatchEditOperation.events(layer,
+                Arrays.asList(first, second), BatchEditOperation.EventField.BOTH_VALUES,
+                profile, BatchValueTransform.Mode.TO);
+        assertEquals(BatchEditOperation.Error.NONE, result.error);
+        EditHistory history = new EditHistory(4);
+        history.execute(result.command);
+        assertEquals(0, first.start, 0);
+        assertEquals(0, first.end, 0);
+        assertEquals(-1, second.start, 0);
+        assertEquals(-1, second.end, 0);
+        history.undo();
+        assertEquals(10, first.start, 0);
+        assertEquals(20, first.end, 0);
+        history.redo();
+        assertEquals(-1, second.end, 0);
+    }
+
+    @Test
+    public void bothEndpointsApplyByToEachOriginalEndpointAndValidateAtomically() {
+        EventLayer layer = new EventLayer();
+        LineEvent target = event(1, 2, 2, 3);
+        target.type = EventType.SPEED;
+        layer.events(target.type).add(target);
+        BatchEditOperation.Result result = BatchEditOperation.events(layer, Arrays.asList(target),
+                BatchEditOperation.EventField.BOTH_VALUES, profile(-7, -7), BatchValueTransform.Mode.BY);
+        assertEquals(BatchEditOperation.Error.NONE, result.error);
+        result.command.apply();
+        assertEquals(-5, target.start, 0);
+        assertEquals(-4, target.end, 0);
+        target.type = EventType.ALPHA;
+        layer.events(EventType.ALPHA).add(target);
+        assertEquals(BatchEditOperation.Error.INVALID_RESULT, BatchEditOperation.events(layer,
+                Arrays.asList(target), BatchEditOperation.EventField.BOTH_VALUES,
+                profile(300, 300), BatchValueTransform.Mode.TO).error);
+        assertEquals(-5, target.start, 0);
+        assertEquals(-4, target.end, 0);
+    }
+
+    @Test
     public void editsNotesChronologicallyAsOneUndoableCommand() {
         JudgeLine line = emptyLine();
         Note later = note(2, 10.0);

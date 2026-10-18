@@ -35,6 +35,10 @@ public final class PcmAudioAsset {
         return Math.max(0L, Math.round(frame));
     }
 
+    public long timelineFrameForPositionMillis(long positionMs) {
+        return Math.min(totalFrames, Math.round(positionMs * (double) sampleRate / 1000.0));
+    }
+
     public long positionMillisForFrame(long frame) {
         long clamped = Math.max(0L, Math.min(frame, totalFrames));
         double millis = clamped * 1000.0 / sampleRate;
