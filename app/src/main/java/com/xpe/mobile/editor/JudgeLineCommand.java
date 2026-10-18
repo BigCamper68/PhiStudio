@@ -18,7 +18,8 @@ public final class JudgeLineCommand {
             int father = beforeFathers[oldIndex];
             afterFathers[newIndex] = father >= safeIndex ? father + 1 : father;
         }
-        afterFathers[safeIndex] = line.father;
+        int originalFather = line.father;
+        afterFathers[safeIndex] = originalFather >= safeIndex ? originalFather + 1 : originalFather;
         return new EditHistory.Command() {
             @Override
             public void apply() {
@@ -29,6 +30,7 @@ public final class JudgeLineCommand {
             @Override
             public void revert() {
                 chart.judgeLines.remove(line);
+                line.father = originalFather;
                 applyFathers(chart.judgeLines, beforeFathers);
             }
         };
@@ -88,6 +90,8 @@ public final class JudgeLineCommand {
         target.name = source.name;
         target.texture = source.texture;
         target.bpmFactor = source.bpmFactor;
+        target.father = source.father;
+        target.rotateWithFather = source.rotateWithFather;
         target.cover = source.cover;
         target.zOrder = source.zOrder;
         target.attachUi = source.attachUi;

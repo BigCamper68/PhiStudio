@@ -1,5 +1,9 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.app.AlertDialog;
 import android.net.Uri;
 import com.xpe.mobile.MainActivity.ProjectFailure;
@@ -24,12 +28,12 @@ final class MainProjectSession {
     <T> void runProjectTask(int messageResource, ProjectTask<T> task,
                                     ProjectSuccess<T> success) {
         delegateOwner.mainProjectSession.runProjectTask(messageResource, task, success, exception -> delegateOwner.showMessage(delegateOwner.getString(
-                R.string.project_library_error, MainActivity.safeMessage(exception))));
+                R.string.project_library_error, UiErrors.describe(delegateOwner, exception))));
     }
 
     <T> void runProjectTask(int messageResource, ProjectTask<T> task,
                                     ProjectSuccess<T> success, ProjectFailure failure) {
-        AlertDialog progress = new AlertDialog.Builder(delegateOwner)
+        AlertDialog progress = new UiDialogs.Builder(delegateOwner)
                 .setMessage(messageResource)
                 .setCancelable(false)
                 .create();
@@ -53,17 +57,18 @@ final class MainProjectSession {
                     delegateOwner.mainHandler.post(() -> {
                         if (delegateOwner.isFinishing() || delegateOwner.isDestroyed()) return;
                         progress.dismiss();
-                        delegateOwner.showMessage(delegateOwner.getString(R.string.project_memory_error));
+                        failure.accept(new IOException(delegateOwner.getString(R.string.project_memory_error), error));
                     });
                 }
             });
         } catch (RuntimeException exception) {
             progress.dismiss();
-            delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error, MainActivity.safeMessage(exception)));
+            failure.accept(exception);
         }
     }
 
-    void loadInitialChart() {
+    void loadInitialChart(boolean restoringInstance) {
+        delegateOwner.mainActivityResults.beginInitialLoad();
         delegateOwner.mainProjectSession.runProjectTask(R.string.project_library_loading, delegateOwner.mainProjectSession::readInitialContent,
                 content -> {
                     if (content.memoryWarning) {
@@ -75,14 +80,19 @@ final class MainProjectSession {
                     if (content.project != null) {
                         ProjectLibrary.OpenResult opened = content.project;
                         delegateOwner.mainProjectSession.activatePackage(opened.getChartPackage(), opened.getRecord().getId(),
-                                null, opened.getRecord().getName());
+                                delegateOwner.currentPackageSourceUri, opened.getRecord().getName());
                     } else {
                         delegateOwner.mainProjectSession.activateFallbackContent(content);
                     }
-                    delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    if (!delegateOwner.mainActivityResults.finishInitialLoad()
+                            && !restoringInstance) {
+                        delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    }
                 }, exception -> {
-                    delegateOwner.showMessage("Unable to load initial chart: " + MainActivity.safeMessage(exception));
-                    delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    delegateOwner.showMessage(delegateOwner.getString(R.string.project_initial_failed, UiErrors.describe(delegateOwner, exception)));
+                    if (!delegateOwner.mainActivityResults.finishInitialLoad()) {
+                        delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    }
                 });
     }
 
@@ -127,9 +137,9 @@ final class MainProjectSession {
     void activateFallbackContent(InitialContent content) {
         delegateOwner.mainPreviewResources.clearEditorIllustration();
         delegateOwner.editorView.setChart(content.fallbackChart);
-        delegateOwner.editorView.setProjectName(delegateOwner.getString(content.autosave
-                ? R.string.project_autosave : R.string.project_demo));
-        if (content.autosave) delegateOwner.showMessage("Autosave restored");
+        delegateOwner.editorView.setProjectNameResource(content.autosave
+                ? R.string.project_autosave : R.string.project_demo);
+        if (content.autosave) delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_autosave_restored));
         delegateOwner.mainPreviewResources.restoreAudioReference();
     }
 
@@ -154,7 +164,7 @@ final class MainProjectSession {
             } catch (IOException exception) {
                 delegateOwner.mainPreviewResources.releaseAudio();
                 delegateOwner.editorView.audioStateChanged();
-                delegateOwner.showMessage(delegateOwner.getString(R.string.project_audio_unavailable, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.project_audio_unavailable, UiErrors.describe(delegateOwner, exception)));
             }
         } else {
             delegateOwner.mainPreviewResources.releaseAudio();

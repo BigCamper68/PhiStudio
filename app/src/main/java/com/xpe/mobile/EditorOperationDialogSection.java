@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.Activity;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -59,7 +61,7 @@ final class EditorOperationDialogSection extends EditorDialogSection {
     }
 
     List<String> resourceEntries(int resource) {
-        String[] entries = getResources().getStringArray(resource);
+        String[] entries = UiText.resources(this).getStringArray(resource);
         List<String> result = new ArrayList<>(entries.length);
         java.util.Collections.addAll(result, entries);
         return result;

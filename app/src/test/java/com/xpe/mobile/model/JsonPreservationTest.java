@@ -165,6 +165,26 @@ public final class JsonPreservationTest {
     }
 
     @Test
+    public void editedRotationInheritancePersistsAsBooleanAndKeepsUnknownData() throws Exception {
+        for (Object original : new Object[]{true, false, 1, 0}) {
+            JudgeLine line = JudgeLine.fromJson(new JSONObject()
+                    .put("rotateWithFather", original).put("futureLineData", "keep"));
+            boolean before = line.rotateWithFather;
+            line.rotateWithFather = !before;
+            JSONObject exported = line.toJson();
+            assertEquals(!before, exported.get("rotateWithFather"));
+            assertEquals(!before, JudgeLine.fromJson(exported).rotateWithFather);
+            assertEquals("keep", exported.getString("futureLineData"));
+            line.rotateWithFather = before;
+            assertEquals(original, line.toJson().get("rotateWithFather"));
+        }
+        JudgeLine fresh = new JudgeLine();
+        fresh.rotateWithFather = true;
+        assertEquals(true, fresh.toJson().get("rotateWithFather"));
+        assertEquals(true, JudgeLine.fromJson(fresh.toJson()).rotateWithFather);
+    }
+
+    @Test
     public void preservesTypedExtendedEventsAndNoteTintInTheirOriginalRawForm() throws Exception {
         JSONArray tint = new JSONArray().put(12).put(34).put(56).put(77);
         JSONArray hitTint = new JSONArray().put(90).put(80).put(70);

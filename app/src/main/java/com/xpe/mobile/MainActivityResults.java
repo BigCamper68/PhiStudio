@@ -1,7 +1,11 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.packageio.AndroidPackageIo;
 import com.xpe.mobile.packageio.ChartPackage;
@@ -10,21 +14,64 @@ import com.xpe.mobile.project.ProjectRecord;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.ArrayList;
 
 /** MainActivityResults responsibilities extracted from MainActivity. */
 final class MainActivityResults {
     private final MainActivity delegateOwner;
+    private boolean initialContentLoading;
+    private final ArrayList<Bundle> pendingResults = new ArrayList<>();
 
     MainActivityResults(MainActivity delegateOwner) {
         this.delegateOwner = delegateOwner;
     }
 
+    void restoreState(Bundle state) {
+        if (state == null) return;
+        ArrayList<Bundle> restored = state.getParcelableArrayList("pending_file_results");
+        if (restored != null) pendingResults.addAll(restored);
+        String source = state.getString("package_source_uri");
+        if (source != null) delegateOwner.currentPackageSourceUri = Uri.parse(source);
+    }
+
+    void saveState(Bundle state) {
+        state.putParcelableArrayList("pending_file_results", new ArrayList<>(pendingResults));
+        if (delegateOwner.currentPackageSourceUri != null) {
+            state.putString("package_source_uri", delegateOwner.currentPackageSourceUri.toString());
+        }
+    }
+
+    void beginInitialLoad() {
+        initialContentLoading = true;
+    }
+
+    boolean finishInitialLoad() {
+        initialContentLoading = false;
+        ArrayList<Bundle> results = new ArrayList<>(pendingResults);
+        pendingResults.clear();
+        boolean restoredDraft = delegateOwner.newProjectDialog.resumeDraft();
+        for (Bundle result : results) {
+            onActivityResult(result.getInt("request"), result.getInt("result", MainActivity.RESULT_OK), result.getParcelable("data"));
+        }
+        return delegateOwner.mainVideoExport.resumeAfterInitialLoad() || restoredDraft || !results.isEmpty();
+    }
+
     void onActivityResult(int requestCode, int resultCode, Intent data) {
+        boolean validData = resultCode == MainActivity.RESULT_OK && data != null && data.getData() != null;
+        // Keep video cancellations too: the rendered file remains available for another save.
+        if (initialContentLoading && (validData || requestCode == MainActivity.SAVE_VIDEO)) {
+            Bundle result = new Bundle();
+            result.putInt("request", requestCode);
+            result.putInt("result", resultCode);
+            if (data != null) result.putParcelable("data", new Intent(data));
+            pendingResults.add(result);
+            return;
+        }
         if (requestCode == MainActivity.SAVE_VIDEO) {
             delegateOwner.mainVideoExport.acceptDestination(resultCode, data);
             return;
         }
-        if (resultCode != MainActivity.RESULT_OK || data == null || data.getData() == null) return;
+        if (!validData) return;
         Uri uri = data.getData();
         if (requestCode == MainActivity.OPEN_SHADER) {
             delegateOwner.mainShaderSession.importShader(uri, data);
@@ -47,7 +94,7 @@ final class MainActivityResults {
                                 delegateOwner.projectLibrary.clearCurrentProject();
                             } catch (IOException exception) {
                                 delegateOwner.showMessage(delegateOwner.getString(R.string.project_library_error,
-                                        MainActivity.safeMessage(exception)));
+                                        UiErrors.describe(delegateOwner, exception)));
                                 return;
                             }
                             delegateOwner.currentPackage = null;
@@ -61,10 +108,10 @@ final class MainActivityResults {
                             delegateOwner.editorView.setProjectName(displayName);
                             delegateOwner.showMessage(delegateOwner.getString(R.string.chart_imported));
                         }, exception -> delegateOwner.showMessage(delegateOwner.getString(
-                                R.string.file_error, MainActivity.safeMessage(exception))));
+                                R.string.file_error, UiErrors.describe(delegateOwner, exception))));
             } else if (requestCode == MainActivity.SAVE_CHART) {
-                ChartIo.writeChart(delegateOwner.getContentResolver(), uri, delegateOwner.editorView.getChart());
-                delegateOwner.showMessage("Chart exported");
+                ChartIo.writeChart(delegateOwner, uri, delegateOwner.editorView.getChart());
+                delegateOwner.showMessage(UiText.string(delegateOwner, R.string.ui_chart_exported));
             } else if (requestCode == MainActivity.OPEN_AUDIO) {
                 delegateOwner.takeReadPermission(uri, data);
                 delegateOwner.mainPreviewResources.loadAudio(uri, true);
@@ -91,7 +138,7 @@ final class MainActivityResults {
                             && ((PackageException) exception).getRetainedWorkspace() != null
                             ? R.string.package_import_failed_retained
                             : R.string.package_import_failed;
-                    delegateOwner.showMessage(delegateOwner.getString(message, MainActivity.safeMessage(exception)));
+                    delegateOwner.showMessage(delegateOwner.getString(message, UiErrors.describe(delegateOwner, exception)));
                 });
             } else if (requestCode == MainActivity.SAVE_PACKAGE) {
                 if (delegateOwner.currentPackage == null) {
@@ -111,17 +158,17 @@ final class MainActivityResults {
             if (requestCode == MainActivity.OPEN_PACKAGE) {
                 int message = exception.getRetainedWorkspace() == null
                         ? R.string.package_import_failed : R.string.package_import_failed_retained;
-                delegateOwner.showMessage(delegateOwner.getString(message, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(message, UiErrors.describe(delegateOwner, exception)));
             } else {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, UiErrors.describe(delegateOwner, exception)));
             }
         } catch (Exception exception) {
             if (requestCode == MainActivity.OPEN_PACKAGE) {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_import_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_import_failed, UiErrors.describe(delegateOwner, exception)));
             } else if (requestCode == MainActivity.SAVE_PACKAGE) {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.package_export_failed, UiErrors.describe(delegateOwner, exception)));
             } else {
-                delegateOwner.showMessage(delegateOwner.getString(R.string.file_error, MainActivity.safeMessage(exception)));
+                delegateOwner.showMessage(delegateOwner.getString(R.string.file_error, UiErrors.describe(delegateOwner, exception)));
             }
         }
     }

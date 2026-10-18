@@ -48,7 +48,8 @@ abstract class EditorDocumentView extends EditorSurfaceView {
         TARGET_NOT_FOUND,
         LINE_ZERO_PROTECTED,
         LAST_LINE_REQUIRED,
-        INVALID_PROPERTIES
+        INVALID_PROPERTIES,
+        INVALID_PARENT
     }
 
     public enum StoryboardApplyResult {

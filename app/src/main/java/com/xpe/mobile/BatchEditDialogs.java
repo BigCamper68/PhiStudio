@@ -1,8 +1,9 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -34,33 +35,34 @@ final class BatchEditDialogs {
         ScrollView scroll = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scroll);
 
-        List<String> targetEntries = new ArrayList<>();
         List<Boolean> noteTargets = new ArrayList<>();
         if (!notes.isEmpty()) {
-            targetEntries.add(delegateOwner.getString(R.string.batch_target_notes, notes.size()));
             noteTargets.add(true);
         }
         if (!events.isEmpty()) {
-            targetEntries.add(delegateOwner.getString(R.string.batch_target_events, events.size()));
             noteTargets.add(false);
         }
-        Spinner target = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_target),
-                targetEntries, 0);
-        Spinner eventType = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_event_type),
-                delegateOwner.eventTypeLabels(), events.isEmpty() ? 0 : events.get(0).type.ordinal());
-        Spinner field = delegateOwner.addStringSpinner(content, delegateOwner.getString(R.string.batch_data_type),
+        Spinner target = delegateOwner.addStringSpinner(content, R.string.batch_target,
+                () -> {
+                    List<String> labels = new ArrayList<>();
+                    if (!notes.isEmpty()) labels.add(delegateOwner.getString(R.string.batch_target_notes, notes.size()));
+                    if (!events.isEmpty()) labels.add(delegateOwner.getString(R.string.batch_target_events, events.size()));
+                    return labels;
+                }, 0);
+        Spinner eventType = delegateOwner.addStringSpinner(content, R.string.batch_event_type,
+                delegateOwner::eventTypeLabels, events.isEmpty() ? 0 : events.get(0).type.ordinal());
+        Spinner field = delegateOwner.addStringSpinner(content, R.string.batch_data_type,
                 delegateOwner.resourceEntries(R.array.batch_note_fields), 0);
         LinearLayout values = new LinearLayout(delegateOwner);
         values.setOrientation(LinearLayout.VERTICAL);
         content.addView(values, new LinearLayout.LayoutParams(-1, -2));
-        delegateOwner.addHint(values, delegateOwner.getString(R.string.batch_help));
-        EditText lower = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_lower_bound), "0", true);
-        EditText upper = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_upper_bound), "0", true);
-        EasingSelector progression = EasingSelector.addTo(values,
-                delegateOwner.getString(R.string.batch_easing), 1);
-        EditText sequence = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_periodic_sequence),
+        delegateOwner.addHint(values, R.string.batch_help);
+        EditText lower = delegateOwner.addField(values, R.string.batch_lower_bound, "0", true);
+        EditText upper = delegateOwner.addField(values, R.string.batch_upper_bound, "0", true);
+        EasingSelector progression = EasingSelector.addTo(values, R.string.batch_easing, 1);
+        EditText sequence = delegateOwner.addField(values, R.string.batch_periodic_sequence,
                 "1", false);
-        EditText disturbance = delegateOwner.addField(values, delegateOwner.getString(R.string.batch_disturbance),
+        EditText disturbance = delegateOwner.addField(values, R.string.batch_disturbance,
                 "0", true);
         Spinner mode = delegateOwner.addSpinner(values, R.string.batch_edit_mode,
                 R.array.batch_edit_modes, 0);
@@ -68,8 +70,8 @@ final class BatchEditDialogs {
         curveValues.setOrientation(LinearLayout.VERTICAL);
         content.addView(curveValues, new LinearLayout.LayoutParams(-1, -2));
         EasingSelector eventCurve = EasingSelector.addTo(curveValues,
-                delegateOwner.getString(R.string.field_event_easing_type), events.isEmpty() ? 1 : events.get(0).easingType);
-        android.widget.TextView curveHelp = delegateOwner.addHint(curveValues, delegateOwner.getString(R.string.batch_curve_help));
+                R.string.field_event_easing_type, events.isEmpty() ? 1 : events.get(0).easingType);
+        android.widget.TextView curveHelp = delegateOwner.addHint(curveValues, R.string.batch_curve_help);
         Runnable updateField = () -> {
             boolean curveMode = !noteTargets.get(target.getSelectedItemPosition())
                     && field.getSelectedItemPosition() == BatchEditOperation.EventField.EASING_TYPE.ordinal();
@@ -78,19 +80,15 @@ final class BatchEditDialogs {
             boolean speedCurve = curveMode && eventType.getSelectedItemPosition() == EventType.SPEED.ordinal();
             eventCurve.spinner.setEnabled(!speedCurve);
             if (speedCurve) eventCurve.spinner.setSelection(0);
-            curveHelp.setText(speedCurve ? R.string.batch_unsupported_field : R.string.batch_curve_help);
+            UiText.text(curveHelp, speedCurve ? R.string.batch_unsupported_field : R.string.batch_curve_help);
         };
         EditorDialogSection.setSpinnerChangeListener(field, updateField);
         EditorDialogSection.setSpinnerChangeListener(eventType, updateField);
         Runnable updateTarget = () -> {
             boolean noteMode = noteTargets.get(target.getSelectedItemPosition());
             eventType.setEnabled(!noteMode);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(delegateOwner,
-                    android.R.layout.simple_spinner_item,
-                    delegateOwner.resourceEntries(noteMode ? R.array.batch_note_fields
-                            : R.array.batch_event_fields));
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            field.setAdapter(adapter);
+            UiText.entries(field, () -> delegateOwner.resourceEntries(
+                    noteTargets.get(target.getSelectedItemPosition()) ? R.array.batch_note_fields : R.array.batch_event_fields));
             updateField.run();
         };
         EditorOperationDialogSection.setSpinnerChangeListener(target, updateTarget);

@@ -13,6 +13,7 @@ final class CodecTrackWriter implements AutoCloseable {
     private final long durationUs;
     private boolean started, ended;
     private int track;
+    private long samplesWritten;
     private long lastProgress = System.nanoTime();
 
     CodecTrackWriter(File output, long durationUs) throws IOException {
@@ -44,6 +45,7 @@ final class CodecTrackWriter implements AutoCloseable {
                         if (data == null) throw new IOException("Encoder output unavailable");
                         data.position(info.offset); data.limit(info.offset + info.size);
                         muxer.writeSampleData(track, data, info);
+                        samplesWritten++;
                     }
                     ended = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                 } finally { codec.releaseOutputBuffer(index, false); }
@@ -55,7 +57,7 @@ final class CodecTrackWriter implements AutoCloseable {
     void finish(MediaCodec codec, long durationUs) throws IOException {
         lastProgress = System.nanoTime();
         while (!ended) drain(codec, true);
-        if (!started) throw new IOException("Encoder produced no track");
+        if (!started || samplesWritten == 0) throw new IOException("Encoder produced no media samples");
         // Explicit end timestamp gives the final video frame its full frame duration.
         info.set(0, 0, durationUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
         muxer.writeSampleData(track, ByteBuffer.allocateDirect(0), info);

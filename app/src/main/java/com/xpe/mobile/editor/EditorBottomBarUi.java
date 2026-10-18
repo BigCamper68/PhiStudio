@@ -1,5 +1,7 @@
 package com.xpe.mobile.editor;
 
+import com.xpe.mobile.i18n.ModelLabels;
+
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.RectF;
@@ -203,18 +205,18 @@ final class EditorBottomBarUi {
         if (delegateOwner.workbenchTab == 1 && delegateOwner.bottomPanel == BottomPanel.EDIT
                 && delegateOwner.selectedNote == null && delegateOwner.selectedEvent == null) {
             int selected = delegateOwner.storyboardTimeline.selectionCount();
-            if (selected == 1) actions.add(bottomTextAction("Properties", 76, delegateOwner.storyboardTimeline::edit));
-            if (selected > 0) actions.add(bottomTextAction("Copy", 54, delegateOwner.storyboardTimeline::copy));
+            if (selected == 1) actions.add(bottomAction(R.string.properties_button, 76, delegateOwner.storyboardTimeline::edit));
+            if (selected > 0) actions.add(bottomAction(R.string.controls_copy, 54, delegateOwner.storyboardTimeline::copy));
             actions.add(bottomAction(R.string.controls_paste, 58, delegateOwner.storyboardTimeline::paste,
                     false, delegateOwner.storyboardTimeline.hasClipboard()));
             addBoxAction(actions);
             if (selected == 1) {
-                actions.add(bottomTextAction("Split", 54, delegateOwner.storyboardTimeline::split));
-                actions.add(bottomTextAction("Glue", 54, delegateOwner.storyboardTimeline::glue));
+                actions.add(bottomAction(R.string.storyboard_split, 54, delegateOwner.storyboardTimeline::split));
+                actions.add(bottomAction(R.string.storyboard_glue, 54, delegateOwner.storyboardTimeline::glue));
             }
             if (selected > 0) {
-                actions.add(bottomTextAction("Cut", 50, delegateOwner.storyboardTimeline::cut));
-                actions.add(bottomTextAction("Delete", 60, delegateOwner.storyboardTimeline::delete));
+                actions.add(bottomAction(R.string.controls_cut, 50, delegateOwner.storyboardTimeline::cut));
+                actions.add(bottomAction(R.string.controls_delete, 60, delegateOwner.storyboardTimeline::delete));
             }
             actions.add(bottomAction(R.string.controls_clear, 56, delegateOwner.storyboardTimeline::clearSelection,
                     false, selected > 0));
@@ -375,7 +377,7 @@ final class EditorBottomBarUi {
         }
         if (delegateOwner.selectedEvent != null) {
             return delegateOwner.getResources().getString(R.string.controls_event_summary,
-                    delegateOwner.selectedEvent.type.label, delegateOwner.selectedEvent.startTime.toString(),
+                    ModelLabels.event(delegateOwner.getContext(), delegateOwner.selectedEvent.type), delegateOwner.selectedEvent.startTime.toString(),
                     delegateOwner.selectedEvent.endTime.toString(), EditorChromeView.compactValue(delegateOwner.selectedEvent.start),
                     EditorChromeView.compactValue(delegateOwner.selectedEvent.end));
         }

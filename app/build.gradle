@@ -22,8 +22,8 @@ android {
         applicationId 'com.xpe.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 94
-        versionName '1.0.7'
+        versionCode 95
+        versionName '1.0.8'
     }
 
     signingConfigs {
@@ -40,9 +40,9 @@ android {
 
     buildTypes {
         debug {
+            pseudoLocalesEnabled true
             if (providers.gradleProperty('checkpointBuild').orNull == 'true') {
                 applicationIdSuffix '.checkpoint'
-                resValue 'string', 'app_name', 'PhiStudio Checkpoint'
             }
         }
         release {
@@ -63,6 +63,47 @@ android {
         unitTests.includeAndroidResources = true
         unitTests.all {
             maxHeapSize = project.findProperty('unitTestMaxHeap') ?: '2g'
+        }
+    }
+
+    androidResources { generateLocaleConfig = true }
+    // All compile-time language packs must be available for offline switching in an AAB install.
+    bundle {
+        language {
+            enableSplit false
+        }
+    }
+    lint {
+        // Partial language packs intentionally use Android resource fallback.
+        disable 'MissingTranslation'
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def task = tasks.register("generate${variant.name.capitalize()}I18nResources",
+                com.phistudio.build.GenerateI18nResources) {
+            languageDirectory.set(rootProject.layout.projectDirectory.dir('languages'))
+            applicationNameOverride.set(variant.buildType == 'debug'
+                    ? providers.gradleProperty('checkpointBuild').map {
+                        it == 'true' ? 'PhiStudio Checkpoint' : ''
+                    }.orElse('') : '')
+            // AGP assigns an isolated output directory when the source is registered below.
+        }
+        variant.sources.res.addGeneratedSourceDirectory(task, { it.outputDirectory })
+    }
+}
+
+tasks.register('validateI18n') {
+    inputs.dir(rootProject.file('languages'))
+    inputs.dir('src')
+    doLast {
+        new com.phistudio.build.I18nGenerator(rootProject.file('languages').toPath())
+        fileTree('src').matching { include '**/res/**/*.xml' }.each { source ->
+            def xml = source.text.replaceAll(/(?s)<!--.*?-->/, '')
+            if (xml =~ /<(string|string-array|plurals)\s|<item\b[^>]*\btype\s*=\s*['"]string['"]/) {
+                throw new GradleException("Localizable resources belong in languages/*.json: ${source}")
+            }
         }
     }
 }

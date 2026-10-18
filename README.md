@@ -1,11 +1,15 @@
 # PhiStudio
 
+Language packs and contribution guide: [Internationalization](docs/i18n.md).
+
 PhiStudio is a native Android chart editor for RPE and compatible rhythm-game
 chart packages. It runs directly on Android without Winlator.
 
 ## Features
 
 - Edit notes, judge lines, BPM changes, events, storyboard and shaders.
+- Link parent lines and inherit rotation in Line List → Properties.
+- Switch instantly between English and Simplified Chinese in Settings.
 - Subdivide events using the beat grid, batch-edit values and clone events across
   lines with configurable timing, offsets and a preview. Undo/Redo is supported.
 - Choose from 29 named easing curves with live graphs.
@@ -55,7 +59,7 @@ test data from the corresponding upstream sources.
 
 Download the APK and source archive from [GitHub Releases](https://github.com/BigCamper68/PhiStudio/releases).
 The release workflow validates, signs and publishes new versions pushed to `main`.
-See the [1.0.7 changelog](.github/release-notes/v1.0.7.md).
+See the [1.0.8 changelog](.github/release-notes/v1.0.8.md).
 
 Bundled third-party notices are in `app/src/main/assets/licenses` and
 `app/src/main/assets/shaders`.

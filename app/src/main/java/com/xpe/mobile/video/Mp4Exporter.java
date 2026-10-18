@@ -50,7 +50,9 @@ public final class Mp4Exporter {
                               ShaderTimeline shaders, VideoExportOptions options, Progress progress) throws IOException {
         checkCancelled();
         String encoder = videoEncoder(options);
-        File directory = Files.createTempDirectory(context.getCacheDir().toPath(), "phistudio-export-").toFile();
+        File storage = VideoExportStorage.directory(context);
+        VideoExportStorage.requireSpace(storage, options);
+        File directory = VideoExportStorage.createWorkspace(context);
         File video = new File(directory, "video.mp4"), audio = new File(directory, "audio.m4a");
         File pcm = new File(directory, "music.pcm");
         File result = null;
@@ -63,6 +65,7 @@ public final class Mp4Exporter {
                 trackDurationMs = decoded.durationMillis();
             }
             if (options.music && audioSource == null) throw new IOException("The project has no music. Disable Music for a silent export.");
+            VideoExportStorage.requireSpace(storage, options);
             checkCancelled();
             encodeVideo(context, chart, pack, trackDurationMs, packageOffsetMs, settings,
                     options.shaders ? shaders : ShaderTimeline.EMPTY, options, encoder, video, progress);
@@ -73,13 +76,14 @@ public final class Mp4Exporter {
             }
             checkCancelled();
             progress.update(Stage.FINALIZING, 0, 1);
-            result = File.createTempFile("phistudio-video-", ".mp4", context.getCacheDir());
+            result = File.createTempFile("phistudio-video-", ".mp4", storage);
             if (options.music || options.hits) remux(video, audio, result, options.durationUs(), progress);
             else Files.copy(video.toPath(), result.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (result.length() == 0) throw new IOException("Encoder produced an empty MP4");
             checkCancelled(); success = true;
             return result;
         } finally {
-            video.delete(); audio.delete(); pcm.delete(); directory.delete();
+            VideoExportStorage.removeWorkspace(directory);
             if (!success && result != null) result.delete();
         }
     }

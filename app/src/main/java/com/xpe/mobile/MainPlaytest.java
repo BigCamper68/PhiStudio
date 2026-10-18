@@ -25,6 +25,7 @@ final class MainPlaytest implements AutoCloseable {
 
     MainPlaytest(MainActivity activity) { this.activity = activity; }
     boolean isOpen() { return player != null; }
+    void relocalizeUi() { if (player != null) player.relocalizeUi(); }
 
     void showOptions() {
         ChartDocument chart = activity.editorView.getChart();

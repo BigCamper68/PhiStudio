@@ -36,7 +36,7 @@ final class ProjectWorkspaceDiscovery {
             File workspace = delegateOwner.projectWorkspaceFiles.resolveProjectDirectory(record.getId());
             if (!workspace.isDirectory() || Files.isSymbolicLink(workspace.toPath())) {
                 issues.add(new WorkspaceIssue(WorkspaceStatus.MISSING, record.getId(),
-                        record.getName(), "Indexed project workspace is missing or unsafe", true));
+                        record.getName(), WorkspaceIssue.Reason.MISSING_WORKSPACE, true));
                 continue;
             }
             try {
@@ -64,7 +64,7 @@ final class ProjectWorkspaceDiscovery {
             if (indexed.contains(id)) continue;
             if (!ProjectWorkspaceFiles.isValidId(id) || !workspace.isDirectory() || Files.isSymbolicLink(workspace.toPath())) {
                 issues.add(new WorkspaceIssue(WorkspaceStatus.DAMAGED, id, id,
-                        "Unindexed workspace has an unsafe name or type", false));
+                        WorkspaceIssue.Reason.UNSAFE_WORKSPACE, false));
                 continue;
             }
             try {
@@ -72,7 +72,7 @@ final class ProjectWorkspaceDiscovery {
                         .inspectProjectName(workspace, id + ".zip");
                 issues.add(new WorkspaceIssue(WorkspaceStatus.RECOVERABLE, id,
                         ProjectWorkspaceFiles.safeName(projectName),
-                        "Valid unindexed project workspace", false));
+                        WorkspaceIssue.Reason.RECOVERABLE_WORKSPACE, false));
             } catch (PackageException exception) {
                 WorkspaceStatus status = exception.getCode()
                         == PackageException.Code.UNSUPPORTED_CHART_FORMAT

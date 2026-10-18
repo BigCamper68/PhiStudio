@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.LanguageController;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -24,6 +26,7 @@ final class MainScreenSetup {
     }
 
     void onCreate(Bundle savedInstanceState) {
+        delegateOwner.mainActivityResults.restoreState(savedInstanceState);
         delegateOwner.requestWindowFeature(Window.FEATURE_NO_TITLE);
         delegateOwner.getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -59,6 +62,9 @@ final class MainScreenSetup {
         delegateOwner.audioController.applySettings(delegateOwner.editorSettings);
         delegateOwner.editorDialogs = new EditorDialogController(delegateOwner, delegateOwner.editorView,
                 new EditorDialogController.Host() {
+                    @Override public LanguageController languageController() {
+                        return delegateOwner.languageController;
+                    }
                     @Override public WorkbenchView workbench() { return delegateOwner.workbench; }
                     @Override
                     public EditorSettings editorSettings() {
@@ -115,6 +121,8 @@ final class MainScreenSetup {
         delegateOwner.previewExecutor = MainActivity.newSingleThreadExecutor("phistudio-preview-prepare");
         delegateOwner.scheduleAutosave();
         delegateOwner.hideSystemUi();
-        delegateOwner.mainProjectSession.loadInitialChart();
+        delegateOwner.mainVideoExport.restoreState(savedInstanceState);
+        delegateOwner.newProjectDialog.restoreState(savedInstanceState);
+        delegateOwner.mainProjectSession.loadInitialChart(savedInstanceState != null);
     }
 }

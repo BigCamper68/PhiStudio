@@ -12,6 +12,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import com.xpe.mobile.editor.BatchValueTransform;
 import com.xpe.mobile.editor.EventCloneOperation;
+import com.xpe.mobile.i18n.UiText;
 import com.xpe.mobile.model.BeatTime;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.EventType;
@@ -24,6 +25,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Named destinations and optional offsets, with a deterministic, non-mutating preview. */
 final class EventCloneDialog {
@@ -65,12 +67,13 @@ final class EventCloneDialog {
             if (source.startTime.compareTo(first) < 0) first = source.startTime;
             if (source.endTime.compareTo(last) > 0) last = source.endTime;
         }
-        owner.addHint(content, owner.getResources().getQuantityString(R.plurals.clone_source_summary, sources.size(), sources.size(),
-                lineLabel(sourceLine), sourceLayer, first.toString(), last.toString()));
+        String firstBeat = first.toString(), lastBeat = last.toString();
+        owner.addHint(content, () -> owner.getResources().getQuantityString(R.plurals.clone_source_summary, sources.size(), sources.size(),
+                lineLabel(sourceLine), sourceLayer, firstBeat, lastBeat));
         sourceMode = owner.addSpinner(content, R.string.clone_source_mode, R.array.clone_source_modes, 0);
         owner.addMenuSection(content, R.string.clone_targets_heading);
         owner.addMenuButton(content, R.string.clone_choose_lines).setOnClickListener(v -> chooseLines());
-        owner.addHint(content, owner.getString(R.string.clone_order_help));
+        owner.addHint(content, R.string.clone_order_help);
         targetRows = new LinearLayout(owner); targetRows.setOrientation(LinearLayout.VERTICAL);
         content.addView(targetRows, new LinearLayout.LayoutParams(-1, -2));
         renderTargets();
@@ -79,8 +82,8 @@ final class EventCloneDialog {
         timing = owner.addSpinner(content, R.string.clone_timing_mode, R.array.clone_timing_modes, 0);
         delayFields = new LinearLayout(owner); delayFields.setOrientation(LinearLayout.VERTICAL);
         content.addView(delayFields, new LinearLayout.LayoutParams(-1, -2));
-        delay = owner.addField(delayFields, owner.getString(R.string.clone_delay), "1", false);
-        owner.addHint(delayFields, owner.getString(R.string.clone_delay_help));
+        delay = owner.addField(delayFields, R.string.clone_delay, "1", false);
+        owner.addHint(delayFields, R.string.clone_delay_help);
         delayFields.setVisibility(View.GONE);
 
         customizeValues = owner.addCheckBox(content, R.string.clone_customize_values, false);
@@ -88,13 +91,13 @@ final class EventCloneDialog {
         customization.setOrientation(LinearLayout.VERTICAL);
         content.addView(customization, new LinearLayout.LayoutParams(-1, -2));
         customization.setVisibility(View.GONE);
-        owner.addHint(customization, owner.getString(R.string.clone_offset_help));
+        owner.addHint(customization, R.string.clone_offset_help);
         for (EventType type : types) {
             if (type == EventType.SPEED) continue;
             OffsetInput input = new OffsetInput(customization, type);
             offsets.put(type, input);
         }
-        if (types.contains(EventType.SPEED)) owner.addHint(customization, owner.getString(R.string.clone_speed_help));
+        if (types.contains(EventType.SPEED)) owner.addHint(customization, R.string.clone_speed_help);
         if (offsets.isEmpty()) customizeValues.setVisibility(View.GONE);
         customizeValues.setOnCheckedChangeListener((button, enabled) -> {
             customization.setVisibility(enabled ? View.VISIBLE : View.GONE);
@@ -105,7 +108,7 @@ final class EventCloneDialog {
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         resultRows = new LinearLayout(owner); resultRows.setOrientation(LinearLayout.VERTICAL);
         content.addView(resultRows, new LinearLayout.LayoutParams(-1, -2));
-        owner.addHint(content, owner.getString(R.string.clone_preserved_help));
+        owner.addHint(content, R.string.clone_preserved_help);
         dialog = new EditorPanelWindow.Builder(owner, owner.host.workbench())
                 .setTitle(R.string.event_clone_title).setView(scroll)
                 .setWorkbenchTab(owner.editorView.getWorkbenchTab())
@@ -120,17 +123,17 @@ final class EventCloneDialog {
         owner.showEditorWindow(dialog, () -> {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 content.removeCallbacks(updatePreview);
-                if (!sameSource()) { showError(owner.getString(R.string.clone_source_changed)); return; }
+                if (!sameSource()) { showError(R.string.clone_source_changed); return; }
                 try {
                     EventCloneOperation.Spec spec = readSpec();
                     EventCloneOperation.Result result = owner.editorView.applyEventClone(spec);
                     if (result.error != EventCloneOperation.Error.NONE) {
-                        showError(owner.eventCloneErrorMessage(result.error)); return;
+                        showError(() -> owner.eventCloneErrorMessage(result.error)); return;
                     }
                     dialog.dismiss();
                     owner.showMessage(owner.getResources().getQuantityString(R.plurals.event_clone_applied,
                             result.events.size(), result.events.size()));
-                } catch (IllegalArgumentException error) { showError(owner.getString(R.string.event_clone_invalid)); }
+                } catch (IllegalArgumentException error) { showError(R.string.event_clone_invalid); }
             });
             refreshPreview();
         });
@@ -173,18 +176,18 @@ final class EventCloneDialog {
     private void refreshPreview() {
         content.removeCallbacks(updatePreview);
         Button apply = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-        apply.setText(sourceMode.getSelectedItemPosition() == 0 ? R.string.clone_copy_action : R.string.clone_move_action);
+        UiText.text(apply, () -> owner.getText(sourceMode.getSelectedItemPosition() == 0 ? R.string.clone_copy_action : R.string.clone_move_action));
         resultRows.removeAllViews();
-        if (!sameSource()) { showError(owner.getString(R.string.clone_source_changed)); return; }
-        if (targets.isEmpty()) { showError(owner.getString(R.string.clone_choose_hint)); return; }
+        if (!sameSource()) { showError(R.string.clone_source_changed); return; }
+        if (targets.isEmpty()) { showError(R.string.clone_choose_hint); return; }
         try {
             EventCloneOperation.Spec spec = readSpec();
             EventCloneOperation.Result result = EventCloneOperation.prepare(chart, sourceLine, sourceLayer, sources, spec);
             if (result.error != EventCloneOperation.Error.NONE) {
-                showError(owner.eventCloneErrorMessage(result.error)); return;
+                showError(() -> owner.eventCloneErrorMessage(result.error)); return;
             }
             status.setTextColor(Color.rgb(128, 203, 196));
-            status.setText(owner.getString(R.string.clone_preview_summary, targets.size(), result.events.size(),
+            UiText.text(status, () -> owner.getString(R.string.clone_preview_summary, targets.size(), result.events.size(),
                     owner.getString(spec.keepSource ? R.string.clone_preview_copy : R.string.clone_preview_move)));
             double[] x = BatchValueTransform.values(spec.xProfile, targets.size());
             double[] y = BatchValueTransform.values(spec.yProfile, targets.size());
@@ -199,20 +202,27 @@ final class EventCloneDialog {
                     if (event.startTime.compareTo(from) < 0) from = event.startTime;
                     if (event.endTime.compareTo(to) > 0) to = event.endTime;
                 }
-                String text = owner.getString(R.string.clone_preview_line, i + 1, lineLabel(targets.get(i)),
-                        from.toString(), to.toString(),
-                        (shift.compareTo(BeatTime.zero()) >= 0 ? "+" : "") + shift.toString());
-                String changes = offsetLabel("X", x[i]) + offsetLabel("Y", y[i])
-                        + offsetLabel("Rotate", rotation[i]) + offsetLabel("Alpha", alpha[i]);
-                owner.addHint(resultRows, text + (changes.isEmpty() ? "" : "\n" + changes.trim()));
+                int index = i;
+                JudgeLine destination = targets.get(i);
+                String fromBeat = from.toString(), toBeat = to.toString();
+                String shiftBeat = (shift.compareTo(BeatTime.zero()) >= 0 ? "+" : "") + shift.toString();
+                owner.addHint(resultRows, () -> {
+                    String text = owner.getString(R.string.clone_preview_line, index + 1, lineLabel(destination),
+                            fromBeat, toBeat, shiftBeat);
+                    String changes = offsetLabel(owner.eventTypeLabel(EventType.MOVE_X), x[index])
+                            + offsetLabel(owner.eventTypeLabel(EventType.MOVE_Y), y[index])
+                            + offsetLabel(owner.eventTypeLabel(EventType.ROTATE), rotation[index])
+                            + offsetLabel(owner.eventTypeLabel(EventType.ALPHA), alpha[index]);
+                    return text + (changes.isEmpty() ? "" : "\n" + changes.trim());
+                });
                 shift = shift.plus(spec.timeIncrement);
             }
             if (targets.size() > 12) owner.addHint(resultRows,
-                    owner.getResources().getQuantityString(R.plurals.clone_more_preview,
+                    () -> owner.getResources().getQuantityString(R.plurals.clone_more_preview,
                             targets.size() - 12, targets.size() - 12));
             apply.setEnabled(true);
         } catch (IllegalArgumentException | ArithmeticException error) {
-            showError(owner.getString(R.string.event_clone_invalid));
+            showError(R.string.event_clone_invalid);
         }
     }
 
@@ -221,9 +231,11 @@ final class EventCloneDialog {
                 + String.format(Locale.ROOT, "%.4g", value) + "   ";
     }
 
-    private void showError(String message) {
+    private void showError(int resource) { showError(() -> owner.getString(resource)); }
+
+    private void showError(Supplier<String> message) {
         status.setTextColor(Color.rgb(255, 167, 149));
-        status.setText(message);
+        UiText.text(status, message);
         resultRows.removeAllViews();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
     }
@@ -234,26 +246,27 @@ final class EventCloneDialog {
 
     private void renderTargets() {
         targetRows.removeAllViews();
-        if (targets.isEmpty()) { owner.addHint(targetRows, owner.getString(R.string.clone_choose_hint)); return; }
+        if (targets.isEmpty()) { owner.addHint(targetRows, R.string.clone_choose_hint); return; }
         int visible = showAllTargets ? targets.size() : Math.min(6, targets.size());
         for (int i = 0; i < visible; i++) {
             final int index = i;
             JudgeLine line = targets.get(i);
-            owner.addHint(targetRows, (i + 1) + ". " + lineLabel(line));
+            owner.addHint(targetRows, () -> (index + 1) + ". " + lineLabel(line));
             LinearLayout actions = new LinearLayout(owner);
             targetRows.addView(actions, new LinearLayout.LayoutParams(-1, -2));
             Button up = action(actions, "↑", () -> {
                 Collections.swap(targets, index, index - 1); renderTargets(); schedulePreview();
             });
-            up.setEnabled(i > 0); up.setContentDescription(owner.getString(R.string.clone_move_earlier, lineLabel(line)));
+            up.setEnabled(i > 0); UiText.description(up, () -> owner.getString(R.string.clone_move_earlier, lineLabel(line)));
             Button down = action(actions, "↓", () -> {
                 Collections.swap(targets, index, index + 1); renderTargets(); schedulePreview();
             });
             down.setEnabled(i + 1 < targets.size());
-            down.setContentDescription(owner.getString(R.string.clone_move_later, lineLabel(line)));
-            action(actions, owner.getString(R.string.clone_remove_line), () -> {
+            UiText.description(down, () -> owner.getString(R.string.clone_move_later, lineLabel(line)));
+            Button remove = action(actions, R.string.clone_remove_line, () -> {
                 targets.remove(index); renderTargets(); schedulePreview();
-            }).setContentDescription(owner.getString(R.string.clone_remove_named_line, lineLabel(line)));
+            });
+            UiText.description(remove, () -> owner.getString(R.string.clone_remove_named_line, lineLabel(line)));
         }
         if (targets.size() > 6) {
             Button expand = owner.addMenuButton(targetRows, showAllTargets ? R.string.clone_show_less : R.string.clone_show_all);
@@ -269,31 +282,35 @@ final class EventCloneDialog {
         button.setOnClickListener(v -> callback.run()); return button;
     }
 
+    private Button action(LinearLayout parent, int resource, Runnable callback) {
+        Button button = action(parent, "", callback); UiText.text(button, resource); return button;
+    }
+
     private void chooseLines() {
         List<JudgeLine> draft = new ArrayList<>(targets);
         ScrollView scroll = new ScrollView(owner);
         LinearLayout body = owner.createDialogContent(scroll);
-        EditText search = owner.addField(body, owner.getString(R.string.clone_search_lines), "", false);
+        EditText search = owner.addField(body, R.string.clone_search_lines, "", false);
         TextView count = owner.addHint(body, "");
         LinearLayout shortcuts = new LinearLayout(owner); body.addView(shortcuts);
         LinearLayout choices = new LinearLayout(owner); choices.setOrientation(LinearLayout.VERTICAL);
         LinearLayout navigation = new LinearLayout(owner);
         int[] page = {0};
         Runnable[] update = new Runnable[1];
-        action(shortcuts, owner.getString(R.string.clone_all_other_lines), () -> {
+        action(shortcuts, R.string.clone_all_other_lines, () -> {
             if (chart.judgeLines.size() - 1 > EventCloneOperation.MAX_TARGET_LINES) {
-                count.setText(owner.getString(R.string.clone_line_limit)); return;
+                UiText.text(count, R.string.clone_line_limit); return;
             }
             draft.clear(); for (JudgeLine line : chart.judgeLines) if (line != sourceLine) draft.add(line);
             update[0].run();
         });
-        action(shortcuts, owner.getString(R.string.controls_clear), () -> { draft.clear(); update[0].run(); });
+        action(shortcuts, R.string.controls_clear, () -> { draft.clear(); update[0].run(); });
         body.addView(choices, new LinearLayout.LayoutParams(-1, -2));
         body.addView(navigation, new LinearLayout.LayoutParams(-1, -2));
-        Button previous = action(navigation, owner.getString(R.string.clone_previous), () -> { page[0]--; update[0].run(); });
-        Button next = action(navigation, owner.getString(R.string.clone_next), () -> { page[0]++; update[0].run(); });
+        Button previous = action(navigation, R.string.clone_previous, () -> { page[0]--; update[0].run(); });
+        Button next = action(navigation, R.string.clone_next, () -> { page[0]++; update[0].run(); });
         update[0] = () -> {
-            count.setText(owner.getString(R.string.clone_selected_lines, draft.size()));
+            UiText.text(count, () -> owner.getString(R.string.clone_selected_lines, draft.size()));
             choices.removeAllViews();
             String query = search.getText().toString().trim().toLowerCase(Locale.ROOT);
             List<JudgeLine> matches = new ArrayList<>();
@@ -303,19 +320,19 @@ final class EventCloneDialog {
             for (int i = page[0] * 12; i < Math.min(matches.size(), (page[0] + 1) * 12); i++) {
                 JudgeLine line = matches.get(i);
                 CheckBox check = new CheckBox(owner);
-                check.setText(owner.getString(R.string.clone_picker_line, lineLabel(line),
+                UiText.text(check, () -> owner.getString(R.string.clone_picker_line, lineLabel(line),
                         line == sourceLine ? owner.getString(R.string.clone_source_suffix) : ""));
                 check.setMinHeight(owner.dp(48)); check.setChecked(draft.contains(line));
                 choices.addView(check, new LinearLayout.LayoutParams(-1, -2));
                 check.setOnCheckedChangeListener((button, selected) -> {
                     if (selected && draft.size() >= EventCloneOperation.MAX_TARGET_LINES) {
-                        check.setChecked(false); count.setText(owner.getString(R.string.clone_line_limit)); return;
+                        check.setChecked(false); UiText.text(count, R.string.clone_line_limit); return;
                     }
                     if (selected) draft.add(line); else draft.remove(line);
-                    count.setText(owner.getString(R.string.clone_selected_lines, draft.size()));
+                    UiText.text(count, () -> owner.getString(R.string.clone_selected_lines, draft.size()));
                 });
             }
-            if (matches.isEmpty()) owner.addHint(choices, owner.getString(R.string.clone_no_lines));
+            if (matches.isEmpty()) owner.addHint(choices, R.string.clone_no_lines);
             previous.setEnabled(page[0] > 0); next.setEnabled(page[0] + 1 < pages);
         };
         EditorDialogSection.watch(() -> { page[0] = 0; update[0].run(); }, search);
@@ -340,24 +357,24 @@ final class EventCloneDialog {
         OffsetInput(LinearLayout parent, EventType type) {
             root = new LinearLayout(owner); root.setOrientation(LinearLayout.VERTICAL);
             parent.addView(root, new LinearLayout.LayoutParams(-1, -2));
-            mode = owner.addStringSpinner(root, owner.eventTypeLabel(type),
-                    owner.resourceEntries(R.array.clone_offset_modes), 0);
+            mode = owner.addStringSpinner(root, () -> owner.eventTypeLabel(type),
+                    () -> owner.resourceEntries(R.array.clone_offset_modes), 0);
             LinearLayout details = new LinearLayout(owner); details.setOrientation(LinearLayout.VERTICAL);
             root.addView(details, new LinearLayout.LayoutParams(-1, -2));
             LinearLayout constant = new LinearLayout(owner); constant.setOrientation(LinearLayout.VERTICAL);
             details.addView(constant, new LinearLayout.LayoutParams(-1, -2));
-            fixed = owner.addField(constant, owner.getString(R.string.clone_fixed_offset), "0", true);
+            fixed = owner.addField(constant, R.string.clone_fixed_offset, "0", true);
             LinearLayout ramp = new LinearLayout(owner); ramp.setOrientation(LinearLayout.VERTICAL);
             details.addView(ramp, new LinearLayout.LayoutParams(-1, -2));
-            first = owner.addField(ramp, owner.getString(R.string.clone_first_offset), "0", true);
-            last = owner.addField(ramp, owner.getString(R.string.clone_last_offset), "0", true);
-            easing = EasingSelector.addTo(ramp, owner.getString(R.string.clone_offset_curve), 1);
+            first = owner.addField(ramp, R.string.clone_first_offset, "0", true);
+            last = owner.addField(ramp, R.string.clone_last_offset, "0", true);
+            easing = EasingSelector.addTo(ramp, R.string.clone_offset_curve, 1);
             advanced = owner.addCheckBox(details, R.string.clone_variation_toggle, false);
             LinearLayout extras = new LinearLayout(owner); extras.setOrientation(LinearLayout.VERTICAL);
             details.addView(extras, new LinearLayout.LayoutParams(-1, -2));
-            sequence = owner.addField(extras, owner.getString(R.string.clone_multipliers), "1", false);
-            variation = owner.addField(extras, owner.getString(R.string.clone_variation), "0", true);
-            owner.addHint(extras, owner.getString(R.string.clone_variation_help));
+            sequence = owner.addField(extras, R.string.clone_multipliers, "1", false);
+            variation = owner.addField(extras, R.string.clone_variation, "0", true);
+            owner.addHint(extras, R.string.clone_variation_help);
             extras.setVisibility(View.GONE); details.setVisibility(View.GONE);
             EditorDialogSection.setSpinnerChangeListener(mode, () -> {
                 int selected = mode.getSelectedItemPosition();

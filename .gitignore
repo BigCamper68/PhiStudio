@@ -5,6 +5,7 @@ local.properties
 *.iml
 /build/
 app/build/
+buildSrc/build/
 .externalNativeBuild/
 .cxx/
 *.apk

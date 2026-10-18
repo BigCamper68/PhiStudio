@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.content.Context;
 import android.content.DialogInterface;
 import android.view.View;
@@ -13,7 +15,8 @@ import java.util.Map;
 /** A real embedded editor page, not a floating Dialog/Window. */
 final class EditorPanelWindow implements DialogInterface {
     static final int ACTION_HEIGHT_DP = 40;
-    final CharSequence title;
+    CharSequence title;
+    private final java.util.function.Supplier<? extends CharSequence> titleSource;
     final View content;
     final LinearLayout actions;
     int tab;
@@ -28,6 +31,7 @@ final class EditorPanelWindow implements DialogInterface {
 
     private EditorPanelWindow(Builder builder) {
         title = builder.title;
+        titleSource = builder.titleSource;
         workbench = builder.workbench;
         selectionTarget = builder.selectionTarget;
         tab = builder.tab;
@@ -50,6 +54,7 @@ final class EditorPanelWindow implements DialogInterface {
                 }
             };
             button.setText(action.label);
+            if (action.resource != 0) UiText.text(button, action.resource);
             button.setAllCaps(false);
             button.setTextSize(12f);
             button.setMinWidth(0);
@@ -85,6 +90,12 @@ final class EditorPanelWindow implements DialogInterface {
         scroll.setClipToPadding(false);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         content = scroll;
+        relocalizeUi();
+    }
+
+    void relocalizeUi() {
+        if (titleSource != null) title = titleSource.get();
+        UiText.relocalize(content);
     }
 
     Button getButton(int which) { return buttons.get(which); }
@@ -112,6 +123,7 @@ final class EditorPanelWindow implements DialogInterface {
     private static final class Action {
         final CharSequence label;
         final OnClickListener listener;
+        int resource;
         Action(CharSequence label, OnClickListener listener) {
             this.label = label;
             this.listener = listener;
@@ -122,6 +134,7 @@ final class EditorPanelWindow implements DialogInterface {
         final Context context;
         final WorkbenchView workbench;
         CharSequence title = "";
+        java.util.function.Supplier<? extends CharSequence> titleSource;
         View content;
         LinearLayout actionsView;
         boolean retainOnLineChange;
@@ -132,8 +145,11 @@ final class EditorPanelWindow implements DialogInterface {
             this.context = context;
             this.workbench = workbench;
         }
-        Builder setTitle(int resource) { return setTitle(context.getText(resource)); }
-        Builder setTitle(CharSequence value) { title = value; return this; }
+        Builder setTitle(int resource) { return setTitle(() -> UiText.resources(context).getText(resource)); }
+        Builder setTitle(java.util.function.Supplier<? extends CharSequence> source) {
+            titleSource = source; title = source.get(); return this;
+        }
+        Builder setTitle(CharSequence value) { titleSource = null; title = value; return this; }
         Builder setView(View view) { content = view; return this; }
         Builder setWorkbenchTab(int originTab) { tab = originTab; return this; }
         // Custom tool actions share the same full-width row as the standard Apply/Cancel buttons.
@@ -145,11 +161,13 @@ final class EditorPanelWindow implements DialogInterface {
         }
         Builder retainOnLineChange() { retainOnLineChange = true; return this; }
         Builder setNegativeButton(int resource, OnClickListener listener) {
-            actions.put(BUTTON_NEGATIVE, new Action(context.getText(resource), listener));
+            Action action = new Action("", listener); action.resource = resource;
+            actions.put(BUTTON_NEGATIVE, action);
             return this;
         }
         Builder setPositiveButton(int resource, OnClickListener listener) {
-            actions.put(BUTTON_POSITIVE, new Action(context.getText(resource), listener));
+            Action action = new Action("", listener); action.resource = resource;
+            actions.put(BUTTON_POSITIVE, action);
             return this;
         }
         Builder setPositiveButton(String label, OnClickListener listener) {
@@ -161,7 +179,8 @@ final class EditorPanelWindow implements DialogInterface {
             return this;
         }
         Builder setNeutralButton(int resource, OnClickListener listener) {
-            actions.put(BUTTON_NEUTRAL, new Action(context.getText(resource), listener));
+            Action action = new Action("", listener); action.resource = resource;
+            actions.put(BUTTON_NEUTRAL, action);
             return this;
         }
         EditorPanelWindow create() {

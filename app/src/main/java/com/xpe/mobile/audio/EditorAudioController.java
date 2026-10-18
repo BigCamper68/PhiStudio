@@ -135,14 +135,13 @@ public final class EditorAudioController implements AutoCloseable {
 
     private void customHitSoundsChanged(java.util.List<String> failures) {
         if (closed) return;
-        if (!failures.isEmpty()) listener.showMessage("Custom hit sounds unavailable; using note defaults: "
-                + String.join(", ", failures.subList(0, Math.min(3, failures.size()))));
+        if (!failures.isEmpty()) listener.showMessage(activity.getString(R.string.audio_custom_unavailable, String.join(", ", failures.subList(0, Math.min(3, failures.size())))));
         configurePlayerHitSounds();
         if (hitSoundPlayer != null) {
             try { hitSoundPlayer.setCustomSounds(customHitSounds.samples()); }
             catch (OutOfMemoryError exception) {
                 hitSoundPlayer.setCustomSounds(Collections.emptyMap());
-                listener.showMessage("Not enough memory for standalone custom hit sounds; using note defaults");
+                listener.showMessage(activity.getString(R.string.audio_custom_memory));
             }
         }
         for (String path : customHitSounds.samples().keySet()) {
@@ -178,7 +177,7 @@ public final class EditorAudioController implements AutoCloseable {
                 pcmAudioPlayer.start(positionMs, speed);
             } else {
                 pcmAudioPlayer.pause();
-                listener.showMessage("Preparing custom hit sounds…");
+                listener.showMessage(activity.getString(R.string.audio_custom_preparing));
             }
             notifyAudioStateChanged();
         }
@@ -218,7 +217,7 @@ public final class EditorAudioController implements AutoCloseable {
         final int generation = ++audioLoadGeneration;
         File output = PlaybackPcmFiles.create(activity.getNoBackupFilesDir());
         decodedPcmFile = output;
-        listener.showMessage("Preparing audio…");
+        listener.showMessage(activity.getString(R.string.audio_preparing));
         try {
             audioDecodeTask = decodeExecutor.submit(() -> {
                 try {
@@ -234,13 +233,13 @@ public final class EditorAudioController implements AutoCloseable {
                             public void onError(String message) {
                                 if (!isCurrentLoad(generation)) return;
                                 listener.onAudioCompleted();
-                                listener.showMessage("PCM playback error: " + message);
+                                listener.showMessage(activity.getString(R.string.audio_pcm_error, message));
                             }
                         });
                         configurePlayerHitSounds();
                         applySettings(settings);
                         notifyAudioStateChanged();
-                        listener.showMessage("Audio loaded");
+                        listener.showMessage(activity.getString(R.string.audio_loaded));
                     });
                 } catch (Exception exception) {
                     output.delete();
@@ -249,7 +248,7 @@ public final class EditorAudioController implements AutoCloseable {
                         audioDecodeTask = null;
                         if (decodedPcmFile == output) decodedPcmFile = null;
                         notifyAudioStateChanged();
-                        listener.showMessage("Audio decoder error: " + AudioErrorMessages.describe(exception));
+                        listener.showMessage(activity.getString(R.string.audio_decoder_error, AudioErrorMessages.describe(exception)));
                     });
                 }
             });

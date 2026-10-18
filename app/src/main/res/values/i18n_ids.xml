@@ -1,0 +1,6 @@
+<resources>
+    <item name="i18n_text" type="id" />
+    <item name="i18n_hint" type="id" />
+    <item name="i18n_description" type="id" />
+    <item name="i18n_refresh" type="id" />
+</resources>

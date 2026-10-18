@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import com.xpe.mobile.audio.HitSoundTimeline;
+import com.xpe.mobile.i18n.UiText;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.editor.PreviewViewportCalculator;
 import com.xpe.mobile.model.ChartDocument;
@@ -88,7 +89,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
             @Override public boolean performClick() { super.performClick(); togglePause(); return true; }
         };
         input.setClickable(true); input.setFocusable(true);
-        input.setContentDescription(activity.getString(R.string.playtest_accessibility));
+        UiText.description(input, R.string.playtest_accessibility);
         addView(input, new LayoutParams(-1, -1));
         restart();
     }
@@ -115,6 +116,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     PlaytestClock.State state() { return clock.state(); }
     PlaytestJudge judge() { return judge; }
     double seconds() { return clock.seconds(); }
+    void relocalizeUi() { UiText.relocalize(this); game.invalidate(); input.invalidate(); }
 
     private void advanceClock() {
         boolean music = audioStarted && activity.audioController != null && activity.audioController.isPlaying();
@@ -265,11 +267,11 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
         LinearLayout body = new LinearLayout(activity); body.setOrientation(LinearLayout.VERTICAL);
         body.setGravity(Gravity.CENTER); int pad = activity.dp(18); body.setPadding(pad, pad, pad, pad);
         panel.addView(body, new ScrollView.LayoutParams(-1, -1));
-        TextView title = new TextView(activity); title.setText(result ? R.string.playtest_results : R.string.playtest_paused);
+        TextView title = new TextView(activity); UiText.text(title, result ? R.string.playtest_results : R.string.playtest_paused);
         title.setTextSize(24); title.setTextColor(Color.WHITE); title.setGravity(Gravity.CENTER); body.addView(title);
         TextView stats = new TextView(activity); stats.setTextColor(Color.WHITE); stats.setTextSize(16);
         stats.setGravity(Gravity.CENTER); stats.setPadding(0, pad / 2, 0, pad / 2);
-        stats.setText(activity.getString(R.string.playtest_stats, judge.score(), judge.accuracy() * 100,
+        UiText.text(stats, () -> activity.getString(R.string.playtest_stats, judge.score(), judge.accuracy() * 100,
                 judge.maxCombo(), judge.total(), judge.count(PlaytestJudge.Grade.PERFECT),
                 judge.count(PlaytestJudge.Grade.GOOD), judge.count(PlaytestJudge.Grade.BAD), judge.count(PlaytestJudge.Grade.MISS)));
         body.addView(stats);
@@ -281,7 +283,8 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     }
 
     private void action(LinearLayout row, int title, Runnable run) {
-        Button button = WorkbenchView.button(activity, activity.getString(title));
+        Button button = WorkbenchView.button(activity, "");
+        UiText.text(button, title);
         button.setTextSize(14); button.setMinHeight(activity.dp(48)); button.setOnClickListener(v -> run.run());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
         params.setMargins(activity.dp(4), activity.dp(4), activity.dp(4), activity.dp(4)); row.addView(button, params);

@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.LanguageController;
+
 import android.app.AlertDialog;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -22,46 +24,63 @@ final class EditorSettingsDialog {
         ScrollView scroll = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scroll);
 
+        LanguageController language = delegateOwner.host.languageController();
+        if (language != null) {
+            delegateOwner.addMenuSection(content, R.string.language_title);
+            java.util.List<String> choices = new java.util.ArrayList<>();
+            java.util.Collections.addAll(choices, language.names());
+            String[] codes = language.codes();
+            int languageIndex = 0;
+            for (int i = 0; i < codes.length; i++) if (codes[i].equals(language.selection())) languageIndex = i;
+            android.widget.Spinner picker = delegateOwner.addStringSpinner(content, R.string.language_title, choices, languageIndex);
+            picker.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                    language.select(codes[position]);
+                }
+                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+            });
+            delegateOwner.addHint(content, R.string.language_help);
+        }
         delegateOwner.addMenuSection(content, R.string.settings_general);
-        EditText musicVolume = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_music_volume),
+        EditText musicVolume = delegateOwner.addField(content, R.string.settings_music_volume,
                 EditorDialogController.formatNumber(draft.musicVolume), true);
-        EditText soundEffectVolume = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_sound_effect_volume),
+        EditText soundEffectVolume = delegateOwner.addField(content, R.string.settings_sound_effect_volume,
                 EditorDialogController.formatNumber(draft.soundEffectVolume), true);
         CheckBox highlight = delegateOwner.addCheckBox(content, R.string.settings_highlight_simultaneous,
                 draft.highlightSimultaneousNotes);
         CheckBox fakeOutline = delegateOwner.addCheckBox(content, R.string.settings_fake_note_outline,
                 draft.showFakeNoteOutline);
-        EditText noteWidth = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_note_width),
+        EditText noteWidth = delegateOwner.addField(content, R.string.settings_note_width,
                 EditorDialogController.formatNumber(draft.noteWidthPixels), true);
         CheckBox markLineId = delegateOwner.addCheckBox(content, R.string.settings_mark_line_id,
                 draft.markLineId);
         CheckBox highlightCurrentLine = delegateOwner.addCheckBox(content, R.string.settings_highlight_current_line,
                 draft.highlightCurrentLine);
         ColorPickerButton lineColor = ColorPickerButton.addTo(content,
-                delegateOwner.getString(R.string.settings_line_color), draft.lineColorRgb, false);
+                R.string.settings_line_color, draft.lineColorRgb, false);
         EditText backgroundBrightness = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.settings_background_brightness),
+                R.string.settings_background_brightness,
                 Integer.toString(draft.backgroundBrightness), true);
-        EditText tapOffset = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hitsound_tap_offset),
+        EditText tapOffset = delegateOwner.addField(content, R.string.settings_hitsound_tap_offset,
                 Integer.toString(draft.tapFlickHitsoundOffsetMs), true);
-        EditText dragOffset = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hitsound_drag_offset),
+        EditText dragOffset = delegateOwner.addField(content, R.string.settings_hitsound_drag_offset,
                 Integer.toString(draft.dragHitsoundOffsetMs), true);
 
         delegateOwner.addMenuSection(content, R.string.settings_other);
         CheckBox autosave = delegateOwner.addCheckBox(content, R.string.settings_autosave,
                 draft.autosaveEnabled);
         EditText autosaveInterval = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.settings_autosave_interval),
+                R.string.settings_autosave_interval,
                 EditorDialogController.formatNumber(draft.autosaveIntervalSeconds), true);
         CheckBox tapToSeek = delegateOwner.addCheckBox(content, R.string.settings_tap_to_seek, draft.tapToSeek);
         EditText timelineScroll = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.settings_timeline_scroll_speed),
+                R.string.settings_timeline_scroll_speed,
                 EditorDialogController.formatNumber(draft.timelineScrollSpeed), true);
-        EditText eventScroll = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_event_scroll_speed),
+        EditText eventScroll = delegateOwner.addField(content, R.string.settings_event_scroll_speed,
                 EditorDialogController.formatNumber(draft.eventScrollSpeed), true);
-        EditText playerWidth = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_player_width),
+        EditText playerWidth = delegateOwner.addField(content, R.string.settings_player_width,
                 Integer.toString(draft.playerWidth), true);
-        EditText playerHeight = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_player_height),
+        EditText playerHeight = delegateOwner.addField(content, R.string.settings_player_height,
                 Integer.toString(draft.playerHeight), true);
         CheckBox autoApply = delegateOwner.addCheckBox(content, R.string.settings_auto_apply,
                 draft.autoApplyPropertyEdits);
@@ -82,38 +101,38 @@ final class EditorSettingsDialog {
                 draft.drawEventNumbers);
 
         delegateOwner.addMenuSection(content, R.string.settings_hotkeys);
-        delegateOwner.addHint(content, delegateOwner.getString(R.string.settings_hotkeys_help));
-        EditText shortcutPlay = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_play),
+        delegateOwner.addHint(content, R.string.settings_hotkeys_help);
+        EditText shortcutPlay = delegateOwner.addField(content, R.string.settings_hotkey_play,
                 draft.shortcutPlayPause, false);
-        EditText shortcutSave = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_save),
+        EditText shortcutSave = delegateOwner.addField(content, R.string.settings_hotkey_save,
                 draft.shortcutSave, false);
-        EditText shortcutUndo = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_undo),
+        EditText shortcutUndo = delegateOwner.addField(content, R.string.settings_hotkey_undo,
                 draft.shortcutUndo, false);
-        EditText shortcutRedo = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_redo),
+        EditText shortcutRedo = delegateOwner.addField(content, R.string.settings_hotkey_redo,
                 draft.shortcutRedo, false);
-        EditText shortcutCopy = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_copy),
+        EditText shortcutCopy = delegateOwner.addField(content, R.string.settings_hotkey_copy,
                 draft.shortcutCopy, false);
-        EditText shortcutCut = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_cut),
+        EditText shortcutCut = delegateOwner.addField(content, R.string.settings_hotkey_cut,
                 draft.shortcutCut, false);
-        EditText shortcutPaste = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_paste),
+        EditText shortcutPaste = delegateOwner.addField(content, R.string.settings_hotkey_paste,
                 draft.shortcutPaste, false);
-        EditText shortcutMirror = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_mirror),
+        EditText shortcutMirror = delegateOwner.addField(content, R.string.settings_hotkey_mirror,
                 draft.shortcutMirrorPaste, false);
-        EditText shortcutDelete = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_hotkey_delete),
+        EditText shortcutDelete = delegateOwner.addField(content, R.string.settings_hotkey_delete,
                 draft.shortcutDelete, false);
 
         delegateOwner.addMenuSection(content, R.string.settings_correction);
-        EditText correctionX = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_correction_x),
+        EditText correctionX = delegateOwner.addField(content, R.string.settings_correction_x,
                 EditorDialogController.formatNumber(draft.correctionXThreshold), true);
         EditText correctionCollision = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.settings_correction_collision),
+                R.string.settings_correction_collision,
                 EditorDialogController.formatNumber(draft.correctionCollisionDistance), true);
-        EditText correctionRead = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_correction_read),
+        EditText correctionRead = delegateOwner.addField(content, R.string.settings_correction_read,
                 EditorDialogController.formatNumber(draft.correctionReadTimeSeconds), true);
-        EditText correctionDrag = delegateOwner.addField(content, delegateOwner.getString(R.string.settings_correction_drag),
+        EditText correctionDrag = delegateOwner.addField(content, R.string.settings_correction_drag,
                 EditorDialogController.formatNumber(draft.correctionDragWarningSeconds), true);
         EditText correctionCombo = delegateOwner.addField(content,
-                delegateOwner.getString(R.string.settings_correction_combination),
+                R.string.settings_correction_combination,
                 EditorDialogController.formatNumber(draft.correctionCombinationSeconds), true);
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())

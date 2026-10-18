@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+
 import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.*;
@@ -14,7 +17,8 @@ import java.util.function.IntConsumer;
 public final class ColorPickerButton extends Button {
     private int color;
     private final boolean alpha;
-    private final String label;
+    private String label;
+    private int labelResource;
     private IntConsumer listener;
 
     public ColorPickerButton(Context context, String label, int initial, boolean alpha) {
@@ -26,6 +30,18 @@ public final class ColorPickerButton extends Button {
         setMinHeight(dp(40));
         setColor(initial);
         setOnClickListener(v -> showPicker());
+    }
+    public static ColorPickerButton addTo(LinearLayout parent, int label, int color, boolean alpha) {
+        ColorPickerButton button = addTo(parent, "", color, alpha);
+        button.labelResource = label;
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(button) - 1), label);
+        UiText.onRelocalize(button, button::relocalizeUi);
+        button.relocalizeUi();
+        return button;
+    }
+    private void relocalizeUi() {
+        if (labelResource != 0) label = UiText.string(getContext(), labelResource);
+        setContentDescription(UiText.string(getContext(), R.string.color_choose_description, label, getText()));
     }
     public static ColorPickerButton addTo(LinearLayout parent, String label, int color, boolean alpha) {
         TextView title = new TextView(parent.getContext());
@@ -48,7 +64,7 @@ public final class ColorPickerButton extends Button {
         color = alpha ? value : value | 0xff000000;
         setText(alpha ? String.format(Locale.US, "#%06X · A %d", color & 0xffffff, Color.alpha(color))
                 : String.format(Locale.US, "#%06X", color & 0xffffff));
-        setContentDescription(label + ": " + getText() + ". Choose color");
+        relocalizeUi();
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(color | 0xff000000);
         bg.setCornerRadius(dp(6));
@@ -60,7 +76,7 @@ public final class ColorPickerButton extends Button {
     private int dp(float n) { return Math.round(n * getResources().getDisplayMetrics().density); }
     private void showPicker() {
         Picker picker = new Picker(getContext(), color, alpha);
-        AlertDialog dialog = new AlertDialog.Builder(getContext()).setTitle(label).setView(picker)
+        AlertDialog dialog = new UiDialogs.Builder(getContext()).setTitle(() -> label).setView(picker)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_apply, (d, w) -> {
                     setColor(picker.value);
@@ -118,10 +134,10 @@ public final class ColorPickerButton extends Button {
             sample.setGravity(Gravity.CENTER);
             left.addView(sample, new LayoutParams(-1, dp(36)));
             palette = new Palette(c);
-            palette.setContentDescription("Saturation and brightness palette");
+            UiText.description(palette, R.string.color_palette_description);
             left.addView(palette, new LayoutParams(-1, 0, 1));
-            TextView hueLabel = new TextView(c); hueLabel.setText(R.string.color_picker_hue); settings.addView(hueLabel);
-            hue = new SeekBar(c); hue.setMax(360); hue.setContentDescription("Hue");
+            TextView hueLabel = new TextView(c); UiText.text(hueLabel, R.string.color_picker_hue); settings.addView(hueLabel);
+            hue = new SeekBar(c); hue.setMax(360); UiText.description(hue, R.string.color_hue_description);
             settings.addView(hue, new LayoutParams(-1, dp(32)));
             hue.setOnSeekBarChangeListener(change(() -> { hsv[0] = hue.getProgress(); fromHsv(); }));
             LinearLayout presets = new LinearLayout(c); presets.setBaselineAligned(false);
@@ -142,7 +158,8 @@ public final class ColorPickerButton extends Button {
                 row.setBaselineAligned(false); settings.addView(row);
                 labels[i] = new TextView(c); row.addView(labels[i], new LayoutParams(dp(60), dp(32)));
                 channels[i] = new SeekBar(c); channels[i].setMax(255);
-                channels[i].setContentDescription(new String[]{"Red", "Green", "Blue", "Alpha"}[i]);
+                final int channelIndex = i;
+                UiText.description(channels[i], () -> UiText.resources(getContext()).getStringArray(R.array.color_channel_names)[channelIndex]);
                 row.addView(channels[i], new LayoutParams(0, dp(32), 1));
                 channels[i].setOnSeekBarChangeListener(change(() -> {
                     int shift = channel == 3 ? 24 : (2 - channel) * 8;
@@ -162,13 +179,13 @@ public final class ColorPickerButton extends Button {
         void fromHsv() { value = Color.HSVToColor(Color.alpha(value), hsv); refresh(); }
         void refresh() {
             updating = true;
-            sample.setText(String.format(Locale.US, "#%06X · Alpha %d", value & 0xffffff, Color.alpha(value)));
+            UiText.text(sample, () -> UiText.string(getContext(), R.string.color_sample_alpha, value & 0xffffff, Color.alpha(value)));
             sample.invalidate();
             sample.setTextColor(Color.alpha(value) < 128 || hsv[2] > .7 && hsv[1] < .5 ? Color.BLACK : Color.WHITE);
             hue.setProgress(Math.round(hsv[0]));
             for (int i = 0; i < channels.length; i++) {
                 int n = (value >>> (i == 3 ? 24 : (2 - i) * 8)) & 255;
-                channels[i].setProgress(n); labels[i].setText(getResources().getString(R.string.color_picker_channel, new String[]{"R", "G", "B", "A"}[i], n));
+                channels[i].setProgress(n); labels[i].setText(UiText.resources(getContext()).getString(R.string.color_picker_channel, new String[]{"R", "G", "B", "A"}[i], n));
             }
             updating = false; palette.updateGradients(); palette.invalidate();
         }

@@ -1,8 +1,13 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.ModelLabels;
+
 import android.app.AlertDialog;
 import android.view.Gravity;
 import android.widget.Button;
+import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -10,9 +15,12 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import com.xpe.mobile.editor.EditorView;
+import com.xpe.mobile.editor.JudgeLineValidator;
 import com.xpe.mobile.model.AttachedUiElement;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.model.JudgeLine;
+import java.util.ArrayList;
+import java.util.List;
 
 /** JudgeLineDialogs responsibilities extracted from EditorDialogController. */
 final class JudgeLineDialogs {
@@ -79,9 +87,8 @@ final class JudgeLineDialogs {
                 row.setAllCaps(false);
                 row.setGravity(Gravity.CENTER);
                 row.setAlpha(active ? 1.0f : 0.78f);
-                row.setText(delegateOwner.getString(R.string.line_manager_row, index, line.name,
-                        active ? delegateOwner.getString(R.string.line_manager_active_suffix) : ""));
                 int nextIndex = index;
+                UiText.text(row, () -> ModelLabels.line(delegateOwner, nextIndex, line.name, active));
                 row.setOnClickListener(view -> {
                     selectedIndex[0] = nextIndex;
                     delegateOwner.editorView.selectLine(nextIndex);
@@ -92,11 +99,10 @@ final class JudgeLineDialogs {
                         delegateOwner.dp(48)));
             }
             JudgeLine selected = chart.judgeLines.get(selectedIndex[0]);
-            selectedTitle.setText(delegateOwner.getString(R.string.line_manager_row, selectedIndex[0],
-                    selected.name, delegateOwner.getString(R.string.line_manager_active_suffix)));
-            summary.setText(delegateOwner.getString(R.string.line_manager_summary,
+            UiText.text(selectedTitle, () -> ModelLabels.line(delegateOwner, selectedIndex[0], selected.name, true));
+            UiText.text(summary, () -> delegateOwner.getString(R.string.line_manager_summary,
                     selected.notes.size(), selected.countEvents()));
-            propertiesSummary.setText(delegateOwner.getString(R.string.line_manager_details,
+            UiText.text(propertiesSummary, () -> delegateOwner.getString(R.string.line_manager_details,
                     selected.texture, selected.group, EditorDialogController.formatNumber(selected.bpmFactor),
                     selected.zOrder, delegateOwner.getString(selected.cover
                             ? R.string.line_manager_cover_on : R.string.line_manager_cover_off)));
@@ -118,7 +124,7 @@ final class JudgeLineDialogs {
             JudgeLine target = chart.judgeLines.get(selectedIndex[0]);
             delegateOwner.judgeLineDialogs.showLineProperties(target, refresh[0]);
         });
-        delete.setOnClickListener(view -> new AlertDialog.Builder(delegateOwner)
+        delete.setOnClickListener(view -> new UiDialogs.Builder(delegateOwner)
                 .setTitle(R.string.line_delete_title)
                 .setMessage(delegateOwner.getString(R.string.line_delete_message, selectedIndex[0],
                         chart.judgeLines.get(selectedIndex[0]).name))
@@ -139,18 +145,58 @@ final class JudgeLineDialogs {
     }
 
     void showLineProperties(JudgeLine line, Runnable afterSave) {
+        ChartDocument chart = delegateOwner.editorView.getChart();
+        if (chart == null || !chart.judgeLines.contains(line)) return;
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
-        EditText name = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_name), line.name, false);
-        EditText texture = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_texture), line.texture, false);
-        EditText group = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_group), Integer.toString(line.group), true);
-        EditText bpmFactor = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_bpm_factor), EditorDialogController.formatNumber(line.bpmFactor), true);
-        EditText zOrder = delegateOwner.addField(content, delegateOwner.getString(R.string.field_line_z_order), Integer.toString(line.zOrder), true);
+        EditText name = delegateOwner.addField(content, R.string.field_line_name, line.name, false);
+        EditText texture = delegateOwner.addField(content, R.string.field_line_texture, line.texture, false);
+        EditText group = delegateOwner.addField(content, R.string.field_line_group, Integer.toString(line.group), true);
+        EditText bpmFactor = delegateOwner.addField(content, R.string.field_line_bpm_factor, EditorDialogController.formatNumber(line.bpmFactor), true);
+        EditText zOrder = delegateOwner.addField(content, R.string.field_line_z_order, Integer.toString(line.zOrder), true);
+        List<JudgeLine> parents = new ArrayList<>();
+        parents.add(null);
+        for (int index = 0; index < chart.judgeLines.size(); index++) {
+            if (JudgeLineValidator.validateParent(chart, line, index) == JudgeLineValidator.Error.NONE) {
+                parents.add(chart.judgeLines.get(index));
+            }
+        }
+        JudgeLine currentParent = line.father >= 0 && line.father < chart.judgeLines.size()
+                ? chart.judgeLines.get(line.father) : null;
+        // Keep an imported invalid relationship visible until the user repairs it.
+        boolean unavailableParent = line.father != -1
+                && (currentParent == null || !parents.contains(currentParent));
+        final int originalParent = line.father;
+        if (unavailableParent) parents.add(currentParent);
+        int parentSelection = unavailableParent ? parents.size() - 1 : parents.indexOf(currentParent);
+        Spinner parent = delegateOwner.addStringSpinner(content, R.string.field_line_parent, () -> {
+            List<String> names = new ArrayList<>();
+            for (int index = 0; index < parents.size(); index++) {
+                JudgeLine candidate = parents.get(index);
+                if (index == 0) names.add(delegateOwner.getString(R.string.line_parent_none));
+                else if (unavailableParent && index == parents.size() - 1) {
+                    names.add(delegateOwner.getString(R.string.line_parent_unavailable, originalParent));
+                } else {
+                    names.add(ModelLabels.line(delegateOwner, chart.judgeLines.indexOf(candidate), candidate.name, false));
+                }
+            }
+            return names;
+        }, parentSelection);
+        CheckBox inheritRotation = delegateOwner.addCheckBox(content,
+                R.string.field_line_inherit_rotation, line.rotateWithFather);
+        inheritRotation.setEnabled(parentSelection > 0);
+        parent.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> owner, android.view.View view, int position, long id) {
+                inheritRotation.setEnabled(position > 0);
+            }
+            @Override public void onNothingSelected(AdapterView<?> owner) { }
+        });
+        delegateOwner.addHint(content, R.string.field_line_parent_help);
         CheckBox cover = delegateOwner.addCheckBox(content, R.string.field_line_cover, line.cover);
         Spinner attachedUi = delegateOwner.addSpinner(content, R.string.field_line_hud,
                 R.array.line_hud_elements, line.attachUi == null ? 0 : line.attachUi.ordinal() + 1);
         TextView hudHelp = new TextView(delegateOwner);
-        hudHelp.setText(R.string.field_line_hud_help);
+        UiText.text(hudHelp, R.string.field_line_hud_help);
         content.addView(hudHelp);
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(delegateOwner, delegateOwner.host.workbench())
@@ -168,6 +214,17 @@ final class JudgeLineDialogs {
                         edited.group = EditorDialogController.parseInteger(group);
                         edited.bpmFactor = EditorDialogController.parseDouble(bpmFactor);
                         edited.zOrder = EditorDialogController.parseInteger(zOrder);
+                        int parentIndex = parent.getSelectedItemPosition();
+                        JudgeLine chosenParent = parents.get(parentIndex);
+                        boolean unavailableSelection = unavailableParent && parentIndex == parents.size() - 1;
+                        if (delegateOwner.editorView.getChart() != chart
+                                || parentIndex > 0 && !unavailableSelection && (chosenParent == null
+                                || !chart.judgeLines.contains(chosenParent))) {
+                            delegateOwner.judgeLineDialogs.showLineApplyError(EditorView.LineApplyResult.TARGET_NOT_FOUND);
+                            return;
+                        }
+                        edited.father = unavailableSelection ? originalParent : chart.judgeLines.indexOf(chosenParent);
+                        edited.rotateWithFather = inheritRotation.isChecked();
                         edited.cover = cover.isChecked();
                         int hudIndex = attachedUi.getSelectedItemPosition();
                         edited.attachUi = hudIndex == 0 ? null : AttachedUiElement.values()[hudIndex - 1];
@@ -192,6 +249,7 @@ final class JudgeLineDialogs {
             case LINE_ZERO_PROTECTED: message = R.string.line_validation_zero_protected; break;
             case LAST_LINE_REQUIRED: message = R.string.line_validation_last_required; break;
             case TARGET_NOT_FOUND: message = R.string.validation_target_changed; break;
+            case INVALID_PARENT: message = R.string.line_validation_parent; break;
             default: message = R.string.line_validation_invalid; break;
         }
         delegateOwner.showMessage(delegateOwner.getString(message));

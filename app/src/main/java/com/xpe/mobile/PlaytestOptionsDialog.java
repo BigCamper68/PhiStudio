@@ -13,8 +13,12 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import com.xpe.mobile.model.ChartDocument;
 import com.xpe.mobile.playtest.PlaytestOptions;
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.UiErrors;
 import java.util.Locale;
 import java.util.function.DoubleConsumer;
+import java.util.function.Supplier;
 
 /** Native, scrollable playtest setup. Selecting an option immediately remembers it. */
 final class PlaytestOptionsDialog {
@@ -28,10 +32,10 @@ final class PlaytestOptionsDialog {
         LinearLayout content = activity.mainMenuUi.createDialogContent(scroll);
         title(activity, content, R.string.playtest_start_position);
         RadioGroup positions = new RadioGroup(activity);
-        RadioButton beginning = radio(activity, positions, activity.getString(R.string.playtest_from_beginning), "start.beginning");
-        RadioButton playhead = radio(activity, positions, activity.getString(R.string.playtest_from_playhead,
+        RadioButton beginning = radio(activity, positions, R.string.playtest_from_beginning, "start.beginning");
+        RadioButton playhead = radio(activity, positions, () -> activity.getString(R.string.playtest_from_playhead,
                 String.format(Locale.US, "%.3f", playheadBeat).replaceAll("\\.?0+$", "")), "start.playhead");
-        RadioButton custom = radio(activity, positions, activity.getString(R.string.playtest_custom_position), "start.custom");
+        RadioButton custom = radio(activity, positions, R.string.playtest_custom_position, "start.custom");
         content.addView(positions);
         LinearLayout customContent = new LinearLayout(activity);
         customContent.setOrientation(LinearLayout.VERTICAL);
@@ -39,12 +43,12 @@ final class PlaytestOptionsDialog {
         content.addView(customContent);
         RadioGroup units = new RadioGroup(activity);
         units.setOrientation(LinearLayout.HORIZONTAL);
-        RadioButton time = radio(activity, units, activity.getString(R.string.playtest_time), "custom.time");
-        RadioButton beat = radio(activity, units, activity.getString(R.string.playtest_beat), "custom.beat");
+        RadioButton time = radio(activity, units, R.string.playtest_time, "custom.time");
+        RadioButton beat = radio(activity, units, R.string.playtest_beat, "custom.beat");
         customContent.addView(units);
-        EditText timeField = activity.mainMenuUi.addField(customContent, activity.getString(R.string.playtest_time_hint), options.time, false);
+        EditText timeField = activity.mainMenuUi.addField(customContent, R.string.playtest_time_hint, options.time, false);
         timeField.setTag("playtest.time");
-        EditText beatField = activity.mainMenuUi.addField(customContent, activity.getString(R.string.playtest_beat_hint), options.beat, true);
+        EditText beatField = activity.mainMenuUi.addField(customContent, R.string.playtest_beat_hint, options.beat, true);
         beatField.setTag("playtest.beat");
         View timeLabel = customContent.getChildAt(1), beatLabel = customContent.getChildAt(3);
         Runnable refresh = () -> {
@@ -74,7 +78,7 @@ final class PlaytestOptionsDialog {
         countdown.setOrientation(availableDp / activity.getResources().getConfiguration().fontScale >= 400
                 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         for (int seconds : new int[]{0, 2, 3, 5}) {
-            RadioButton button = radio(activity, countdown, seconds == 0 ? activity.getString(R.string.playtest_off)
+            RadioButton button = radio(activity, countdown, () -> seconds == 0 ? activity.getString(R.string.playtest_off)
                     : activity.getResources().getQuantityString(R.plurals.playtest_seconds, seconds, seconds), "countdown." + seconds);
             if (options.countdown == seconds) countdown.check(button.getId());
         }
@@ -85,19 +89,23 @@ final class PlaytestOptionsDialog {
         });
         content.addView(countdown);
         refresh.run();
-        AlertDialog dialog = new AlertDialog.Builder(activity).setTitle(R.string.menu_playtest).setView(scroll)
+        AlertDialog dialog = new UiDialogs.Builder(activity).setTitle(R.string.menu_playtest).setView(scroll)
                 .setNegativeButton(R.string.playtest_cancel, null).setPositiveButton(R.string.playtest_start, null).create();
         activity.mainMenuUi.showEditorWindow(dialog, () -> {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                 try {
                     double seconds = options.seconds(chart, playheadSeconds);
                     if (options.start == PlaytestOptions.CUSTOM && seconds > activity.mainPlaytest.maximumStartSeconds(chart))
-                        throw new IllegalArgumentException(activity.getString(R.string.playtest_after_end));
+                        throw new UiErrors.ValidationException(R.string.playtest_after_end);
                     if (activity.editorView.getChart() != chart) { dialog.dismiss(); return; }
                     options.save(prefs); dialog.dismiss(); start.accept(seconds);
                 } catch (IllegalArgumentException e) {
                     EditText field = options.customBeat ? beatField : timeField;
-                    field.setError(e.getMessage()); field.requestFocus();
+                    field.setError(UiErrors.describe(activity, e));
+                    UiText.onRelocalize(field, () -> {
+                        if (field.getError() != null) field.setError(UiErrors.describe(activity, e));
+                    });
+                    field.requestFocus();
                 }
             });
         }, .78f, .9f);
@@ -105,12 +113,15 @@ final class PlaytestOptionsDialog {
     }
 
     private static void title(MainActivity activity, LinearLayout parent, int resource) {
-        TextView text = new TextView(activity); text.setText(resource); text.setTextSize(16);
+        TextView text = new TextView(activity); UiText.text(text, resource); text.setTextSize(16);
         text.setPadding(0, activity.dp(8), 0, activity.dp(4)); parent.addView(text);
     }
-    private static RadioButton radio(MainActivity activity, RadioGroup parent, String label, String tag) {
+    private static RadioButton radio(MainActivity activity, RadioGroup parent, int label, String tag) {
+        return radio(activity, parent, () -> UiText.string(activity, label), tag);
+    }
+    private static RadioButton radio(MainActivity activity, RadioGroup parent, Supplier<String> label, String tag) {
         RadioButton button = new RadioButton(activity); button.setId(View.generateViewId());
-        button.setText(label); button.setTextSize(14); button.setTag(tag);
+        UiText.text(button, label); button.setTextSize(14); button.setTag(tag);
         if (parent.getOrientation() == LinearLayout.HORIZONTAL) {
             button.setTextSize(12);
             parent.addView(button, new RadioGroup.LayoutParams(0, -2, 1));

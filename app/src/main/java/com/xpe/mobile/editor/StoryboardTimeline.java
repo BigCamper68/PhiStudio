@@ -18,7 +18,7 @@ import java.util.Locale;
 /** Synchronized vertical beat timeline, horizontally scrollable lanes and transactional gestures. */
 final class StoryboardTimeline {
     private static final StoryboardEventType[] TYPES = StoryboardEventType.editableTypes();
-    private static final String[] LABELS = {"Scale X", "Scale Y", "Color", "Text", "Paint", "GIF"};
+    private static final int[] LABELS = {R.string.storyboard_type_scale_x, R.string.storyboard_type_scale_y, R.string.storyboard_type_color, R.string.storyboard_type_text, R.string.storyboard_type_paint, R.string.storyboard_lane_gif};
     private static final float HEADER_TOUCH_HEIGHT_DP = 22f;
     private static final int[] COLORS = {0xFF4EBAA8, 0xFF559BCB, 0xFFCF89C5,
             0xFF8B93E0, 0xFFE0AF60, 0xFFE08772};
@@ -81,12 +81,12 @@ final class StoryboardTimeline {
         primarySelection();
     }
     String typeLabel() {
-        for (int i = 0; i < TYPES.length; i++) if (TYPES[i] == type) return LABELS[i];
+        for (int i = 0; i < TYPES.length; i++) if (TYPES[i] == type) return view.getResources().getString(LABELS[i]);
         return type.name();
     }
     String selectionSummary() {
-        if (selectedItems.size() > 1) return "Storyboard · " + selectedItems.size() + " events selected";
-        return selection == null ? "Storyboard · " + typeLabel()
+        if (selectedItems.size() > 1) return view.getResources().getString(R.string.storyboard_selected_summary, selectedItems.size());
+        return selection == null ? view.getResources().getString(R.string.storyboard_type_summary, typeLabel())
                 : typeLabel() + " · " + selection.startTime + " → " + selection.endTime;
     }
     private float laneWidth() {
@@ -158,7 +158,7 @@ final class StoryboardTimeline {
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTextSize(10.5f * d);
             paint.setColor(Color.LTGRAY);
-            canvas.drawText(LABELS[index], x + laneWidth() / 2, top + 17 * d, paint);
+            canvas.drawText(view.getResources().getString(LABELS[index]), x + laneWidth() / 2, top + 17 * d, paint);
         }
         paint.setTextAlign(Paint.Align.LEFT);
         canvas.restoreToCount(save);

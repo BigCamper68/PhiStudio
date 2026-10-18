@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.LanguageController;
+
 import android.app.Activity;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.editor.EditorView;
@@ -17,6 +19,7 @@ final class EditorDialogController extends EditorDialogSection {
     private final NotePropertyDialog notePropertyDialog = new NotePropertyDialog(this);
 
     interface Host {
+        default LanguageController languageController() { return null; }
         WorkbenchView workbench();
         EditorSettings editorSettings();
 

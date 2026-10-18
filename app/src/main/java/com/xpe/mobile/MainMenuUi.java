@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.view.Gravity;
@@ -28,22 +30,32 @@ final class MainMenuUi {
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.setPadding(delegateOwner.dp(10), delegateOwner.dp(4), delegateOwner.dp(10), delegateOwner.dp(12));
         scroll.addView(actions);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_playtest),
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_playtest,
                 delegateOwner.mainPlaytest::showOptions);
         delegateOwner.mainMenuUi.addMenuSection(actions, R.string.menu_section_projects);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_projects), () -> delegateOwner.mainProjectActions.showProjectLibrary(false));
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_import_package), delegateOwner.mainFileActions::requestPackageOpen);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_export_package), delegateOwner.mainFileActions::requestPackageSave);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_export_video), delegateOwner.mainVideoExport::show);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_projects, () -> delegateOwner.mainProjectActions.showProjectLibrary(false));
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_import_package, delegateOwner.mainFileActions::requestPackageOpen);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_export_package, delegateOwner.mainFileActions::requestPackageSave);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_export_video, delegateOwner.mainVideoExport::show);
         delegateOwner.mainMenuUi.addMenuSection(actions, R.string.menu_section_chart);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_metadata), delegateOwner::requestEditMetadata);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_bpm), delegateOwner::requestEditBpmList);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_lines), delegateOwner::requestManageLines);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_curve_notes), delegateOwner::showCurveNotes);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_complex_move), delegateOwner::showComplexMove);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_settings), delegateOwner::showSettings);
-        delegateOwner.mainMenuUi.addWorkbenchTool(actions, delegateOwner.getString(R.string.menu_diagnostics), delegateOwner::showChartDiagnostics);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_metadata, delegateOwner::requestEditMetadata);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_bpm, delegateOwner::requestEditBpmList);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_lines, delegateOwner::requestManageLines);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_curve_notes, delegateOwner::showCurveNotes);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_complex_move, delegateOwner::showComplexMove);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_settings, delegateOwner::showSettings);
+        delegateOwner.mainMenuUi.addWorkbenchTool(actions, R.string.menu_diagnostics, delegateOwner::showChartDiagnostics);
         return scroll;
+    }
+
+    void addWorkbenchTool(LinearLayout parent, int label, Runnable action) {
+        addWorkbenchTool(parent, "", action);
+        UiText.text((Button) parent.getChildAt(parent.getChildCount() - 1), label);
+    }
+    EditText addField(LinearLayout parent, int label, String value, boolean numeric) {
+        EditText field = addField(parent, "", value, numeric);
+        UiText.text((TextView) parent.getChildAt(parent.indexOfChild(field) - 1), label);
+        return field;
     }
 
     void addWorkbenchTool(LinearLayout parent, String label, Runnable action) {
@@ -57,7 +69,7 @@ final class MainMenuUi {
 
     void addMenuSection(LinearLayout parent, int textResource) {
         TextView title = new TextView(delegateOwner);
-        title.setText(textResource);
+        UiText.text(title, textResource);
         title.setTextSize(16f);
         title.setPadding(delegateOwner.dp(4), delegateOwner.dp(4), delegateOwner.dp(4), delegateOwner.dp(6));
         parent.addView(title, new LinearLayout.LayoutParams(
@@ -67,7 +79,7 @@ final class MainMenuUi {
 
     Button addMenuButton(LinearLayout parent, int textResource) {
         Button button = new Button(delegateOwner);
-        button.setText(textResource);
+        UiText.text(button, textResource);
         button.setAllCaps(false);
         button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         button.setMinHeight(delegateOwner.dp(48));

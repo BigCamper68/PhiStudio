@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.text.InputType;
@@ -54,13 +57,13 @@ final class StoryboardDialogSection extends EditorDialogSection {
 
     private void chooseStoryboardType(StoryboardTypeAction action) {
         StoryboardEventType[] types = StoryboardEventType.editableTypes();
-        String[] labels = new String[types.length];
-        for (int index = 0; index < types.length; index++) {
-            labels[index] = storyboardTypeLabel(types[index]);
-        }
-        new AlertDialog.Builder(this)
+        new UiDialogs.Builder(this)
                 .setTitle(R.string.storyboard_choose_type)
-                .setItems(labels, (dialog, which) -> action.run(types[which]))
+                .setItems(() -> {
+                    CharSequence[] labels = new CharSequence[types.length];
+                    for (int index = 0; index < types.length; index++) labels[index] = storyboardTypeLabel(types[index]);
+                    return labels;
+                }, (dialog, which) -> action.run(types[which]))
                 .setNegativeButton(R.string.action_cancel, null)
                 .show();
     }
@@ -70,12 +73,12 @@ final class StoryboardDialogSection extends EditorDialogSection {
                                          boolean creating, Runnable afterSave) {
         ScrollView scrollView = new ScrollView(this);
         LinearLayout content = createDialogContent(scrollView);
-        addHint(content, getString(storyboardHelpResource(type)));
-        EditText startTime = addField(content, getString(R.string.field_start_beat),
+        addHint(content, storyboardHelpResource(type));
+        EditText startTime = addField(content, R.string.field_start_beat,
                 source.startTime.toString(), false);
-        EditText endTime = addField(content, getString(R.string.field_end_beat),
+        EditText endTime = addField(content, R.string.field_end_beat,
                 source.endTime.toString(), false);
-        addHint(content, getString(R.string.storyboard_time_help));
+        addHint(content, R.string.storyboard_time_help);
         LinearLayout timeActions = new LinearLayout(this);
         timeActions.setOrientation(LinearLayout.HORIZONTAL);
         Button useStartBeat = addActionButton(
@@ -90,16 +93,16 @@ final class StoryboardDialogSection extends EditorDialogSection {
 
         boolean numeric = type.isNumeric();
         TextView startValue = type == StoryboardEventType.COLOR
-                ? ColorPickerButton.addTo(content, getString(R.string.storyboard_start_value),
+                ? ColorPickerButton.addTo(content, R.string.storyboard_start_value,
                         ((ExtendedLineEvents.ColorEvent) source).startRgb, false)
                 : addField(content,
-                getString(R.string.storyboard_start_value),
+                R.string.storyboard_start_value,
                 storyboardStartValue(source), numeric);
         TextView endValue = type == StoryboardEventType.COLOR
-                ? ColorPickerButton.addTo(content, getString(R.string.storyboard_end_value),
+                ? ColorPickerButton.addTo(content, R.string.storyboard_end_value,
                         ((ExtendedLineEvents.ColorEvent) source).endRgb, false)
                 : addField(content,
-                getString(R.string.storyboard_end_value),
+                R.string.storyboard_end_value,
                 storyboardEndValue(source), numeric);
         if (type == StoryboardEventType.TEXT) {
             configureStoryboardTextField((EditText) startValue);
@@ -107,24 +110,23 @@ final class StoryboardDialogSection extends EditorDialogSection {
         }
         CheckBox locked = addCheckBox(content, R.string.field_event_locked,
                 storyboardValuesEqual(source));
-        EasingSelector curve = EasingSelector.addTo(content,
-                getString(R.string.field_event_easing_type), source.easingType);
+        EasingSelector curve = EasingSelector.addTo(content, R.string.field_event_easing_type, source.easingType);
         Spinner easingType = curve.spinner;
         EasingPreviewView easingPreview = curve.preview;
-        EditText easingLeft = addField(content, getString(R.string.field_event_easing_left),
+        EditText easingLeft = addField(content, R.string.field_event_easing_left,
                 formatNumber(source.easingLeft), true);
-        EditText easingRight = addField(content, getString(R.string.field_event_easing_right),
+        EditText easingRight = addField(content, R.string.field_event_easing_right,
                 formatNumber(source.easingRight), true);
-        EditText linkGroup = addField(content, getString(R.string.field_event_link_group),
+        EditText linkGroup = addField(content, R.string.field_event_link_group,
                 Integer.toString(source.linkGroup), true);
         CheckBox bezier = addCheckBox(content, R.string.field_event_bezier, source.bezier);
-        EditText bezierX1 = addField(content, getString(R.string.field_event_bezier_x1),
+        EditText bezierX1 = addField(content, R.string.field_event_bezier_x1,
                 formatNumber(source.bezierPoints[0]), true);
-        EditText bezierY1 = addField(content, getString(R.string.field_event_bezier_y1),
+        EditText bezierY1 = addField(content, R.string.field_event_bezier_y1,
                 formatNumber(source.bezierPoints[1]), true);
-        EditText bezierX2 = addField(content, getString(R.string.field_event_bezier_x2),
+        EditText bezierX2 = addField(content, R.string.field_event_bezier_x2,
                 formatNumber(source.bezierPoints[2]), true);
-        EditText bezierY2 = addField(content, getString(R.string.field_event_bezier_y2),
+        EditText bezierY2 = addField(content, R.string.field_event_bezier_y2,
                 formatNumber(source.bezierPoints[3]), true);
 
         Runnable refreshEasing = () -> updateEasingEditor(
@@ -139,7 +141,7 @@ final class StoryboardDialogSection extends EditorDialogSection {
         refreshEasing.run();
 
         EditorPanelWindow dialog = new EditorPanelWindow.Builder(this, host.workbench())
-                .setTitle(getString(creating ? R.string.storyboard_new_title
+                .setTitle(() -> getString(creating ? R.string.storyboard_new_title
                         : R.string.storyboard_edit_title, storyboardTypeLabel(type)))
                 .selectionProperties(creating ? null : source, 1)
                 .setView(scrollView)

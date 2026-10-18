@@ -1,5 +1,8 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiText;
+import com.xpe.mobile.i18n.UiDialogs;
+
 import android.app.AlertDialog;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -30,25 +33,25 @@ final class NotePropertyDialog {
         ScrollView scrollView = new ScrollView(delegateOwner);
         LinearLayout content = delegateOwner.createDialogContent(scrollView);
         Spinner type = delegateOwner.addSpinner(content, R.string.field_note_type, R.array.note_types, note.type.ordinal());
-        EditText startTime = delegateOwner.addField(content, delegateOwner.getString(R.string.field_start_beat), note.startTime.toString(), false);
-        EditText endTime = delegateOwner.addField(content, delegateOwner.getString(R.string.field_end_beat_hold), note.endTime.toString(), false);
-        EditText positionX = delegateOwner.addField(content, delegateOwner.getString(R.string.field_position_x), EditorDialogController.formatNumber(note.positionX), true);
-        EditText speed = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_speed), EditorDialogController.formatNumber(note.speed), true);
+        EditText startTime = delegateOwner.addField(content, R.string.field_start_beat, note.startTime.toString(), false);
+        EditText endTime = delegateOwner.addField(content, R.string.field_end_beat_hold, note.endTime.toString(), false);
+        EditText positionX = delegateOwner.addField(content, R.string.field_position_x, EditorDialogController.formatNumber(note.positionX), true);
+        EditText speed = delegateOwner.addField(content, R.string.field_note_speed, EditorDialogController.formatNumber(note.speed), true);
         Spinner side = delegateOwner.addSpinner(content, R.string.field_note_side, R.array.note_sides, note.above == 1 ? 0 : 1);
         CheckBox fake = delegateOwner.addCheckBox(content, R.string.field_note_fake, note.fake);
-        EditText size = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_size), EditorDialogController.formatNumber(note.size), true);
-        EditText yOffset = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_y_offset), EditorDialogController.formatNumber(note.yOffset), true);
-        EditText visibleTime = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_visible_time), EditorDialogController.formatNumber(note.visibleTime), true);
-        EditText alpha = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_alpha), Integer.toString(note.alpha), true);
-        EditText hitSound = delegateOwner.addField(content, delegateOwner.getString(R.string.field_note_hitsound),
+        EditText size = delegateOwner.addField(content, R.string.field_note_size, EditorDialogController.formatNumber(note.size), true);
+        EditText yOffset = delegateOwner.addField(content, R.string.field_note_y_offset, EditorDialogController.formatNumber(note.yOffset), true);
+        EditText visibleTime = delegateOwner.addField(content, R.string.field_note_visible_time, EditorDialogController.formatNumber(note.visibleTime), true);
+        EditText alpha = delegateOwner.addField(content, R.string.field_note_alpha, Integer.toString(note.alpha), true);
+        EditText hitSound = delegateOwner.addField(content, R.string.field_note_hitsound,
                 note.hitSound == null ? "" : note.hitSound, false);
         hitSound.setSingleLine(true);
         TextView hitSoundHint = new TextView(delegateOwner);
-        hitSoundHint.setText(R.string.field_note_hitsound_hint);
+        UiText.text(hitSoundHint, R.string.field_note_hitsound_hint);
         hitSoundHint.setTextSize(12f);
         content.addView(hitSoundHint);
         Button chooseHitSound = new Button(delegateOwner);
-        chooseHitSound.setText(R.string.action_choose_hitsound);
+        UiText.text(chooseHitSound, R.string.action_choose_hitsound);
         content.addView(chooseHitSound);
         chooseHitSound.setOnClickListener(view -> {
             List<String> choices = delegateOwner.host.hitSoundChoices();
@@ -60,7 +63,7 @@ final class NotePropertyDialog {
                 else if ("drag.mp3".equals(path)) labels.add("Drag (drag.mp3)");
                 else labels.add(path);
             }
-            new AlertDialog.Builder(delegateOwner).setTitle(R.string.field_note_hitsound)
+            new UiDialogs.Builder(delegateOwner).setTitle(R.string.field_note_hitsound)
                     .setItems(labels.toArray(new String[0]), (ignored, index) ->
                             hitSound.setText(index == 0 ? "" : choices.get(index - 1)))
                     .setNegativeButton(R.string.action_cancel, null).show();

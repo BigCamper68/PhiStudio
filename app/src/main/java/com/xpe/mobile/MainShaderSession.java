@@ -1,5 +1,7 @@
 package com.xpe.mobile;
 
+import com.xpe.mobile.i18n.UiErrors;
+
 import android.content.Intent;
 import android.net.Uri;
 import com.xpe.mobile.packageio.AndroidPackageIo;
@@ -53,10 +55,7 @@ final class MainShaderSession {
                 delegateOwner.shaderEditor = new ShaderEditorView(delegateOwner, delegateOwner.editorView, delegateOwner.shaderDocument, new ShaderEditorView.Host() {
                     public void changed() { delegateOwner.mainShaderSession.scheduleShaderPreview(); }
                     public void importShader() {
-                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("*/*");
-                        delegateOwner.startActivityForResult(intent, MainActivity.OPEN_SHADER);
+                        requestImport();
                     }
                     public void save() { delegateOwner.requestProjectSave(); }
                 });
@@ -64,8 +63,16 @@ final class MainShaderSession {
             }
             delegateOwner.workbench.showShaders(delegateOwner.shaderEditor);
         } catch (Exception exception) {
-            delegateOwner.showMessage("Shaders: " + MainActivity.safeMessage(exception));
+            delegateOwner.showMessage(delegateOwner.getString(R.string.shader_error, UiErrors.describe(delegateOwner, exception)));
         }
+    }
+
+    void requestImport() {
+        if (!delegateOwner.mainFileActions.prepareFilePicker()) return;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        delegateOwner.startActivityForResult(intent, MainActivity.OPEN_SHADER);
     }
 
     void scheduleShaderPreview() {
@@ -78,7 +85,7 @@ final class MainShaderSession {
             try {
                 ShaderTimeline timeline = ShaderTimeline.parse(snapshot, name -> {
                     String source = sources.get(name);
-                    if (source == null) throw new IOException("Shader unavailable: " + name);
+                    if (source == null) throw new IOException(delegateOwner.getString(R.string.shader_source_unavailable, name));
                     return source;
                 });
                 delegateOwner.mainHandler.post(() -> {
@@ -89,7 +96,7 @@ final class MainShaderSession {
             } catch (Exception exception) {
                 delegateOwner.mainHandler.post(() -> {
                     if (generation == delegateOwner.shaderGeneration && delegateOwner.shaderEditor != null)
-                        delegateOwner.shaderEditor.error(MainActivity.safeMessage(exception));
+                        delegateOwner.shaderEditor.error(UiErrors.describe(delegateOwner, exception));
                 });
             }
         });
@@ -97,6 +104,9 @@ final class MainShaderSession {
     }
 
     void importShader(Uri uri, Intent data) {
+        if (delegateOwner.shaderDocument == null || delegateOwner.shaderPackage != delegateOwner.currentPackage) {
+            openShaderEditor();
+        }
         if (delegateOwner.shaderDocument == null || delegateOwner.shaderPackage != delegateOwner.currentPackage) return;
         final ShaderDocument document = delegateOwner.shaderDocument;
         final ChartPackage pack = delegateOwner.shaderPackage;
@@ -106,17 +116,17 @@ final class MainShaderSession {
                 try {
                     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                     try (InputStream stream = delegateOwner.getContentResolver().openInputStream(uri)) {
-                        if (stream == null) throw new IOException("Cannot read GLSL");
+                        if (stream == null) throw new IOException(delegateOwner.getString(R.string.shader_import_unreadable));
                         byte[] buffer = new byte[8192];
                         int length;
                         while ((length = stream.read(buffer)) != -1) {
-                            if (bytes.size() + length > 1024 * 1024) throw new IOException("GLSL exceeds 1 MB");
+                            if (bytes.size() + length > 1024 * 1024) throw new IOException(delegateOwner.getString(R.string.shader_import_too_large));
                             bytes.write(buffer, 0, length);
                         }
                     }
                     String raw = bytes.toString(StandardCharsets.UTF_8.name());
                     final String source = raw.startsWith("\ufeff") ? raw.substring(1) : raw;
-                    if (!source.matches("(?s).*\\bvoid\\s+main\\s*\\(.*")) throw new IOException("GLSL requires void main()");
+                    if (!source.matches("(?s).*\\bvoid\\s+main\\s*\\(.*")) throw new IOException(delegateOwner.getString(R.string.shader_import_missing_main));
                     String filename = AndroidPackageIo.displayName(delegateOwner.getContentResolver(), uri);
                     String stem = (filename == null ? "import" : filename).replaceAll("[^\\p{L}\\p{N}._-]", "_");
                     if (stem.toLowerCase(Locale.ROOT).endsWith(".glsl")) stem = stem.substring(0, stem.length() - 5);
@@ -131,15 +141,15 @@ final class MainShaderSession {
                             document.registerSource("/" + path, source);
                             document.add("/" + path, delegateOwner.editorView.shaderEditorSeconds());
                             delegateOwner.shaderEditor.imported();
-                        } catch (Exception exception) { delegateOwner.shaderEditor.error(MainActivity.safeMessage(exception)); }
+                        } catch (Exception exception) { delegateOwner.shaderEditor.error(UiErrors.describe(delegateOwner, exception)); }
                     });
                 } catch (Exception exception) {
                     delegateOwner.mainHandler.post(() -> {
                         if (document == delegateOwner.shaderDocument && delegateOwner.shaderEditor != null)
-                            delegateOwner.shaderEditor.error(MainActivity.safeMessage(exception));
+                            delegateOwner.shaderEditor.error(UiErrors.describe(delegateOwner, exception));
                     });
                 }
             });
-        } catch (Exception exception) { delegateOwner.shaderEditor.error(MainActivity.safeMessage(exception)); }
+        } catch (Exception exception) { delegateOwner.shaderEditor.error(UiErrors.describe(delegateOwner, exception)); }
     }
 }

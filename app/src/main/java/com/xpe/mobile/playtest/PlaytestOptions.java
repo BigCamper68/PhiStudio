@@ -5,6 +5,11 @@ import com.xpe.mobile.model.ChartDocument;
 
 /** User choices are remembered independently of the currently open chart. */
 public final class PlaytestOptions {
+    public enum ValidationError { NUMBER, TIME }
+    public static final class ValidationException extends IllegalArgumentException {
+        public final ValidationError reason;
+        private ValidationException(ValidationError reason, String message) { super(message); this.reason = reason; }
+    }
     public static final int BEGINNING = 0, PLAYHEAD = 1, CUSTOM = 2;
     public int start = BEGINNING;
     public boolean customBeat;
@@ -40,21 +45,21 @@ public final class PlaytestOptions {
             double result = Double.parseDouble(input.trim().replace(',', '.'));
             if (Double.isFinite(result) && result >= 0) return result;
         } catch (RuntimeException ignored) { }
-        throw new IllegalArgumentException("Enter a finite, non-negative value");
+        throw new ValidationException(ValidationError.NUMBER, "Enter a finite, non-negative value");
     }
 
     /** Seconds, M:SS.mmm or H:MM:SS.mmm, always relative to chart beat zero. */
     public static double parseTime(String text) {
         String[] parts = text.trim().split(":", -1);
-        if (parts.length < 1 || parts.length > 3) throw new IllegalArgumentException("Invalid time");
+        if (parts.length < 1 || parts.length > 3) throw new ValidationException(ValidationError.TIME, "Invalid time");
         double result = 0;
         for (int i = 0; i < parts.length; i++) {
             double part = number(parts[i]);
             if (parts.length > 1 && (i < parts.length - 1 && part != Math.floor(part)
-                    || i > 0 && part >= 60)) throw new IllegalArgumentException("Invalid time");
+                    || i > 0 && part >= 60)) throw new ValidationException(ValidationError.TIME, "Invalid time");
             result = result * 60 + part;
         }
-        if (!Double.isFinite(result)) throw new IllegalArgumentException("Invalid time");
+        if (!Double.isFinite(result)) throw new ValidationException(ValidationError.TIME, "Invalid time");
         return result;
     }
 }
