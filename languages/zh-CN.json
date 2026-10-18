@@ -334,6 +334,7 @@
     "bpm_validation_last_required": "谱面必须保留至少一个 BPM 条目",
     "line_manager_title": "判定线列表",
     "line_manager_row": "判定线 %1$d：%2$s%3$s",
+    "line_manager_number": "判定线 %1$d%2$s",
     "line_manager_active_suffix": "（当前）",
     "line_manager_summary": "音符：%1$d · 事件：%2$d",
     "line_manager_details": "纹理：%1$s\n分组：%2$d · BPM 倍率：%3$s\n显示层级：%4$d · %5$s",

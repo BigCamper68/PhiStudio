@@ -68,6 +68,7 @@ final class MainProjectSession {
     }
 
     void loadInitialChart() {
+        delegateOwner.mainActivityResults.beginInitialLoad();
         delegateOwner.mainProjectSession.runProjectTask(R.string.project_library_loading, delegateOwner.mainProjectSession::readInitialContent,
                 content -> {
                     if (content.memoryWarning) {
@@ -79,14 +80,18 @@ final class MainProjectSession {
                     if (content.project != null) {
                         ProjectLibrary.OpenResult opened = content.project;
                         delegateOwner.mainProjectSession.activatePackage(opened.getChartPackage(), opened.getRecord().getId(),
-                                null, opened.getRecord().getName());
+                                delegateOwner.currentPackageSourceUri, opened.getRecord().getName());
                     } else {
                         delegateOwner.mainProjectSession.activateFallbackContent(content);
                     }
-                    delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    if (!delegateOwner.mainActivityResults.finishInitialLoad()) {
+                        delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    }
                 }, exception -> {
                     delegateOwner.showMessage(delegateOwner.getString(R.string.project_initial_failed, UiErrors.describe(delegateOwner, exception)));
-                    delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    if (!delegateOwner.mainActivityResults.finishInitialLoad()) {
+                        delegateOwner.mainProjectActions.showProjectLibrary(true);
+                    }
                 });
     }
 

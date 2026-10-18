@@ -70,7 +70,7 @@ public final class MainActivity extends Activity implements EditorView.Callback,
         }
         setTitle(getText(R.string.app_name));
     }
-    private final MainActivityResults mainActivityResults = new MainActivityResults(this);
+    final MainActivityResults mainActivityResults = new MainActivityResults(this);
     final MainFileActions mainFileActions = new MainFileActions(this);
     final MainVideoExport mainVideoExport = new MainVideoExport(this);
     private final MainScreenSetup mainScreenSetup = new MainScreenSetup(this);
@@ -154,6 +154,12 @@ public final class MainActivity extends Activity implements EditorView.Callback,
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mainScreenSetup.onCreate(savedInstanceState);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        mainActivityResults.saveState(state);
     }
 
     @Override

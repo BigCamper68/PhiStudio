@@ -5,6 +5,7 @@ import com.xpe.mobile.i18n.UiErrors;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.packageio.AndroidPackageIo;
 import com.xpe.mobile.packageio.ChartPackage;
@@ -13,13 +14,45 @@ import com.xpe.mobile.project.ProjectRecord;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.ArrayList;
 
 /** MainActivityResults responsibilities extracted from MainActivity. */
 final class MainActivityResults {
     private final MainActivity delegateOwner;
+    private boolean initialContentLoading;
+    private final ArrayList<Bundle> pendingResults = new ArrayList<>();
 
     MainActivityResults(MainActivity delegateOwner) {
         this.delegateOwner = delegateOwner;
+    }
+
+    void restoreState(Bundle state) {
+        if (state == null) return;
+        ArrayList<Bundle> restored = state.getParcelableArrayList("pending_file_results");
+        if (restored != null) pendingResults.addAll(restored);
+        String source = state.getString("package_source_uri");
+        if (source != null) delegateOwner.currentPackageSourceUri = Uri.parse(source);
+    }
+
+    void saveState(Bundle state) {
+        state.putParcelableArrayList("pending_file_results", new ArrayList<>(pendingResults));
+        if (delegateOwner.currentPackageSourceUri != null) {
+            state.putString("package_source_uri", delegateOwner.currentPackageSourceUri.toString());
+        }
+    }
+
+    void beginInitialLoad() {
+        initialContentLoading = true;
+    }
+
+    boolean finishInitialLoad() {
+        initialContentLoading = false;
+        ArrayList<Bundle> results = new ArrayList<>(pendingResults);
+        pendingResults.clear();
+        for (Bundle result : results) {
+            onActivityResult(result.getInt("request"), MainActivity.RESULT_OK, result.getParcelable("data"));
+        }
+        return !results.isEmpty();
     }
 
     void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -28,6 +61,14 @@ final class MainActivityResults {
             return;
         }
         if (resultCode != MainActivity.RESULT_OK || data == null || data.getData() == null) return;
+        // A picker result can arrive before the recreated Activity has restored its project.
+        if (initialContentLoading) {
+            Bundle result = new Bundle();
+            result.putInt("request", requestCode);
+            result.putParcelable("data", new Intent(data));
+            pendingResults.add(result);
+            return;
+        }
         Uri uri = data.getData();
         if (requestCode == MainActivity.OPEN_SHADER) {
             delegateOwner.mainShaderSession.importShader(uri, data);

@@ -26,6 +26,7 @@ final class MainScreenSetup {
     }
 
     void onCreate(Bundle savedInstanceState) {
+        delegateOwner.mainActivityResults.restoreState(savedInstanceState);
         delegateOwner.requestWindowFeature(Window.FEATURE_NO_TITLE);
         delegateOwner.getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 

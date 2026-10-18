@@ -2,6 +2,7 @@ package com.xpe.mobile;
 
 import com.xpe.mobile.i18n.UiText;
 import com.xpe.mobile.i18n.UiDialogs;
+import com.xpe.mobile.i18n.ModelLabels;
 
 import android.app.AlertDialog;
 import android.view.Gravity;
@@ -87,8 +88,7 @@ final class JudgeLineDialogs {
                 row.setGravity(Gravity.CENTER);
                 row.setAlpha(active ? 1.0f : 0.78f);
                 int nextIndex = index;
-                UiText.text(row, () -> delegateOwner.getString(R.string.line_manager_row, nextIndex, line.name,
-                        active ? delegateOwner.getString(R.string.line_manager_active_suffix) : ""));
+                UiText.text(row, () -> ModelLabels.line(delegateOwner, nextIndex, line.name, active));
                 row.setOnClickListener(view -> {
                     selectedIndex[0] = nextIndex;
                     delegateOwner.editorView.selectLine(nextIndex);
@@ -99,8 +99,7 @@ final class JudgeLineDialogs {
                         delegateOwner.dp(48)));
             }
             JudgeLine selected = chart.judgeLines.get(selectedIndex[0]);
-            UiText.text(selectedTitle, () -> delegateOwner.getString(R.string.line_manager_row, selectedIndex[0],
-                    selected.name, delegateOwner.getString(R.string.line_manager_active_suffix)));
+            UiText.text(selectedTitle, () -> ModelLabels.line(delegateOwner, selectedIndex[0], selected.name, true));
             UiText.text(summary, () -> delegateOwner.getString(R.string.line_manager_summary,
                     selected.notes.size(), selected.countEvents()));
             UiText.text(propertiesSummary, () -> delegateOwner.getString(R.string.line_manager_details,
@@ -178,8 +177,7 @@ final class JudgeLineDialogs {
                 else if (unavailableParent && index == parents.size() - 1) {
                     names.add(delegateOwner.getString(R.string.line_parent_unavailable, originalParent));
                 } else {
-                    names.add(delegateOwner.getString(R.string.line_manager_row,
-                            chart.judgeLines.indexOf(candidate), candidate.name, ""));
+                    names.add(ModelLabels.line(delegateOwner, chart.judgeLines.indexOf(candidate), candidate.name, false));
                 }
             }
             return names;
