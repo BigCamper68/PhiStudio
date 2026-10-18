@@ -132,6 +132,7 @@ public final class PlaytestJudge {
         if (!Double.isFinite(time) || time < lastTime) return;
         updateTransforms(time);
         Map<Integer, Finger> frame = new LinkedHashMap<>();
+        List<Finger> presses = new ArrayList<>();
         for (Map.Entry<Integer, Finger> f : fingers.entrySet()) {
             f.getValue().down = false;
             frame.put(f.getKey(), f.getValue());
@@ -143,6 +144,7 @@ public final class PlaytestJudge {
             Finger f = frame.get(in.id);
             if (in.phase == Phase.DOWN) {
                 f = new Finger(in, (float) trackerTime);
+                presses.add(f);
                 frame.put(in.id, f); fingers.put(in.id, f);
             } else if (f != null) {
                 f.x = in.x; f.y = in.y; f.at = in.at;
@@ -151,10 +153,17 @@ public final class PlaytestJudge {
             }
         }
         inputs.clear();
+        List<Selection> selections = new ArrayList<>();
+        Map<Entry, Selection> claimed = new IdentityHashMap<>();
+        for (Finger f : presses) allocate(f, true, time, claimed, selections);
         for (Finger f : frame.values()) {
             boolean flick = !f.down && !f.ended && f.tracker.flicked;
-            if (f.down || flick) select(f, f.down, time);
+            if (flick) allocate(f, false, time, claimed, selections);
         }
+        // Allocate a chord before committing any of its hits. If a touch can reach two
+        // same-time notes, let a second touch that can reach only one have that note.
+        // Reassignment stays within the preferred note's time and type.
+        for (Selection selection : selections) apply(selection, time);
         for (int li = 0; li < lines.size(); li++) {
             List<Entry> notes = lines.get(li);
             for (int i = cursors[li]; i < notes.size(); i++) {
@@ -209,35 +218,83 @@ public final class PlaytestJudge {
         lastTime = time;
     }
 
-    private void select(Finger finger, boolean click, double now) {
-        double at = Math.max(lastTime - BAD, Math.min(now, finger.at));
-        double bestKey = BAD + Math.max(0, X_LIMIT / NOTE_WIDTH - 1) * .2;
-        double bestDt = BAD;
-        Entry best = null;
+    private void allocate(Finger finger, boolean click, double now, Map<Entry, Selection> claimed,
+                          List<Selection> selections) {
+        Selection selection = select(finger, click, now, Collections.emptyMap());
+        if (selection == null) return;
+        if (!assign(selection, claimed, new IdentityHashMap<>())) {
+            // A full chord must not swallow a press that can hit another nearby beat.
+            selection = select(finger, click, now, claimed);
+            if (selection == null || !assign(selection, claimed, new IdentityHashMap<>())) return;
+        }
+        selections.add(selection);
+    }
+
+    private Selection select(Finger finger, boolean click, double now, Map<Entry, Selection> excluded) {
+        double at = Math.max(lastTime - BAD, Math.min(now, click ? finger.downAt : finger.at));
+        float x = click ? finger.downX : finger.x, y = click ? finger.downY : finger.y;
+        double limit = BAD + Math.max(0, X_LIMIT / NOTE_WIDTH - 1) * .2;
+        List<Candidate> candidates = new ArrayList<>();
+        Candidate best = null;
         for (int li = 0; li < lines.size(); li++) {
-            double localX = localX(li, finger.x, finger.y);
+            double localX = localX(li, x, y);
             if (!Double.isFinite(localX)) continue;
             List<Entry> notes = lines.get(li);
             for (int i = cursors[li]; i < notes.size(); i++) {
                 Entry e = notes.get(i);
                 Note n = e.cached.note;
-                if (e.status != NEW && e.status != PRE) continue;
+                // PRE already owns a Bad judgement or a latched Drag/Flick. It must
+                // never absorb another finger or receive a second judgement.
+                if (e.status != NEW) continue;
                 if (!click && (n.type == NoteType.TAP || n.type == NoteType.HOLD)) continue;
                 double delta = e.cached.startSeconds - at;
-                if (delta >= bestKey) break;
+                if (delta >= limit) break;
                 double dt = delta < 0 ? Math.abs(Math.min(0, delta + .07)) : delta;
                 double distance = Math.abs(judgeX(n) - (float) localX) / (double) (float) n.judgeArea;
                 if (!Double.isFinite(distance) || distance > X_LIMIT) continue;
                 if (dt > (n.type == NoteType.TAP ? BAD - PERFECT * Math.max(0, distance - .9) : GOOD)) continue;
                 double priorityTime = dt + (n.type == NoteType.DRAG || n.type == NoteType.FLICK ? GOOD : 0);
                 double key = priorityTime + Math.max(0, distance / NOTE_WIDTH - 1) * .2;
-                if (key < bestKey) { best = e; bestDt = priorityTime; bestKey = key; }
+                if (key >= limit) continue;
+                Candidate candidate = new Candidate(e, priorityTime, key, distance);
+                candidates.add(candidate);
+                if (excluded.containsKey(e)) continue;
+                if (best == null || key < best.key || key == best.key && sameChord(e, best.entry)
+                        && distance < best.distance) best = candidate;
             }
         }
-        if (best == null) return;
+        if (best == null) return null;
+        NoteType kind = best.entry.cached.note.type;
+        if (kind == NoteType.DRAG || click && kind == NoteType.FLICK) return null;
+        Entry preferred = best.entry;
+        candidates.removeIf(candidate -> !sameChord(candidate.entry, preferred));
+        candidates.sort(Comparator.comparingDouble((Candidate c) -> c.key).thenComparingDouble(c -> c.distance));
+        return new Selection(finger, click, at, candidates);
+    }
+
+    private static boolean sameChord(Entry a, Entry b) {
+        return a.cached.startSeconds == b.cached.startSeconds && a.cached.note.type == b.cached.note.type;
+    }
+
+    private static boolean assign(Selection selection, Map<Entry, Selection> claimed,
+                                  Map<Entry, Boolean> visited) {
+        for (Candidate candidate : selection.candidates) {
+            if (visited.put(candidate.entry, Boolean.TRUE) != null) continue;
+            Selection previous = claimed.get(candidate.entry);
+            if (previous == null || assign(previous, claimed, visited)) {
+                claimed.put(candidate.entry, selection); selection.chosen = candidate;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void apply(Selection selection, double now) {
+        if (selection.chosen == null) return;
+        Entry best = selection.chosen.entry;
+        double bestDt = selection.chosen.dt, at = selection.at;
         Note n = best.cached.note;
-        if (n.type == NoteType.DRAG || click && n.type == NoteType.FLICK) return;
-        if (!click) { best.status = PRE; finger.tracker.flicked = false; return; }
+        if (!selection.click) { best.status = PRE; selection.finger.tracker.flicked = false; return; }
         if (n.type == NoteType.HOLD) {
             best.status = HOLD; best.perfect = bestDt <= PERFECT;
             best.headAt = at; best.pulseAt = at;
@@ -350,6 +407,23 @@ public final class PlaytestJudge {
         double headAt, pulseAt, upAt = Double.POSITIVE_INFINITY;
         Entry(int line, PreparedNote cached) { this.line = line; this.cached = cached; }
     }
+    private static final class Candidate {
+        final Entry entry;
+        final double dt, key, distance;
+        Candidate(Entry entry, double dt, double key, double distance) {
+            this.entry = entry; this.dt = dt; this.key = key; this.distance = distance;
+        }
+    }
+    private static final class Selection {
+        final Finger finger;
+        final boolean click;
+        final double at;
+        final List<Candidate> candidates;
+        Candidate chosen;
+        Selection(Finger finger, boolean click, double at, List<Candidate> candidates) {
+            this.finger = finger; this.click = click; this.at = at; this.candidates = candidates;
+        }
+    }
     private final class BadVisual {
         final int line;
         final NoteType type;
@@ -386,10 +460,13 @@ public final class PlaytestJudge {
     private static final class Finger {
         float x, y;
         double at;
+        final float downX, downY;
+        final double downAt;
         boolean down = true, ended;
         final FlickTracker tracker;
         Finger(Input in, float time) {
             x = in.x; y = in.y; at = in.at;
+            downX = in.x; downY = in.y; downAt = in.at;
             tracker = new FlickTracker(time, in.rawX, in.rawY);
         }
     }

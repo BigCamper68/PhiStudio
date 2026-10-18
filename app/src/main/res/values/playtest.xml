@@ -15,6 +15,7 @@
         <item quantity="other">%1$d seconds</item>
     </plurals>
     <string name="playtest_start">Start</string>
+    <string name="playtest_cancel">Cancel</string>
     <string name="playtest_after_end">Position is beyond the end of this chart</string>
     <string name="playtest_audio_loading">Audio is preparing. Try Playtest when it has loaded.</string>
     <string name="playtest_accessibility">Chart playtest. Activate to pause or resume.</string>

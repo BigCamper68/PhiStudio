@@ -58,6 +58,97 @@ public class PlaytestJudgeTest {
         j.update(1.01); assertEquals(1, j.judged());
         touch(j, 9, DOWN, 1.02, 0, 0); assertEquals(2, j.count(PERFECT)); assertEquals(1000000, j.score());
     }
+    @Test public void simultaneousEarlyTapsConsumeDifferentChordNotes() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.TAP, 1, 1, 0);
+        PlaytestJudge j = judge(c);
+        j.queue(3, DOWN, 0, 0, 0, 0, .8); j.queue(9, DOWN, 0, 0, 0, 0, .8); j.update(.8);
+        assertEquals(2, j.count(BAD)); j.update(1.23);
+        assertEquals(2, j.judged()); assertEquals(0, j.count(MISS));
+    }
+    @Test public void aBadTapCannotAbsorbOrRescoreTheNextChordPress() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); Note second = note(c, NoteType.TAP, 1, 1, 0);
+        PlaytestJudge j = judge(c); touch(j, 3, DOWN, .8, 0, 0); touch(j, 9, DOWN, .85, 0, 0);
+        assertTrue(j.hidden(second)); j.update(1.23);
+        assertEquals(1, j.count(BAD)); assertEquals(1, j.count(GOOD)); assertEquals(2, j.judged());
+    }
+    @Test public void twoEarlyFlicksLatchDifferentNotesInTheSameFrame() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.FLICK, 1, 1, 0); note(c, NoteType.FLICK, 1, 1, 0);
+        PlaytestJudge j = judge(c);
+        for (int id : new int[]{3, 9}) j.queue(id, DOWN, 0, 0, 0, 0, .75);
+        j.update(.75);
+        for (int id : new int[]{3, 9}) j.queue(id, MOVE, 0, 0, .01, 0, .8);
+        j.update(.8);
+        for (int id : new int[]{3, 9}) j.queue(id, MOVE, 0, 0, .2, 0, .9);
+        j.update(.9); j.update(1.23);
+        assertEquals(2, j.count(PERFECT)); assertEquals(0, j.count(MISS));
+    }
+    @Test public void eachChordPressKeepsItsOwnDownTimestamp() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.TAP, 1, 1, 0);
+        PlaytestJudge j = judge(c);
+        j.queue(3, DOWN, 0, 0, 0, 0, .91);
+        j.queue(3, MOVE, 0, 0, 0, 0, .93); j.queue(9, DOWN, 0, 0, 0, 0, .93); j.update(.94);
+        assertEquals(1, j.count(GOOD)); assertEquals(1, j.count(PERFECT));
+    }
+    @Test public void motionBeforeTheNextFrameDoesNotMoveTheTapHead() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, -270); note(c, NoteType.TAP, 1, 1, 270);
+        PlaytestJudge j = judge(c);
+        j.queue(3, DOWN, -.4, 0, -.4, 0, 1);
+        j.queue(3, MOVE, .4, 0, .4, 0, 1.005); j.queue(9, DOWN, .4, 0, .4, 0, 1.005);
+        j.update(1.01); assertEquals(2, j.count(PERFECT));
+    }
+    @Test public void aReusedPointerIdRetainsBothPressesBetweenFrames() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.TAP, 1, 1, 0);
+        PlaytestJudge j = judge(c);
+        j.queue(3, DOWN, 0, 0, 0, 0, 1); j.queue(3, UP, 0, 0, 0, 0, 1.002);
+        j.queue(3, DOWN, 0, 0, 0, 0, 1.004); j.update(1.01);
+        assertEquals(2, j.count(PERFECT)); j.update(1.02); assertEquals(2, j.judged());
+    }
+    @Test public void closeChordTouchesSelectDistinctReachableNotesInEitherOrder() throws Exception {
+        for (double rightX : new double[]{.12, .09}) for (boolean reverse : new boolean[]{false, true}) {
+            ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.TAP, 1, 1, 135);
+            PlaytestJudge j = judge(c);
+            j.queue(3, DOWN, reverse ? -.12 : rightX, 0, 0, 0, 1);
+            j.queue(9, DOWN, reverse ? rightX : -.12, 0, 0, 0, 1); j.update(1);
+            assertEquals("Chord order=" + reverse + ", rightX=" + rightX, 2, j.count(PERFECT));
+        }
+    }
+    @Test public void anotherPressCanHitANearbyBeatAfterTheChordIsFull() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.TAP, 1.05, 1.05, 0);
+        PlaytestJudge j = judge(c);
+        j.queue(3, DOWN, 0, 0, 0, 0, 1); j.queue(9, DOWN, 0, 0, 0, 0, 1); j.update(1);
+        assertEquals(2, j.count(PERFECT));
+    }
+    @Test public void twoPressesStillHitAnOverlappingHoldAndTapInTheSameFrame() throws Exception {
+        ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); note(c, NoteType.HOLD, 1, 2, 0);
+        PlaytestJudge j = judge(c); List<PlaytestJudge.Hit> hits = new ArrayList<>(); j.setListener(hits::add);
+        j.queue(3, DOWN, 0, 0, 0, 0, 1); j.queue(9, DOWN, 0, 0, 0, 0, 1); j.update(1);
+        assertTrue(hits.get(0).holdHead); assertEquals(1, j.count(PERFECT));
+        j.update(2); assertEquals(2, j.count(PERFECT));
+    }
+    @Test public void threeFingerChordsDoNotDependOnNoteOrContactOrder() throws Exception {
+        int[][] orders = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+        double[] positions = {0, 135, 270}, contacts = {.1, .3, -.13};
+        for (NoteType type : new NoteType[]{NoteType.TAP, NoteType.HOLD})
+            for (int[] noteOrder : orders) for (int[] fingerOrder : orders) {
+                ChartDocument c = chart();
+                for (int i : noteOrder) note(c, type, 1, type == NoteType.HOLD ? 2 : 1, positions[i]);
+                PlaytestJudge j = judge(c);
+                for (int i : fingerOrder) j.queue(i + 3, DOWN, contacts[i], 0, contacts[i], 0, 1);
+                j.update(1); j.update(2);
+                assertEquals(type.toString(), 3, j.count(PERFECT));
+                assertEquals(0, j.count(MISS)); assertEquals(1000000, j.score());
+            }
+    }
+    @Test public void tenOverlappingNotesNeedTenNewPressesAndNeverOvercount() throws Exception {
+        for (double at : new double[]{.8, .9, 1, 1.2}) {
+            ChartDocument c = chart();
+            for (int i = 0; i < 10; i++) note(c, NoteType.TAP, 1, 1, 0);
+            PlaytestJudge j = judge(c);
+            for (int i = 0; i < 11; i++) j.queue(i, DOWN, 0, 0, 0, 0, at);
+            j.update(at); assertEquals(10, j.judged()); j.update(1.3);
+            assertEquals(10, j.judged()); assertEquals(0, j.count(MISS)); assertTrue(j.score() <= 1000000);
+        }
+    }
     @Test public void aQuickDownAndUpBetweenFramesStillHitsOnlyOnce() throws Exception {
         ChartDocument c = chart(); note(c, NoteType.TAP, 1, 1, 0); PlaytestJudge j = judge(c);
         j.queue(0, DOWN, 0, 0, 0, 0, 1); j.queue(0, UP, 0, 0, 0, 0, 1.005);

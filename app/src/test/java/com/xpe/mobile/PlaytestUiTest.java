@@ -44,6 +44,12 @@ public class PlaytestUiTest {
     private RadioButton radio(AlertDialog d, String tag) { return d.getWindow().getDecorView().findViewWithTag(tag); }
     private EditText field(AlertDialog d, String tag) { return d.getWindow().getDecorView().findViewWithTag(tag); }
 
+    @Test @Config(qualifiers = "ru") public void playtestActionsStayEnglishOnARussianDevice() throws Exception {
+        MainActivity a = activity(); AlertDialog d = dialog(a, 0, s -> fail());
+        assertEquals("Cancel", d.getButton(AlertDialog.BUTTON_NEGATIVE).getText().toString());
+        assertEquals("Start", d.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString()); d.dismiss();
+    }
+
     @Test public void lastSelectionsSurviveCancelReopenAndPreferenceReload() throws Exception {
         MainActivity a = activity(); AlertDialog d = dialog(a, 6.375, s -> fail());
         assertTrue(radio(d, "start.beginning").isChecked()); assertTrue(radio(d, "countdown.3").isChecked());
@@ -98,6 +104,62 @@ public class PlaytestUiTest {
         double before = screen.seconds(); ShadowSystemClock.advanceBy(Duration.ofSeconds(10)); frame(screen);
         assertEquals(before, screen.seconds(), 0); screen.close(); assertEquals(revision, c.revision());
         assertFalse(a.editorView.isChartDirty());
+    }
+    @Test public void androidPointerDownAndMoveKeepIndependentChordTimings() throws Exception {
+        MainActivity a = activity(); ChartDocument c = a.editorView.getChart();
+        c.judgeLines.get(0).notes.clear();
+        for (int i = 0; i < 2; i++) {
+            Note n = new Note(); n.startTime = n.endTime = new BeatTime(2, 0, 1);
+            c.judgeLines.get(0).notes.add(n);
+        }
+        c.markEdited(); PlaytestView screen = screen(a, c); frame(screen);
+        ShadowSystemClock.advanceBy(Duration.ofMillis(910)); long down = SystemClock.uptimeMillis();
+        pointers(screen, down, MotionEvent.ACTION_DOWN, new int[]{3}, new float[]{480});
+        ShadowSystemClock.advanceBy(Duration.ofMillis(20));
+        // Android may reorder pointer indices: identity belongs to pointer IDs.
+        pointers(screen, down, MotionEvent.ACTION_POINTER_DOWN, new int[]{9, 3}, new float[]{480, 480});
+        ShadowSystemClock.advanceBy(Duration.ofMillis(20));
+        pointers(screen, down, MotionEvent.ACTION_MOVE, new int[]{3, 9}, new float[]{480, 480});
+        frame(screen);
+        assertEquals(1, screen.judge().count(PlaytestJudge.Grade.GOOD));
+        assertEquals(1, screen.judge().count(PlaytestJudge.Grade.PERFECT));
+        pointers(screen, down, MotionEvent.ACTION_POINTER_UP, new int[]{9, 3}, new float[]{480, 480});
+        pointers(screen, down, MotionEvent.ACTION_UP, new int[]{3}, new float[]{480}); frame(screen);
+        assertEquals(2, screen.judge().judged()); screen.close();
+    }
+    @Test public void androidChordCanFinishBothContactsBeforeTheNextDraw() throws Exception {
+        MainActivity a = activity(); ChartDocument c = a.editorView.getChart();
+        c.judgeLines.get(0).notes.clear();
+        for (int x : new int[]{0, 135}) { Note n = new Note(); n.positionX = x; c.judgeLines.get(0).notes.add(n); }
+        c.markEdited(); PlaytestView screen = screen(a, c); frame(screen);
+        long down = SystemClock.uptimeMillis();
+        pointers(screen, down, MotionEvent.ACTION_DOWN, new int[]{9}, new float[]{523.2f});
+        pointers(screen, down, MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                new int[]{9, 3}, new float[]{523.2f, 422.4f});
+        pointers(screen, down, MotionEvent.ACTION_POINTER_UP, new int[]{9, 3}, new float[]{523.2f, 422.4f});
+        pointers(screen, down, MotionEvent.ACTION_UP, new int[]{3}, new float[]{422.4f}); frame(screen);
+        assertEquals(2, screen.judge().count(PlaytestJudge.Grade.PERFECT));
+        assertEquals(1000000, screen.judge().score()); frame(screen);
+        assertEquals(2, screen.judge().judged()); screen.close();
+    }
+    private PlaytestView screen(MainActivity a, ChartDocument c) {
+        PlaytestView screen = new PlaytestView(a, c, 0, 0, () -> { });
+        screen.measure(View.MeasureSpec.makeMeasureSpec(960, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(540, View.MeasureSpec.EXACTLY));
+        screen.layout(0, 0, 960, 540); return screen;
+    }
+    private void pointers(View screen, long down, int action, int[] ids, float[] x) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[ids.length];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            properties[i] = new MotionEvent.PointerProperties(); properties[i].id = ids[i];
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coords[i] = new MotionEvent.PointerCoords(); coords[i].x = x[i]; coords[i].y = 450;
+            coords[i].pressure = coords[i].size = 1;
+        }
+        MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, ids.length,
+                properties, coords, 0, 0, 1, 1, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0);
+        assertTrue(screen.dispatchTouchEvent(event)); event.recycle();
     }
     private void frame(View v) {
         Bitmap b = Bitmap.createBitmap(960, 540, Bitmap.Config.ARGB_8888); v.draw(new Canvas(b)); b.recycle();

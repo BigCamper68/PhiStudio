@@ -86,7 +86,7 @@ final class PlaytestOptionsDialog {
         content.addView(countdown);
         refresh.run();
         AlertDialog dialog = new AlertDialog.Builder(activity).setTitle(R.string.menu_playtest).setView(scroll)
-                .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.playtest_start, null).create();
+                .setNegativeButton(R.string.playtest_cancel, null).setPositiveButton(R.string.playtest_start, null).create();
         activity.mainMenuUi.showEditorWindow(dialog, () -> {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                 try {
