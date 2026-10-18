@@ -216,6 +216,7 @@ public final class MainActivity extends Activity implements EditorView.Callback,
 
     @Override public void onBackPressed() {
         if (workbench != null && workbench.back()) return;
+        if (isTaskRoot() && moveTaskToBack(true)) return;
         super.onBackPressed();
     }
 

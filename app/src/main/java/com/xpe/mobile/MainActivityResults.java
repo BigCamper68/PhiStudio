@@ -53,7 +53,7 @@ final class MainActivityResults {
         for (Bundle result : results) {
             onActivityResult(result.getInt("request"), result.getInt("result", MainActivity.RESULT_OK), result.getParcelable("data"));
         }
-        return delegateOwner.mainVideoExport.resumePendingSave() || restoredDraft || !results.isEmpty();
+        return delegateOwner.mainVideoExport.resumeAfterInitialLoad() || restoredDraft || !results.isEmpty();
     }
 
     void onActivityResult(int requestCode, int resultCode, Intent data) {

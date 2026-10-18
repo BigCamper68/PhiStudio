@@ -84,7 +84,8 @@ final class MainProjectSession {
                     } else {
                         delegateOwner.mainProjectSession.activateFallbackContent(content);
                     }
-                    if (!delegateOwner.mainActivityResults.finishInitialLoad()) {
+                    if (!delegateOwner.mainActivityResults.finishInitialLoad()
+                            && content.project == null && !content.autosave) {
                         delegateOwner.mainProjectActions.showProjectLibrary(true);
                     }
                 }, exception -> {

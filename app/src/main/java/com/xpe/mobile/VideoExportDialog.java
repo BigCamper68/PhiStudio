@@ -50,7 +50,10 @@ final class VideoExportDialog {
 
     void show(Consumer<VideoExportOptions> render) {
         ScrollView scroll = new ScrollView(activity);
+        scroll.setClipChildren(true); scroll.setClipToPadding(true);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout content = activity.mainMenuUi.createDialogContent(scroll);
+        content.setFocusableInTouchMode(true);
         text(content, R.string.video_export_description);
         LinearLayout columns = new LinearLayout(activity);
         content.addView(columns, new LinearLayout.LayoutParams(-1, -2));
@@ -182,7 +185,7 @@ final class VideoExportDialog {
     }
     private Spinner spinner(LinearLayout parent, int resource, String[] values) {
         text(parent, resource);
-        Spinner spinner = new Spinner(activity);
+        Spinner spinner = new VideoExportSpinner(activity);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(activity, android.R.layout.simple_spinner_item, values);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter); parent.addView(spinner, new LinearLayout.LayoutParams(-1, -2)); return spinner;
