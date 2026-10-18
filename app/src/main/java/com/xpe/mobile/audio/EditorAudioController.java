@@ -159,14 +159,20 @@ public final class EditorAudioController implements AutoCloseable {
     }
 
     public void playHitSound(HitSoundTimeline.Cue cue) {
-        // Scheduled music playback owns hits. UI-triggered sounds are only the no-music fallback.
+        // Scheduled preview owns its hits; manual playtest submits successful judgements.
         if (closed || cue == null || cue.noteCount() == 0 || schedulesHitSounds()) return;
         if (hitSoundPlayer != null) hitSoundPlayer.play(cue);
         else playHitSoundFallback(cue);
     }
 
+    /** Warm the interactive output during countdown, including charts without music. */
+    public void prepareManualHitSounds() {
+        if (!closed && manualJudgements && hitSoundPlayer != null) hitSoundPlayer.prepare();
+    }
+
     public void start(long positionMs, float speed) {
-        if (hitSoundPlayer != null) hitSoundPlayer.stop();
+        if (manualJudgements) prepareManualHitSounds();
+        else if (hitSoundPlayer != null) hitSoundPlayer.stop();
         if (isReady()) {
             if (hitSoundStartGate.request(positionMs, speed, customHitSounds.isLoading())) {
                 pcmAudioPlayer.start(positionMs, speed);

@@ -106,6 +106,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
             if (hit.playsSound()) hitNotes.add(hit.note);
         });
         clock = new PlaytestClock(startSeconds, countdown, now());
+        if (activity.audioController != null) activity.audioController.prepareManualHitSounds();
         waitingFingers.clear();
         if (panel != null) { removeView(panel); panel = null; }
         shaders.resetFailure(); game.invalidate(); input.invalidate();
@@ -251,7 +252,9 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     private void resume() {
         if (closed) return;
         if (panel != null) { removeView(panel); panel = null; }
-        clock.resume(now()); game.invalidate(); input.invalidate(); input.requestFocus();
+        clock.resume(now());
+        if (activity.audioController != null) activity.audioController.prepareManualHitSounds();
+        game.invalidate(); input.invalidate(); input.requestFocus();
     }
 
     private void showPanel(boolean result) {

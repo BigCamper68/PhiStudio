@@ -194,13 +194,26 @@ public class PlaytestUiTest {
                 });
         return Shadow.extract(a.audioController);
     }
+    @Test @Config(shadows = RecordingAudioController.class)
+    public void countdownAndResumePrepareTheAudioOutputBeforeAnyHit() throws Exception {
+        MainActivity a = activity(); RecordingAudioController audio = recordAudio(a);
+        PlaytestView screen = new PlaytestView(a, a.editorView.getChart(), 0, 3, () -> { });
+        assertEquals(PlaytestClock.State.COUNTDOWN, screen.state());
+        assertEquals(1, audio.preparations); assertTrue(audio.cues.isEmpty());
+        screen.pause(); screen.togglePause();
+        assertEquals(PlaytestClock.State.COUNTDOWN, screen.state());
+        assertEquals(2, audio.preparations); assertTrue(audio.cues.isEmpty());
+        screen.close(); assertEquals(2, audio.preparations);
+    }
     @Implements(value = EditorAudioController.class, isInAndroidSdk = false)
     public static class RecordingAudioController {
         final List<HitSoundTimeline.Cue> cues = new ArrayList<>();
+        int preparations;
         @Implementation protected void __constructor__(Activity a, Handler h, EditorAudioController.Listener listener) { }
         @Implementation protected boolean isReady() { return false; }
         @Implementation protected long durationMillis() { return 0; }
         @Implementation protected void pause() { }
+        @Implementation protected void prepareManualHitSounds() { preparations++; }
         @Implementation protected void playHitSound(HitSoundTimeline.Cue cue) {
             cues.add(cue);
             // Let the consumer run for a complete PCM block before the next UI call.

@@ -1,6 +1,7 @@
 package com.xpe.mobile.audio;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import com.xpe.mobile.model.*;
@@ -11,6 +12,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.*;
+import org.robolectric.shadow.api.Shadow;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -18,6 +20,39 @@ import static org.junit.Assert.*;
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 @ConscryptMode(ConscryptMode.Mode.OFF)
 public class PlaytestAudioTest {
+    @Test @Config(shadows = RecordingHitSoundPlayer.class)
+    public void startingMusicKeepsThePreparedManualOutputButPauseAndExitStopIt() throws Exception {
+        Activity a = Robolectric.buildActivity(Activity.class).get(); Handler h = new Handler(Looper.getMainLooper());
+        EditorAudioController c = new EditorAudioController(a, h, new EditorAudioController.Listener() {
+            public void onAudioStateChanged() { }
+            public void onAudioCompleted() { }
+            public void showMessage(String message) { }
+            public boolean isHostUnavailable() { return false; }
+        });
+        try {
+            Field field = EditorAudioController.class.getDeclaredField("hitSoundPlayer"); field.setAccessible(true);
+            RecordingHitSoundPlayer output = Shadow.extract(field.get(c));
+            c.prepareManualHitSounds(); assertEquals(0, output.preparations);
+            c.setManualJudgements(true); c.prepareManualHitSounds();
+            assertEquals(1, output.preparations); int stopped = output.stops;
+            c.start(0, 1);
+            assertEquals("Music must not flush the warmed hit-sound queue", stopped, output.stops);
+            assertEquals(2, output.preparations);
+            c.pause(); assertEquals(stopped + 1, output.stops);
+            c.prepareManualHitSounds(); assertEquals(3, output.preparations);
+            c.setManualJudgements(false); c.prepareManualHitSounds();
+            assertEquals(3, output.preparations); assertEquals(stopped + 2, output.stops);
+        } finally { c.close(); }
+    }
+    @Implements(value = HitSoundPlayer.class, isInAndroidSdk = false)
+    public static class RecordingHitSoundPlayer {
+        int preparations, stops;
+        @Implementation protected void __constructor__(Context c, Handler h, HitSoundPlayer.Fallback f) { }
+        @Implementation protected void prepare() { preparations++; }
+        @Implementation protected void stop() { stops++; }
+        @Implementation protected void close() { }
+        @Implementation protected void setCustomSounds(java.util.Map<String, PcmHitSound> samples) { }
+    }
     @Test public void manualModeMutesScheduledHitsWithMusicAndRestoresPreviewOnExit() throws Exception {
         Activity a = Robolectric.buildActivity(Activity.class).get(); Handler h = new Handler(Looper.getMainLooper());
         EditorAudioController c = new EditorAudioController(a, h, new EditorAudioController.Listener() {
