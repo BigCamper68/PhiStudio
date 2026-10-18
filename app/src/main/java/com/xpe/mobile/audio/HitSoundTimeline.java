@@ -33,16 +33,21 @@ public final class HitSoundTimeline {
 
     /** A live judgement, retaining custom sounds and built-in overrides. */
     public static Cue forNote(Note note) {
+        return forNotes(Collections.singletonList(note));
+    }
+
+    /** One atomic live submission; the mixer must see every chord voice before it renders. */
+    public static Cue forNotes(Iterable<Note> notes) {
         int[] counts = new int[NOTE_TYPE_COUNT];
         Map<String, int[]> custom = Collections.emptyMap();
-        if (note != null && !note.fake && note.type != null) {
+        if (notes != null) for (Note note : notes) {
+            if (note == null || note.fake || note.type == null) continue;
             NoteType sound = HitSoundReference.soundType(note.type, note.hitSound);
             if (HitSoundReference.isCustom(note.hitSound)) {
-                custom = new LinkedHashMap<>();
-                int[] fallback = new int[NOTE_TYPE_COUNT];
-                fallback[note.type.ordinal()] = 1;
-                custom.put(note.hitSound, fallback);
-            } else counts[sound.ordinal()] = 1;
+                if (custom.isEmpty()) custom = new LinkedHashMap<>();
+                custom.computeIfAbsent(note.hitSound, ignored -> new int[NOTE_TYPE_COUNT])
+                        [note.type.ordinal()]++;
+            } else counts[sound.ordinal()]++;
         }
         return new Cue(0, counts, custom);
     }

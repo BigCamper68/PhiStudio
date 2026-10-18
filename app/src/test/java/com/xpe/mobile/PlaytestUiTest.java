@@ -1,9 +1,13 @@
 package com.xpe.mobile;
 
 import android.app.AlertDialog;
+import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.os.SystemClock;
+import android.os.Handler;
+import com.xpe.mobile.audio.EditorAudioController;
+import com.xpe.mobile.audio.HitSoundTimeline;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,12 +20,15 @@ import com.xpe.mobile.playtest.PlaytestClock;
 import com.xpe.mobile.playtest.PlaytestOptions;
 import com.xpe.mobile.preview.PlaytestJudge;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.*;
 import org.robolectric.shadows.ShadowSystemClock;
+import org.robolectric.shadow.api.Shadow;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -141,6 +148,64 @@ public class PlaytestUiTest {
         assertEquals(2, screen.judge().count(PlaytestJudge.Grade.PERFECT));
         assertEquals(1000000, screen.judge().score()); frame(screen);
         assertEquals(2, screen.judge().judged()); screen.close();
+    }
+    @Test @Config(shadows = RecordingAudioController.class)
+    public void oneChordReachesTheAudioConsumerAsOneIndivisibleSubmission() throws Exception {
+        MainActivity a = activity(); ChartDocument c = a.editorView.getChart();
+        c.judgeLines.get(0).notes.clear();
+        c.judgeLines.get(0).notes.add(new Note()); c.judgeLines.get(0).notes.add(new Note()); c.markEdited();
+        RecordingAudioController audio = recordAudio(a);
+        PlaytestView screen = screen(a, c); frame(screen); long down = SystemClock.uptimeMillis();
+        pointers(screen, down, MotionEvent.ACTION_DOWN, new int[]{3}, new float[]{480});
+        pointers(screen, down, MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                new int[]{3, 9}, new float[]{480, 480});
+        frame(screen);
+        assertEquals(2, screen.judge().count(PlaytestJudge.Grade.PERFECT));
+        assertEquals("The audio consumer must not run between the two hits", 1, audio.cues.size());
+        assertEquals(2, audio.cues.get(0).noteCount());
+        assertEquals(2, audio.cues.get(0).count(NoteType.TAP));
+        frame(screen); assertEquals(1, audio.cues.size()); screen.close();
+    }
+    @Test @Config(shadows = RecordingAudioController.class)
+    public void holdHeadsShareOneAudioOnsetAndTailsDoNotReplayIt() throws Exception {
+        MainActivity a = activity(); ChartDocument c = a.editorView.getChart(); c.judgeLines.get(0).notes.clear();
+        for (int i = 0; i < 2; i++) {
+            Note n = new Note(); n.type = NoteType.HOLD; n.endTime = new BeatTime(2, 0, 1);
+            c.judgeLines.get(0).notes.add(n);
+        }
+        c.markEdited(); RecordingAudioController audio = recordAudio(a);
+        PlaytestView screen = screen(a, c); frame(screen); long down = SystemClock.uptimeMillis();
+        pointers(screen, down, MotionEvent.ACTION_DOWN, new int[]{3}, new float[]{480});
+        pointers(screen, down, MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                new int[]{3, 9}, new float[]{480, 480}); frame(screen);
+        assertEquals(0, screen.judge().judged()); assertEquals(1, audio.cues.size());
+        assertEquals(2, audio.cues.get(0).count(NoteType.HOLD));
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(1)); frame(screen);
+        assertEquals(2, screen.judge().count(PlaytestJudge.Grade.PERFECT));
+        assertEquals(1, audio.cues.size()); screen.close();
+    }
+    private RecordingAudioController recordAudio(MainActivity a) {
+        a.audioController = new EditorAudioController(a, new Handler(android.os.Looper.getMainLooper()),
+                new EditorAudioController.Listener() {
+                    public void onAudioStateChanged() { }
+                    public void onAudioCompleted() { }
+                    public void showMessage(String message) { }
+                    public boolean isHostUnavailable() { return false; }
+                });
+        return Shadow.extract(a.audioController);
+    }
+    @Implements(value = EditorAudioController.class, isInAndroidSdk = false)
+    public static class RecordingAudioController {
+        final List<HitSoundTimeline.Cue> cues = new ArrayList<>();
+        @Implementation protected void __constructor__(Activity a, Handler h, EditorAudioController.Listener listener) { }
+        @Implementation protected boolean isReady() { return false; }
+        @Implementation protected long durationMillis() { return 0; }
+        @Implementation protected void pause() { }
+        @Implementation protected void playHitSound(HitSoundTimeline.Cue cue) {
+            cues.add(cue);
+            // Let the consumer run for a complete PCM block before the next UI call.
+            ShadowSystemClock.advanceBy(Duration.ofMillis(5));
+        }
     }
     private PlaytestView screen(MainActivity a, ChartDocument c) {
         PlaytestView screen = new PlaytestView(a, c, 0, 0, () -> { });

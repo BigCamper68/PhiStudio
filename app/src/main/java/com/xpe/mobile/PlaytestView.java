@@ -18,6 +18,7 @@ import com.xpe.mobile.audio.HitSoundTimeline;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.editor.PreviewViewportCalculator;
 import com.xpe.mobile.model.ChartDocument;
+import com.xpe.mobile.model.Note;
 import com.xpe.mobile.playtest.PlaytestClock;
 import com.xpe.mobile.preview.ChartEvaluator;
 import com.xpe.mobile.preview.PlaytestJudge;
@@ -26,7 +27,9 @@ import com.xpe.mobile.preview.PreviewRenderer;
 import com.xpe.mobile.preview.PreviewShaderView;
 import com.xpe.mobile.preview.PreviewTextureDecoder;
 import com.xpe.mobile.preview.RenderScene;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Full-screen player. All chart input belongs to this window, never to the editor. */
@@ -46,6 +49,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     private final RectF area = new RectF(), viewport = new RectF();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Map<Integer, float[]> waitingFingers = new LinkedHashMap<>();
+    private final List<Note> hitNotes = new ArrayList<>();
     private Map<String, PreviewTextureDecoder.Texture> textures;
     private ScrollView panel;
     private PlaytestClock clock;
@@ -92,14 +96,14 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     private long now() { return SystemClock.uptimeMillis(); }
     private void restart() {
         activity.pauseAudio(); audioStarted = false;
+        hitNotes.clear();
         if (renderer != null) renderer.release();
         renderer = activity.editorView.createPlaytestRenderer();
         textures = activity.editorView.playtestLineTextures();
         playback = new PreviewPlaybackState();
         judge = new PlaytestJudge(chart, rpe170, settings.playerWidth / (double) settings.playerHeight, startSeconds);
         judge.setListener(hit -> {
-            if (hit.playsSound() && activity.audioController != null)
-                activity.audioController.playHitSound(HitSoundTimeline.forNote(hit.note));
+            if (hit.playsSound()) hitNotes.add(hit.note);
         });
         clock = new PlaytestClock(startSeconds, countdown, now());
         waitingFingers.clear();
@@ -137,7 +141,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     private void drawGame(Canvas canvas) {
         if (closed || viewport.isEmpty()) return;
         advanceClock();
-        if (clock.state() == PlaytestClock.State.PLAYING) judge.update(clock.seconds());
+        if (clock.state() == PlaytestClock.State.PLAYING) updateJudgements();
         Map<String, PreviewTextureDecoder.Texture> currentTextures = activity.editorView.playtestLineTextures();
         if (textures != currentTextures) { textures = currentTextures; renderer.setLineTextures(textures); }
         RenderScene scene = ChartEvaluator.evaluatePlaytest(chart, clock.seconds(),
@@ -158,6 +162,16 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
         input.invalidate();
         if (clock.state() == PlaytestClock.State.COUNTDOWN || clock.state() == PlaytestClock.State.PLAYING)
             game.postInvalidateOnAnimation();
+    }
+
+    private void updateJudgements() {
+        judge.update(clock.seconds());
+        if (hitNotes.isEmpty()) return;
+        // Per-note calls let the audio worker render between chord voices. Submit
+        // the complete judgement pass under one mixer lock, with a shared onset.
+        HitSoundTimeline.Cue cue = HitSoundTimeline.forNotes(hitNotes);
+        hitNotes.clear();
+        if (activity.audioController != null) activity.audioController.playHitSound(cue);
     }
 
     private void drawCountdown(Canvas canvas) {
@@ -229,7 +243,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     void pause() {
         if (closed || clock.state() == PlaytestClock.State.PAUSED || clock.state() == PlaytestClock.State.FINISHED) return;
         advanceClock();
-        if (clock.state() == PlaytestClock.State.PLAYING) judge.update(clock.seconds());
+        if (clock.state() == PlaytestClock.State.PLAYING) updateJudgements();
         clock.pause(); activity.pauseAudio(); audioStarted = false;
         judge.clearTouches(); waitingFingers.clear();
         showPanel(false); game.invalidate(); input.invalidate();
@@ -282,7 +296,7 @@ final class PlaytestView extends FrameLayout implements AutoCloseable {
     }
     @Override public void close() {
         if (closed) return;
-        closed = true; judge.clearTouches(); waitingFingers.clear(); activity.pauseAudio();
+        closed = true; judge.clearTouches(); waitingFingers.clear(); hitNotes.clear(); activity.pauseAudio();
         shaders.hidePreview(); renderer.release();
     }
     @Override protected void onDetachedFromWindow() { close(); super.onDetachedFromWindow(); }
