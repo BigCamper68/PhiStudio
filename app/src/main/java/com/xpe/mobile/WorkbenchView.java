@@ -131,7 +131,6 @@ final class WorkbenchView extends ViewGroup {
     }
 
     void setShaderOpener(Runnable opener) { shaderOpener = opener; }
-    boolean isShaderEditorOpen() { return shadersOpen; }
     void showShaders(ShaderEditorView view) {
         if (shaderEditor != view) {
             if (shaderEditor != null) removeView(shaderEditor);

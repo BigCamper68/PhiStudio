@@ -239,6 +239,29 @@ public class LanguageSwitchTest {
         restarted.onConfigurationChanged();assertEquals("设置",restarted.resources().getString(R.string.settings_title));
     }
 
+    @Test @Config(sdk=33) public void startupAndConfigurationCallbacksDoNotChangePlatformLanguage() {
+        Context base = activity.getBaseContext();
+        base.getSharedPreferences("phistudio_language",0).edit().clear().commit();
+        LocaleManager manager = base.getSystemService(LocaleManager.class);
+        manager.setApplicationLocales(LocaleList.getEmptyLocaleList());
+        LanguageController fresh = new LanguageController(base);
+        assertEquals("en",fresh.selection());
+        assertTrue("Opening the editor must not request an Android locale change",manager.getApplicationLocales().isEmpty());
+        fresh.onConfigurationChanged();
+        assertTrue("Returning from another app must not write a platform configuration",manager.getApplicationLocales().isEmpty());
+    }
+
+    @Test @Config(sdk=33) public void savedChineseChoiceRemainsAvailableWithoutRewritingPlatformSettings() {
+        activity.languages.select("zh-CN");
+        LocaleManager manager=activity.getSystemService(LocaleManager.class);
+        manager.setApplicationLocales(LocaleList.getEmptyLocaleList());
+        activity.languages.onConfigurationChanged();
+        LanguageController reopened=new LanguageController(activity.getBaseContext());
+        assertEquals("zh-CN",reopened.selection());
+        assertEquals("设置",reopened.resources().getString(R.string.settings_title));
+        assertTrue(manager.getApplicationLocales().isEmpty());
+    }
+
     @Test @Config(sdk=33) public void externalPlatformSelectionAndPseudoLocalesReachExistingViews() {
         TextView title = new TextView(activity); UiText.text(title,R.string.settings_title);
         activity.languages.setLanguageChanged(() -> UiText.relocalize(title));
@@ -251,7 +274,7 @@ public class LanguageSwitchTest {
         manager.setApplicationLocales(LocaleList.getEmptyLocaleList());activity.languages.onConfigurationChanged();
         assertEquals("en",activity.languages.selection());
         assertEquals("Settings",title.getText().toString());
-        assertEquals("en",manager.getApplicationLocales().toLanguageTags());
+        assertTrue(manager.getApplicationLocales().isEmpty());
     }
 
     @Test public void emptyLegacyChoiceBecomesPersistedEnglish() {

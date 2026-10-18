@@ -21,25 +21,8 @@ public final class LanguageController {
     public LanguageController(Context base) {
         this.base = base;
         store = base.getSharedPreferences("phistudio_language", Context.MODE_PRIVATE);
-        if (Build.VERSION.SDK_INT >= 33) {
-            LocaleManager manager = base.getSystemService(LocaleManager.class);
-            // Import a pre-Android-13 preference once; the platform owns subsequent choices.
-            if (!store.getBoolean("platform_migrated", false)) {
-                String legacy = store.getString("locale", "");
-                if (manager.getApplicationLocales().isEmpty() && supported(legacy))
-                    manager.setApplicationLocales(LocaleList.forLanguageTags(legacy));
-                store.edit().putBoolean("platform_migrated", true).apply();
-            }
-            selection = manager.getApplicationLocales().toLanguageTags();
-            if (selection.isEmpty()) {
-                selection = "en";
-                manager.setApplicationLocales(LocaleList.forLanguageTags(selection));
-            }
-        } else {
-            selection = store.getString("locale", "en");
-            if (!supported(selection)) selection = "en";
-            store.edit().putString("locale", selection).apply();
-        }
+        selection = readSelection();
+        if (supported(selection)) store.edit().putString("locale", selection).apply();
         refreshResources();
     }
 
@@ -54,24 +37,26 @@ public final class LanguageController {
         if (!supported(tag)) throw new IllegalArgumentException("Unsupported locale: " + tag);
         if (selection.equals(tag)) return;
         selection = tag;
+        store.edit().putString("locale", tag).apply();
         if (Build.VERSION.SDK_INT >= 33) base.getSystemService(LocaleManager.class)
                 .setApplicationLocales(LocaleList.forLanguageTags(tag));
-        else store.edit().putString("locale", tag).apply();
         refreshResources();
         if (languageChanged != null) languageChanged.run();
     }
 
     public void onConfigurationChanged() {
-        if (Build.VERSION.SDK_INT >= 33) {
-            LocaleManager manager = base.getSystemService(LocaleManager.class);
-            selection = manager.getApplicationLocales().toLanguageTags();
-            if (selection.isEmpty()) {
-                selection = "en";
-                manager.setApplicationLocales(LocaleList.forLanguageTags(selection));
-            }
-        }
+        selection = readSelection();
         refreshResources();
         if (languageChanged != null) languageChanged.run();
+    }
+
+    private String readSelection() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            String platform = base.getSystemService(LocaleManager.class).getApplicationLocales().toLanguageTags();
+            if (!platform.isEmpty()) return platform;
+        }
+        String saved = store.getString("locale", "en");
+        return supported(saved) ? saved : "en";
     }
 
     private boolean supported(String tag) {

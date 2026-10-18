@@ -8,9 +8,6 @@ import android.os.Looper;
 import android.os.Bundle;
 import com.xpe.mobile.io.ChartIo;
 import com.xpe.mobile.model.ChartDocument;
-import com.xpe.mobile.model.JudgeLine;
-import com.xpe.mobile.model.Note;
-import com.xpe.mobile.model.BeatTime;
 import com.xpe.mobile.packageio.ChartPackage;
 import com.xpe.mobile.packageio.ProjectWorkspaceCreator;
 import com.xpe.mobile.project.ProjectLibrary;
@@ -31,7 +28,6 @@ import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowChoreographer;
 import org.robolectric.util.ReflectionHelpers;
-import org.json.JSONObject;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -40,123 +36,6 @@ import static org.junit.Assert.*;
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 @LooperMode(LooperMode.Mode.PAUSED)
 public class EditorSessionLifecycleTest {
-    @Test public void backgroundRecreationKeepsUnsavedChartPositionLineZoomAndSelectionWithAutosaveOff() throws Exception {
-        ActivityController<MainActivity> first=withProject().start().resume();
-        MainActivity activity=first.get(); settle(activity); activity.projectBrowser.dismiss();
-        activity.editorSettings.autosaveEnabled=false;
-        ChartDocument chart=activity.editorView.getChart(); chart.name="In progress";
-        chart.judgeLines.add(new JudgeLine()); Note note=new Note();
-        while (chart.judgeLines.get(1).eventLayers.size()<3) chart.judgeLines.get(1).eventLayers.add(new com.xpe.mobile.model.EventLayer());
-        note.startTime=new BeatTime(421,3,4); note.endTime=note.startTime; chart.judgeLines.get(1).notes.add(note);
-        activity.editorView.markChartDirty();
-        activity.editorView.restoreEditorSession(new JSONObject("{\"line\":1,\"layer\":2,\"beat\":421.747,\"zoom\":167.5,\"division\":12,\"xGrid\":33,\"tab\":2,\"panel\":\"EDIT\",\"note\":0,\"notes\":[0],\"tool\":\"FLICK\"}"));
-        Bundle state=new Bundle(); first.pause().stop().saveInstanceState(state).destroy();
-        android.os.Parcel parcel=android.os.Parcel.obtain();
-        try { parcel.writeBundle(state); assertTrue("Chart data must not enter Android's saved-state transaction",parcel.dataSize()<8192); }
-        finally { parcel.recycle(); }
-        ActivityController<MainActivity> second=Robolectric.buildActivity(MainActivity.class).create(state);
-        try {
-            settle(second.get());
-            assertEquals("In progress",second.get().editorView.getChart().name);
-            assertEquals(421.747,second.get().editorView.getCurrentBeat(),0);
-            assertEquals(1,second.get().editorView.getLineIndex()); assertEquals(2,second.get().editorView.getEventLayerIndex());
-            assertEquals(12,second.get().editorView.getSubdivision()); assertEquals(2,second.get().editorView.getWorkbenchTab());
-            assertEquals(167.5,second.get().editorView.saveEditorSession().getDouble("zoom"),.001);
-            assertSame(second.get().editorView.getCurrentJudgeLine().notes.get(0),second.get().editorView.getSelectedPropertyTarget());
-            assertFalse(browserShowing(second.get()));
-        } finally { second.destroy(); }
-    }
-
-    @Test public void standaloneDraftSurvivesBackgroundWithPeriodicAutosaveDisabled() throws Exception {
-        ActivityController<MainActivity> first=Robolectric.buildActivity(MainActivity.class).create().start().resume();
-        MainActivity activity=first.get(); settle(activity); activity.projectBrowser.dismiss();
-        activity.editorSettings.autosaveEnabled=false;
-        ChartDocument chart=ChartDocument.fromJson("{}"); chart.id="background-draft"; chart.name="Unexported draft";
-        activity.editorView.setChart(chart); activity.editorView.markChartDirty(); activity.editorView.setProjectName("draft.json");
-        activity.editorView.restoreEditorSession(new JSONObject().put("beat",65.125).put("projectName","draft.json"));
-        Bundle state=new Bundle(); first.pause().stop().saveInstanceState(state).destroy();
-        ActivityController<MainActivity> second=Robolectric.buildActivity(MainActivity.class).create(state);
-        try {
-            settle(second.get()); assertEquals("Unexported draft",second.get().editorView.getChart().name);
-            assertEquals(65.125,second.get().editorView.getCurrentBeat(),0);
-            assertEquals("draft.json",second.get().editorView.saveEditorSession().getString("projectName"));
-            assertFalse(browserShowing(second.get()));
-        } finally { second.destroy(); }
-    }
-
-    @Test public void backgroundStopsTheEditorClockEvenWhileMusicIsUnavailable() throws Exception {
-        ActivityController<MainActivity> controller=withProject().start().resume();
-        try {
-            MainActivity activity=controller.get(); settle(activity); activity.projectBrowser.dismiss();
-            activity.editorView.restoreEditorSession(new JSONObject().put("beat",123.625));
-            activity.editorView.shaderEditorPlay(); assertTrue(activity.editorView.isPlaying());
-            controller.pause().stop();
-            org.robolectric.shadows.ShadowSystemClock.advanceBy(Duration.ofMinutes(5));
-            controller.restart().start().resume(); settle(activity);
-            assertFalse(activity.editorView.isPlaying()); assertEquals(123.625,activity.editorView.getCurrentBeat(),0);
-        } finally { controller.pause().stop().destroy(); }
-    }
-
-    @Test public void anInterruptedRestoreKeepsTheOriginalCheckpointForTheNextActivity() throws Exception {
-        ActivityController<MainActivity> first=withProject(); settle(first.get()); first.get().projectBrowser.dismiss();
-        first.get().editorView.restoreEditorSession(new JSONObject().put("beat",88.75));
-        Bundle state=new Bundle(); first.saveInstanceState(state).destroy();
-        ActivityController<MainActivity> interrupted=Robolectric.buildActivity(MainActivity.class).create(state);
-        Bundle again=new Bundle(); interrupted.saveInstanceState(again).destroy();
-        ActivityController<MainActivity> restored=Robolectric.buildActivity(MainActivity.class).create(again);
-        try { settle(restored.get()); assertEquals(88.75,restored.get().editorView.getCurrentBeat(),0); }
-        finally { restored.destroy(); }
-    }
-
-    @Test public void taskHistoryRestoresTheEditorEvenWithoutASavedInstanceBundle() throws Exception {
-        ActivityController<MainActivity> first=withProject().start().resume();
-        settle(first.get()); first.get().projectBrowser.dismiss();
-        first.get().editorView.restoreEditorSession(new JSONObject().put("beat",333.125));
-        int taskId=first.get().getTaskId(); first.pause().stop().destroy();
-        Intent history=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                .addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY);
-        ActivityController<MainActivity> second=Robolectric.buildActivity(MainActivity.class,history).create();
-        try {
-            assertEquals(taskId,second.get().getTaskId()); settle(second.get());
-            assertEquals(333.125,second.get().editorView.getCurrentBeat(),0);
-            assertFalse(browserShowing(second.get()));
-        } finally { second.destroy(); }
-    }
-
-    @Test public void historyForAnotherTaskDoesNotApplyAnOldEditorCheckpoint() throws Exception {
-        ActivityController<MainActivity> first=withProject().start().resume();
-        settle(first.get()); first.get().projectBrowser.dismiss();
-        first.get().editorView.restoreEditorSession(new JSONObject().put("beat",333.125));
-        first.pause().stop().destroy();
-        File checkpoint=new File(first.get().getNoBackupFilesDir(),"editor-session.json");
-        JSONObject saved=new JSONObject(new String(java.nio.file.Files.readAllBytes(checkpoint.toPath()),java.nio.charset.StandardCharsets.UTF_8));
-        saved.put("task",first.get().getTaskId()+1);
-        java.nio.file.Files.write(checkpoint.toPath(),saved.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        Intent history=new Intent(Intent.ACTION_MAIN).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY);
-        ActivityController<MainActivity> second=Robolectric.buildActivity(MainActivity.class,history).create();
-        try {
-            settle(second.get()); assertEquals(0,second.get().editorView.getCurrentBeat(),0);
-            assertTrue(browserShowing(second.get()));
-        } finally { second.destroy(); }
-    }
-
-    @Test public void recreationKeepsMusicSelectedSeparatelyFromTheChartPackage() throws Exception {
-        ActivityController<MainActivity> first=withProject().start().resume();
-        settle(first.get()); first.get().projectBrowser.dismiss();
-        File music=new File(first.get().getFilesDir(),"alternate-music.ogg");
-        java.nio.file.Files.write(music.toPath(),new byte[]{8,9,10});
-        android.net.Uri selected=android.net.Uri.fromFile(music);
-        first.get().mainPreviewResources.loadAudio(selected,true);
-        first.get().editorView.restoreEditorSession(new JSONObject().put("beat",88.75));
-        Bundle state=new Bundle(); first.pause().stop().saveInstanceState(state).destroy();
-        ActivityController<MainActivity> second=Robolectric.buildActivity(MainActivity.class).create(state);
-        try {
-            settle(second.get()); assertEquals(selected,second.get().audioController.sourceUri());
-            assertEquals(88.75,second.get().editorView.getCurrentBeat(),0);
-            assertFalse(browserShowing(second.get()));
-        } finally { second.destroy(); }
-    }
-
     @Before public void pauseFrames() { ShadowChoreographer.setPaused(true); }
 
     private void settle(MainActivity activity) throws Exception {
@@ -181,6 +60,68 @@ public class EditorSessionLifecycleTest {
                 new ByteArrayInputStream(new byte[]{1, 3, 5}), new ByteArrayInputStream(new byte[]{2, 4, 6}));
         library.addImportedProject("resume-test", pack, System.currentTimeMillis());
         return controller.create();
+    }
+
+    @Test public void backgroundDisplayLayoutChangesKeepTheRunningEditorAndAudio() throws Exception {
+        ActivityController<MainActivity> controller=withProject().start().resume();
+        try {
+            MainActivity activity=controller.get(); settle(activity); activity.projectBrowser.dismiss();
+            ChartDocument chart=activity.editorView.getChart(); Object audio=activity.audioController;
+            activity.editorView.addJudgeLine(); int lines=chart.judgeLines.size();
+            ReflectionHelpers.setField(activity.editorView,"currentBeat",421.747);
+            controller.pause().stop();
+            android.content.res.Configuration resized=new android.content.res.Configuration(activity.getResources().getConfiguration());
+            resized.smallestScreenWidthDp++;
+            controller.configurationChange(resized);
+            assertSame("A display layout change while another app is open must keep the editor",activity,controller.get());
+            int size=resized.screenLayout & android.content.res.Configuration.SCREENLAYOUT_SIZE_MASK;
+            resized.screenLayout=(resized.screenLayout & ~android.content.res.Configuration.SCREENLAYOUT_SIZE_MASK)
+                    | (size==android.content.res.Configuration.SCREENLAYOUT_SIZE_NORMAL
+                        ? android.content.res.Configuration.SCREENLAYOUT_SIZE_LARGE : android.content.res.Configuration.SCREENLAYOUT_SIZE_NORMAL);
+            controller.configurationChange(resized);
+            assertSame(activity,controller.get());
+            controller.restart().start().resume(); settle(activity);
+            assertSame(chart,activity.editorView.getChart()); assertSame(audio,activity.audioController);
+            assertEquals(421.747,activity.editorView.getCurrentBeat(),0); assertFalse(browserShowing(activity));
+            activity.editorView.performUndo(); assertEquals(lines-1,chart.judgeLines.size());
+            activity.editorView.performRedo(); assertEquals(lines,chart.judgeLines.size());
+        } finally { controller.destroy(); }
+    }
+
+    @Test public void returningFromTheFilePickerKeepsUnsavedEditsViewportAndUndo() throws Exception {
+        ActivityController<MainActivity> controller=withProject().start().resume();
+        try {
+            MainActivity activity=controller.get(); settle(activity); activity.projectBrowser.dismiss();
+            activity.editorSettings.autosaveEnabled=false;
+            ChartDocument chart=activity.editorView.getChart(); Object audio=activity.audioController;
+            activity.editorView.addJudgeLine(); int lines=chart.judgeLines.size();
+            ReflectionHelpers.setField(activity.editorView,"currentBeat",88.75);
+            ReflectionHelpers.setField(activity.editorView,"pixelsPerBeat",167.5f);
+            int generation=ReflectionHelpers.getField(audio,"audioLoadGeneration");
+            activity.requestAudio(); controller.pause().stop().saveInstanceState(new Bundle());
+            activity.onActivityResult(MainActivity.OPEN_AUDIO,MainActivity.RESULT_CANCELED,null);
+            controller.restart().start().resume(); settle(activity);
+            assertSame(chart,activity.editorView.getChart()); assertSame(audio,activity.audioController);
+            assertEquals(generation,(int)ReflectionHelpers.getField(audio,"audioLoadGeneration"));
+            assertEquals(88.75,activity.editorView.getCurrentBeat(),0);
+            assertEquals(167.5f,(float)ReflectionHelpers.getField(activity.editorView,"pixelsPerBeat"),0);
+            assertEquals(lines,chart.judgeLines.size()); assertFalse(browserShowing(activity));
+            activity.editorView.performUndo(); assertEquals(lines-1,chart.judgeLines.size());
+            activity.editorView.performRedo(); assertEquals(lines,chart.judgeLines.size());
+        } finally { controller.destroy(); }
+    }
+
+    @Test public void backgroundPausesTheEditorClockWhileAudioIsUnavailable() throws Exception {
+        ActivityController<MainActivity> controller=withProject().start().resume();
+        try {
+            MainActivity activity=controller.get(); settle(activity); activity.projectBrowser.dismiss();
+            ReflectionHelpers.setField(activity.editorView,"currentBeat",123.625);
+            activity.editorView.shaderEditorPlay(); assertTrue(activity.editorView.isPlaying());
+            controller.pause().stop();
+            org.robolectric.shadows.ShadowSystemClock.advanceBy(Duration.ofMinutes(5));
+            controller.restart().start().resume(); settle(activity);
+            assertFalse(activity.editorView.isPlaying()); assertEquals(123.625,activity.editorView.getCurrentBeat(),0);
+        } finally { controller.destroy(); }
     }
 
     @Test public void coldLaunchShowsProjectsWithTheLastChartAvailable() throws Exception {
@@ -208,8 +149,8 @@ public class EditorSessionLifecycleTest {
     }
 
     @Test public void fullRestartReopensProjectsAfterAnEditorSession() throws Exception {
-        ActivityController<MainActivity> first = withProject().start().resume();
-        settle(first.get()); first.get().projectBrowser.dismiss(); first.pause().stop().destroy();
+        ActivityController<MainActivity> first = withProject();
+        settle(first.get()); first.get().projectBrowser.dismiss(); first.destroy();
         ActivityController<MainActivity> second = Robolectric.buildActivity(MainActivity.class).create();
         try {
             settle(second.get());

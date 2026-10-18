@@ -99,11 +99,10 @@ final class MainPreviewResources {
     }
 
     void restoreAudioReference() {
-        Uri restored = delegateOwner.mainEditorSession.restoredAudioSource(null, delegateOwner.editorView.getChart());
         String stored = delegateOwner.getPreferences(MainActivity.MODE_PRIVATE).getString("audio_uri", "");
-        if (restored == null && stored.isEmpty()) return;
+        if (stored.isEmpty()) return;
         try {
-            delegateOwner.mainPreviewResources.loadAudio(restored == null ? Uri.parse(stored) : restored, false);
+            delegateOwner.mainPreviewResources.loadAudio(Uri.parse(stored), false);
         } catch (Exception ignored) {
             delegateOwner.getPreferences(MainActivity.MODE_PRIVATE).edit().remove("audio_uri").apply();
         }

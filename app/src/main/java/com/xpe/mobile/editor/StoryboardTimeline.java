@@ -50,39 +50,6 @@ final class StoryboardTimeline {
         touchSlop = ViewConfiguration.get(view.getContext()).getScaledTouchSlop();
     }
     boolean active() { return gesture != Gesture.NONE; }
-    org.json.JSONObject saveSession() throws org.json.JSONException {
-        syncScope();
-        org.json.JSONArray selected = new org.json.JSONArray(), clipboard = new org.json.JSONArray();
-        for (java.util.Map.Entry<ExtendedLineEvents.TimedEvent, StoryboardEventType> item : selectedItems.entrySet())
-            selected.put(new org.json.JSONObject().put("type", item.getValue().name())
-                    .put("index", scope.extended.events(item.getValue()).indexOf(item.getKey())));
-        for (Item item : copied) clipboard.put(new org.json.JSONObject().put("type", item.type.name()).put("value", item.event.toJson()));
-        return new org.json.JSONObject().put("type", type.name()).put("scroll", scroll / view.density)
-                .put("selected", selected).put("clipboard", clipboard).put("clipboardActive", clipboardActive);
-    }
-    void restoreSession(org.json.JSONObject state) throws org.json.JSONException {
-        if (state == null) return;
-        syncScope(); selectedItems.clear(); copied.clear();
-        type = EditorSessionState.value(StoryboardEventType.class, state.optString("type"), TYPES[0]);
-        org.json.JSONArray selected = state.optJSONArray("selected"), clipboard = state.optJSONArray("clipboard");
-        if (scope != null && scope.extended != null && selected != null) for (int i = 0; i < selected.length(); i++) {
-            org.json.JSONObject ref = selected.getJSONObject(i);
-            StoryboardEventType kind = StoryboardEventType.valueOf(ref.getString("type"));
-            java.util.List<? extends ExtendedLineEvents.TimedEvent> items = scope.extended.events(kind);
-            int index = ref.optInt("index", -1);
-            if (index >= 0 && index < items.size()) selectedItems.put(items.get(index), kind);
-        }
-        if (clipboard != null) for (int i = 0; i < clipboard.length(); i++) {
-            org.json.JSONObject ref = clipboard.getJSONObject(i), data = ref.getJSONObject("value");
-            StoryboardEventType kind = StoryboardEventType.valueOf(ref.getString("type"));
-            ExtendedLineEvents.TimedEvent event = kind == StoryboardEventType.COLOR ? ExtendedLineEvents.ColorEvent.fromJson(data)
-                    : kind == StoryboardEventType.TEXT ? ExtendedLineEvents.TextEvent.fromJson(data) : ExtendedLineEvents.NumericEvent.fromJson(data);
-            copied.add(new Item(kind, event));
-        }
-        clipboardActive = state.optBoolean("clipboardActive"); primarySelection();
-        double savedScroll = state.optDouble("scroll", 0);
-        scroll = (float) (Double.isFinite(savedScroll) ? Math.max(0, savedScroll) : 0) * view.density;
-    }
     void reset() { scope = null; selection = null; selectedItems.clear(); copied.clear(); clipboardActive = false;
         type = TYPES[0]; scroll = 0; cancel(); }
     void cancel() { gesture = Gesture.NONE; candidate = null; pendingSelection = null; }
