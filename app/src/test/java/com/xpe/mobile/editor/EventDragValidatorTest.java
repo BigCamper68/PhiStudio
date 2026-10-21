@@ -48,7 +48,6 @@ public final class EventDragValidatorTest {
                         beat(1.0), beat(2.0)));
     }
 
-
     @Test
     public void onlySameTypeEventsInTheSameLayerConflict() {
         EventLayer firstLayer = new EventLayer();

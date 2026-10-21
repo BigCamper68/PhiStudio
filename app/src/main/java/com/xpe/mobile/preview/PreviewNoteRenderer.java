@@ -26,7 +26,7 @@ final class PreviewNoteRenderer {
         Point start = PreviewNoteRenderer.notePoint(projection, line, note.x, headDistance,
                 note.above, note.isHold());
         float naturalWidth = (float) (projection.viewport.width() * PreviewRenderer.NOTE_WIDTH_RATIO)
-                * delegateOwner.textures.widthScale(note.multiHit);
+                * delegateOwner.textures.widthScale(note.multiHit) * delegateOwner.noteScale;
         float width = Math.abs(naturalWidth * (float) note.size);
         if (width < 0.5f) return;
         float angle = PreviewRenderer.lineScreenAngle(line.rotationDegrees);

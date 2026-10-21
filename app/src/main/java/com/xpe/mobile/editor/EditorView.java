@@ -79,8 +79,13 @@ public final class EditorView extends EditorChromeView {
         return true;
     }
 
+    @Override public boolean onHoverEvent(MotionEvent event) {
+        return previewNoteSource.hover(event) || super.onHoverEvent(event);
+    }
+
     @Override
     protected void cancelActiveGesture() {
+        previewNoteSource.cancelGesture();
         editorBottomBarUi.cancelTouch();
         editorGestureRouter.cancel();
         if (storyboardTimeline != null) storyboardTimeline.cancel();

@@ -240,6 +240,9 @@ abstract class EditorSurfaceView extends View {
     public final void drawTimelineSelection(Canvas canvas, RectF rect, float startY, float endY) {
         editorTimelinePainter.drawTimelineSelection(canvas, rect, startY, endY);
     }
+    public final void drawTimelineKeySelection(Canvas canvas, RectF rect, float timeY) {
+        editorTimelinePainter.drawTimelineKeySelection(canvas, rect, timeY);
+    }
     public final float timelineScale() { return pixelsPerBeat; }
     public final double timelineScrollMultiplier() { return settings.timelineScrollSpeed; }
     public final double eventScrollMultiplier() { return settings.eventScrollSpeed; }

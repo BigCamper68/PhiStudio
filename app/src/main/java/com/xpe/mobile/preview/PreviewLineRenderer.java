@@ -53,6 +53,11 @@ final class PreviewLineRenderer {
                     drawClippedLine(canvas, projection, line);
                     return;
                 }
+                if (CanvasLineClipper.needsClipping(line.x, line.y, line.scaleX,
+                        line.scaleY, projection.viewport.width() / (double) projection.viewport.height())) {
+                    drawCanvasClippedLine(canvas, projection, line);
+                    return;
+                }
                 int save = canvas.save();
                 canvas.translate(center.x, center.y);
                 canvas.rotate(PreviewRenderer.lineScreenAngle(line.rotationDegrees));
@@ -64,6 +69,22 @@ final class PreviewLineRenderer {
             }
         }
 
+    }
+
+    private void drawCanvasClippedLine(Canvas canvas, Projection projection, RenderScene.RenderLine line) {
+        RectF viewport = projection.viewport;
+        double[] polygon = CanvasLineClipper.polygon(line.x, line.y, line.rotationDegrees,
+                line.scaleX, line.scaleY, viewport.width() / (double) viewport.height());
+        if (polygon.length < 6) return;
+        clippedLine.reset();
+        double unit = viewport.width() * .5;
+        clippedLine.moveTo((float) (viewport.centerX() + polygon[0] * unit),
+                (float) (viewport.centerY() - polygon[1] * unit));
+        for (int i = 2; i < polygon.length; i += 2)
+            clippedLine.lineTo((float) (viewport.centerX() + polygon[i] * unit),
+                    (float) (viewport.centerY() - polygon[i + 1] * unit));
+        clippedLine.close();
+        canvas.drawPath(clippedLine, delegateOwner.paint);
     }
 
     private void drawClippedLine(Canvas canvas, Projection projection, RenderScene.RenderLine line) {

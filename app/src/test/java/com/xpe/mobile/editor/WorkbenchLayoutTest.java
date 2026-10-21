@@ -16,7 +16,7 @@ public class WorkbenchLayoutTest {
                 assertTrue(width - split >= Math.min(240 * d, width * .44f) - .01f);
                 assertTrue(width - split < Math.min(Math.max(280 * d, width * .36f), width * .48f));
                 assertEquals(76 * d, WorkbenchLayout.footer(d), .01f);
-                assertEquals(36 * d, WorkbenchLayout.workbenchFooter(d), .01f);
+                assertEquals(34 * d, WorkbenchLayout.workbenchFooter(d), .01f);
                 assertEquals(48 * d, WorkbenchLayout.toolbar(d), .01f);
             }
         }

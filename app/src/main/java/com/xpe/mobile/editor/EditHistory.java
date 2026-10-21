@@ -31,6 +31,16 @@ public final class EditHistory {
         notifyMutation();
     }
 
+    /** Coalesce an ongoing edit only while it is still the latest chart operation. */
+    public boolean replaceLast(Command expected, Command replacement) {
+        if (expected == null || undo.peek() != expected || !redo.isEmpty()) return false;
+        replacement.apply();
+        undo.pop();
+        undo.push(replacement);
+        notifyMutation();
+        return true;
+    }
+
     public boolean canUndo() {
         return !undo.isEmpty();
     }

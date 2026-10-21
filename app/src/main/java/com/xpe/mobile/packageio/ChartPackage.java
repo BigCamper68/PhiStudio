@@ -75,6 +75,7 @@ public final class ChartPackage {
         }
         this.entries = Collections.unmodifiableList(packageEntries);
         this.manifests = Collections.unmodifiableList(new ArrayList<>(manifests));
+        loadNoiseMarkerSizes();
         if (chart.backgroundDim == null) chart.backgroundDim = manifestBackgroundDim();
         // Phira reads this flag from ChartInfo (YAML), never from RPE META.
         chart.noteUniformScale = false;
@@ -95,6 +96,24 @@ public final class ChartPackage {
             if (comment >= 0) flag = flag.substring(0, comment);
             chart.useAttachUiFix = Boolean.parseBoolean(flag.trim());
             break;
+        }
+    }
+
+    private void loadNoiseMarkerSizes() {
+        chart.noiseMarkerSizes.clear();
+        for (var line : chart.judgeLines) {
+            if (com.xpe.mobile.preview.PhiraNoiseFieldMarkers.kind(line.texture) < 0
+                    || chart.noiseMarkerSizes.containsKey(line.texture)) continue;
+            try {
+                File file = PackageImporter.resolveInside(workspace, line.texture.replace('\\', '/'));
+                try (var input = new java.io.DataInputStream(new java.io.FileInputStream(file))) {
+                    if (input.readLong() != 0x89504e470d0a1a0aL || input.readInt() != 13
+                            || input.readInt() != 0x49484452) continue;
+                    int width = input.readInt(), height = input.readInt();
+                    if (width > 0 && height > 0 && width <= 65535 && height <= 65535)
+                        chart.noiseMarkerSizes.put(line.texture, new int[]{width, height});
+                }
+            } catch (java.io.IOException ignored) { /* Missing/invalid optional textures retain existing resource handling. */ }
         }
     }
 

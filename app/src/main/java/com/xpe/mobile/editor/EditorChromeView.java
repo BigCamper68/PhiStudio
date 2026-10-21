@@ -36,6 +36,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     final EditorPlayback editorPlayback = new EditorPlayback(this);
     final EditorPreviewUi editorPreviewUi = new EditorPreviewUi(this);
     final EditorToolbarUi editorToolbarUi = new EditorToolbarUi(this);
+    final EditorPreviewNoteSource previewNoteSource = new EditorPreviewNoteSource(this);
 
     public interface Callback {
         void requestOpen();
@@ -81,6 +82,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     private Runnable workbenchListener;
     ShaderTimeline previewShaders = ShaderTimeline.EMPTY;
     PreviewShaderView shaderView;
+    PreviewShaderView gridShaderView;
     final com.xpe.mobile.preview.PreviewPlaybackState previewPlayback =
             new com.xpe.mobile.preview.PreviewPlaybackState();
 
@@ -92,6 +94,13 @@ abstract class EditorChromeView extends EditorDocumentView {
     public void setWorkbenchListener(Runnable listener) { workbenchListener = listener; }
     public void setPreviewShaderView(PreviewShaderView view) {
         shaderView = view;
+        attachShaderListeners(view);
+    }
+    public void setGridPreviewShaderView(PreviewShaderView view) {
+        gridShaderView = view;
+        attachShaderListeners(view);
+    }
+    private void attachShaderListeners(PreviewShaderView view) {
         view.setFrameListener(this::invalidate);
         view.setErrorListener(message -> {
             if (callback != null) callback.showMessage(UiText.resources(getContext()).getString(R.string.preview_shader_error, message));
@@ -100,6 +109,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     public void setPreviewShaders(ShaderTimeline timeline) {
         previewShaders = timeline == null ? ShaderTimeline.EMPTY : timeline;
         if (shaderView != null) { shaderView.hidePreview(); shaderView.resetFailure(); }
+        if (gridShaderView != null) { gridShaderView.hidePreview(); gridShaderView.resetFailure(); }
         invalidate();
     }
     public void updatePreviewShaders(ShaderTimeline timeline) {
@@ -124,6 +134,11 @@ abstract class EditorChromeView extends EditorDocumentView {
                                         double loopStart, double loopEnd) {
         editorPreviewUi.drawShaderEditorPreview(canvas, area, surface, loopStart, loopEnd);
     }
+    public void drawNoiseFieldEditorPreview(Canvas canvas, RectF area, PreviewShaderView surface,
+            double loopStart, double loopEnd, List<com.xpe.mobile.model.NoiseField> fields) {
+        editorPreviewUi.drawSceneEditorPreview(canvas, area, surface, loopStart, loopEnd, fields);
+    }
+    public void saveProjectFromMode() { if (callback != null) callback.requestProjectSave(); }
     @Override public void invalidate() {
         super.invalidate();
         if (workbenchListener != null) workbenchListener.run();
@@ -138,6 +153,7 @@ abstract class EditorChromeView extends EditorDocumentView {
     public boolean isXYBindingEnabled() { return xyBindingEnabled; }
     public void setWorkbenchTab(int tab) {
         cancelActiveGesture();
+        previewNoteSource.reset();
         previewMode = false;
         int next = Math.max(0, Math.min(2, tab));
         if (next != workbenchTab) {
@@ -287,9 +303,10 @@ abstract class EditorChromeView extends EditorDocumentView {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawColor(Color.rgb(10, 14, 18));
         if (chart == null) {
+            canvas.drawColor(Color.rgb(10, 14, 18));
             if (shaderView != null) shaderView.hidePreview();
+            if (gridShaderView != null) gridShaderView.hidePreview();
             paint.setColor(Color.WHITE);
             paint.setTextSize(18f * density);
             canvas.drawText(getResources().getString(R.string.editor_no_chart), 24f * density, 48f * density, paint);
@@ -297,7 +314,11 @@ abstract class EditorChromeView extends EditorDocumentView {
         }
 
         if (playing) advancePlayback();
-        if (previewMode) editorPreviewUi.drawPreview(canvas);
+        if (previewMode) {
+            if (gridShaderView != null) gridShaderView.hidePreview();
+            canvas.drawColor(Color.rgb(10, 14, 18));
+            editorPreviewUi.drawPreview(canvas);
+        }
         else {
             if (shaderView != null) shaderView.hidePreview();
             drawEditor(canvas);
@@ -373,6 +394,7 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     void togglePreviewMode() {
         cancelActiveGesture();
+        previewNoteSource.reset();
         previewMode = !previewMode;
         invalidate();
     }
@@ -460,7 +482,9 @@ abstract class EditorChromeView extends EditorDocumentView {
 
     @Override
     protected void onDetachedFromWindow() {
+        previewNoteSource.reset();
         if (shaderView != null) shaderView.hidePreview();
+        if (gridShaderView != null) gridShaderView.hidePreview();
         setBackgroundIllustration(null);
         setPreviewLineTextures(null);
         super.onDetachedFromWindow();

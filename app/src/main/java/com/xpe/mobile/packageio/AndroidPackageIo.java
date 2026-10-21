@@ -29,6 +29,13 @@ public final class AndroidPackageIo {
     public static void exportPackage(ContentResolver resolver, Uri uri, File privateTempDirectory,
                                      ChartPackage chartPackage, ChartDocument editedChart)
             throws IOException {
+        exportPackage(resolver, uri, privateTempDirectory, chartPackage, editedChart, Double.NaN,
+                com.xpe.mobile.preview.NoiseFieldRpeExport.hasCustomColors(editedChart));
+    }
+
+    public static void exportPackage(ContentResolver resolver, Uri uri, File privateTempDirectory,
+                                     ChartPackage chartPackage, ChartDocument editedChart,
+                                     double aspect, boolean phiraProColors) throws IOException {
         if (privateTempDirectory == null
                 || (!privateTempDirectory.isDirectory() && !privateTempDirectory.mkdirs())) {
             throw new IOException("Unable to create private export workspace");
@@ -36,7 +43,7 @@ public final class AndroidPackageIo {
         File temporary = File.createTempFile("xpe-package-export-", ".zip", privateTempDirectory);
         try {
             try (OutputStream file = new FileOutputStream(temporary)) {
-                new PackageExporter().exportPackage(chartPackage, editedChart, file);
+                new PackageExporter().exportPackage(chartPackage, editedChart, file, aspect, phiraProColors);
             }
             try (InputStream input = new FileInputStream(temporary);
                  OutputStream output = resolver.openOutputStream(uri, "wt")) {

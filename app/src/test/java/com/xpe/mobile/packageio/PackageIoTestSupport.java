@@ -1,11 +1,7 @@
 package com.xpe.mobile.packageio;
 
-import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
-import com.xpe.mobile.preview.PreviewShaderLoader;
-import com.xpe.mobile.preview.ShaderTimeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

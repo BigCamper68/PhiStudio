@@ -345,6 +345,24 @@ public final class ProjectLibraryTest {
     }
 
     @Test
+    public void oneUnsafeIndexedWorkspaceDoesNotAbortDiscoveryOfOtherProjects() throws Exception {
+        addImportedProject("healthy", normalEntries("Healthy"), 100L);
+        ChartPackage damaged = importProject("linked", normalEntries("Linked"));
+        library.addImportedProject("linked", damaged, 200L);
+        deleteRecursively(damaged.getWorkspace());
+        File outside = new File(temporaryRoot, "outside-workspace");
+        assertTrue(outside.mkdirs());
+        Files.createSymbolicLink(damaged.getWorkspace().toPath(), outside.toPath());
+        try {
+            ProjectLibrary.Discovery discovery = library.discoverWorkspaces();
+            assertEquals(2, discovery.getState().getProjects().size());
+            assertEquals(1, discovery.getIssues().size());
+            assertIssue(discovery.getIssues(), "linked", ProjectLibrary.WorkspaceStatus.DAMAGED);
+            assertTrue(library.openProject("healthy", 300L).getChartPackage().getWorkspace().isDirectory());
+        } finally { Files.delete(damaged.getWorkspace().toPath()); }
+    }
+
+    @Test
     public void duplicateFailureLeavesOriginalAndIndexUnchanged() throws Exception {
         ChartPackage original = importProject("dup-source", normalEntries("Duplicate failure"));
         library.addImportedProject("dup-source", original, 100L);

@@ -1,6 +1,7 @@
 package com.xpe.mobile.preview;
 
 import android.graphics.Bitmap;
+import android.content.res.AssetManager;
 import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.opengl.GLES11Ext;
@@ -43,8 +44,15 @@ public final class ShaderGlRenderer implements AutoCloseable {
     private Program externalCopy;
     private int width, height, uploadWidth, uploadHeight;
     private ShaderTimeline prepared;
+    private final AssetManager assets;
+    private NoiseFieldGlRenderer noiseFields;
 
     public ShaderGlRenderer(Consumer<String> errors) {
+        this(errors, null);
+    }
+
+    public ShaderGlRenderer(Consumer<String> errors, AssetManager assets) {
+        this.assets = assets;
         this.errors = errors;
         GLES20.glGenTextures(3, textures, 0);
         GLES20.glGenFramebuffers(2, fbos, 0);
@@ -116,6 +124,22 @@ public final class ShaderGlRenderer implements AutoCloseable {
     public void renderLayers(ShaderCanvasLayer gameplay, ShaderCanvasLayer overlay, int width, int height,
                              ShaderTimeline timeline, double seconds, RectF viewport,
                              int outputWidth, int outputHeight) {
+        renderLayers(null, gameplay, overlay, width, height, timeline, seconds, viewport,
+                outputWidth, outputHeight, NoiseFieldFrame.EMPTY);
+    }
+
+    public void renderLayers(ShaderCanvasLayer backdrop, ShaderCanvasLayer gameplay,
+                             ShaderCanvasLayer overlay, int width, int height,
+                             ShaderTimeline timeline, double seconds, RectF viewport,
+                             int outputWidth, int outputHeight, NoiseFieldFrame fields) {
+        renderLayers(backdrop, gameplay, overlay, width, height, timeline, seconds, viewport,
+                outputWidth, outputHeight, fields, 1f);
+    }
+
+    public void renderLayers(ShaderCanvasLayer backdrop, ShaderCanvasLayer gameplay,
+                             ShaderCanvasLayer overlay, int width, int height,
+                             ShaderTimeline timeline, double seconds, RectF viewport,
+                             int outputWidth, int outputHeight, NoiseFieldFrame fields, float opacity) {
         prepare(timeline);
         resize(width, height);
         if (externalCopy == null) externalCopy = new Program(EXTERNAL_COPY, EXTERNAL_VERTEX);
@@ -123,8 +147,21 @@ public final class ShaderGlRenderer implements AutoCloseable {
         GLES20.glDisable(GLES20.GL_CULL_FACE);
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
         GLES20.glDisable(GLES20.GL_BLEND);
+        if (fields.visible()) {
+            if (noiseFields == null) noiseFields = new NoiseFieldGlRenderer(assets);
+            noiseFields.prepare(fields, Math.max(1, Math.round(viewport.width())),
+                    Math.max(1, Math.round(viewport.height())));
+        }
         target(0);
+        if (backdrop != null) {
+            drawLayer(backdrop);
+            if (fields.visible()) noiseFields.disabled(fbos[0], viewport, height);
+            target(0);
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        }
         drawLayer(gameplay);
+        GLES20.glDisable(GLES20.GL_BLEND);
         int current = effects(timeline, seconds, viewport, false, 0);
         target(current);
         GLES20.glEnable(GLES20.GL_BLEND);
@@ -132,7 +169,8 @@ public final class ShaderGlRenderer implements AutoCloseable {
         drawLayer(overlay);
         GLES20.glDisable(GLES20.GL_BLEND);
         current = effects(timeline, seconds, viewport, true, current);
-        present(current, outputWidth, outputHeight);
+        if (fields.visible()) noiseFields.active(textures[current], fbos[current], viewport, width, height);
+        present(current, outputWidth, outputHeight, opacity < 1 ? backdrop : null, opacity);
     }
 
     private void drawLayer(ShaderCanvasLayer layer) {
@@ -146,6 +184,11 @@ public final class ShaderGlRenderer implements AutoCloseable {
     }
 
     private void present(int current, int outputWidth, int outputHeight) {
+        present(current, outputWidth, outputHeight, null, 1f);
+    }
+
+    private void present(int current, int outputWidth, int outputHeight,
+                         ShaderCanvasLayer backdrop, float opacity) {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
         GLES20.glViewport(0, 0, outputWidth, outputHeight);
         // Display is opaque, just like prpr's final screen blit. Some original presets write RGB only.
@@ -153,7 +196,16 @@ public final class ShaderGlRenderer implements AutoCloseable {
         GLES20.glClearColor(0, 0, 0, 1);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         GLES20.glColorMask(true, true, true, false);
+        if (backdrop != null) {
+            drawLayer(backdrop);
+            // Fade the complete effect over the unchanged grid illustration in GPU memory.
+            // Grid lines and editable notes remain above this TextureView.
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendColor(0, 0, 0, Math.max(0, Math.min(1, opacity)));
+            GLES20.glBlendFunc(GLES20.GL_CONSTANT_ALPHA, GLES20.GL_ONE_MINUS_CONSTANT_ALPHA);
+        }
         draw(copy, textures[current], false, 1, 1);
+        GLES20.glDisable(GLES20.GL_BLEND);
         GLES20.glColorMask(true, true, true, true);
         check("render");
     }
@@ -252,6 +304,7 @@ public final class ShaderGlRenderer implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (noiseFields != null) noiseFields.close();
         for (Program program : programs.values()) if (program != null) program.close();
         programs.clear(); copy.close();
         if (externalCopy != null) externalCopy.close();

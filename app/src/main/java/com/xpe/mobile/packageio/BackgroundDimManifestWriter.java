@@ -31,6 +31,10 @@ final class BackgroundDimManifestWriter {
         }
         // Do not change the package format for an unchanged/default dim.
         if (dim == ChartDocument.DEFAULT_BACKGROUND_DIM) return null;
+        return create(pack, chart);
+    }
+
+    static String create(ChartPackage pack, ChartDocument chart) {
         return "name: " + JSONObject.quote(chart.getDisplayName()) + "\n"
                 + "level: " + JSONObject.quote(chart.getDisplayLevel()) + "\n"
                 + "composer: " + JSONObject.quote(chart.getDisplayComposer()) + "\n"
@@ -40,7 +44,7 @@ final class BackgroundDimManifestWriter {
                 + asset("illustration", pack.getIllustrationPath())
                 + "offset: " + java.math.BigDecimal.valueOf(pack.getManifestOffsetMs(), 3).toPlainString() + "\n"
                 + "useRpe170Speed: " + pack.isUseRpe170Speed() + "\n"
-                + "backgroundDim: " + Double.toString(dim) + "\n";
+                + "backgroundDim: " + Double.toString(chart.getBackgroundDim()) + "\n";
     }
 
     private static String asset(String key, String path) {

@@ -35,7 +35,7 @@ final class PackageChartSelection {
         }
         try {
             return new JsonCandidate(
-                    candidate.path, new JSONObject(source), null, candidate.format);
+                    candidate.path, com.xpe.mobile.preview.NoiseFieldRpeSource.parse(source), null, candidate.format);
         } catch (JSONException exception) {
             throw new IOException("Unable to parse the selected chart candidate", exception);
         }
@@ -48,18 +48,7 @@ final class PackageChartSelection {
         Map<String, JsonCandidate> rpeByPath = PackageImporter.byPath(rpeCandidates);
         Map<String, JsonCandidate> officialByPath = PackageImporter.byPath(officialCandidates);
         Map<String, JsonCandidate> pecByPath = PackageImporter.byPath(legacyPecCandidates);
-        Set<String> hints = new LinkedHashSet<>();
-        for (PackageManifest manifest : manifests) {
-            String hint = manifest.get("chart");
-            if (hint == null || hint.trim().isEmpty()) continue;
-            try {
-                hints.add(PackageImporter.resolveManifestPath(manifest.getPath(), hint));
-            } catch (PackageException exception) {
-                throw new PackageException(PackageException.Code.INVALID_MANIFEST_PATH,
-                        "Manifest contains an unsafe chart path: " + hint);
-            }
-        }
-
+        Set<String> hints = manifestChartPaths(manifests);
         Set<JsonCandidate> referencedRpe = new LinkedHashSet<>();
         Set<JsonCandidate> referencedOfficial = new LinkedHashSet<>();
         Set<JsonCandidate> referencedPec = new LinkedHashSet<>();
@@ -92,6 +81,22 @@ final class PackageChartSelection {
         }
         throw new PackageException(PackageException.Code.MISSING_CHART,
                 "No supported RPE, official Phigros, or legacy PEC chart was found in the package");
+    }
+
+    static Set<String> manifestChartPaths(List<PackageManifest> manifests) throws PackageException {
+        Set<String> hints = new LinkedHashSet<>();
+        for (PackageManifest manifest : manifests) {
+            String hint = manifest.get("chart");
+            if (hint == null || hint.trim().isEmpty()) continue;
+            try {
+                hints.add(PackageImporter.resolveManifestPath(manifest.getPath(), hint));
+            } catch (PackageException exception) {
+                throw new PackageException(PackageException.Code.INVALID_MANIFEST_PATH,
+                        "Manifest contains an unsafe chart path: " + hint);
+            }
+        }
+
+        return hints;
     }
 
     static void validateOfficialCandidate(JSONObject root) throws PackageException {
@@ -129,10 +134,30 @@ final class PackageChartSelection {
     }
 
     static boolean looksLikeLegacyPec(File file) throws IOException {
-        byte[] buffer = new byte[64 * 1024];
+        byte[] buffer;
         int length;
-        try (InputStream input = new FileInputStream(file)) {
-            length = input.read(buffer);
+        try (BufferedInputStream input = new BufferedInputStream(new FileInputStream(file))) {
+            input.mark(64 * 1024);
+            int first = input.read();
+            int scanned = 1;
+            if (first == 0xef) {
+                if (input.read() != 0xbb || input.read() != 0xbf) return false;
+                first = input.read();
+                scanned = 4;
+            }
+            while (first >= 0 && first <= 32 && first != '\n' && scanned < 64 * 1024) {
+                first = input.read(); scanned++;
+            }
+            if (scanned >= 64 * 1024) return false;
+            if (!(first >= '0' && first <= '9') && first != '+' && first != '-' && first != '.') return false;
+            input.reset();
+            buffer = new byte[64 * 1024];
+            length = 0;
+            int count;
+            while (length < buffer.length
+                    && (count = input.read(buffer, length, buffer.length - length)) != -1) {
+                length += count;
+            }
         }
         if (length <= 0) return false;
         String prefix = new String(buffer, 0, length, StandardCharsets.UTF_8);

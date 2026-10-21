@@ -8,6 +8,8 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
+import android.graphics.Rect;
+import com.xpe.mobile.editor.CenterCropCalculator;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.editor.NoteTextureSet;
 import com.xpe.mobile.model.NoteType;
@@ -23,7 +25,7 @@ public final class PreviewRenderer {
     final PreviewPaintRenderer previewPaintRenderer = new PreviewPaintRenderer(this);
 
     static final double NOTE_WIDTH_RATIO = 989.0 / 8000.0;
-    private static final NoteType[] NOTE_DRAW_ORDER = {
+    static final NoteType[] NOTE_DRAW_ORDER = {
             NoteType.HOLD, NoteType.DRAG, NoteType.TAP, NoteType.FLICK
     };
 
@@ -37,8 +39,15 @@ public final class PreviewRenderer {
     final PhiraTextPainter textPainter;
     Map<String, PreviewTextureDecoder.Texture> lineTextures = Collections.emptyMap();
     private boolean showHud = true;
+    float noteScale = 1f;
 
     public void setShowHud(boolean value) { showHud = value; }
+
+    /** Picks from the sampled scene using the same projection, textures and draw order as rendering. */
+    public PreviewNotePicker.Hit pickNote(RenderScene scene, RectF viewport, EditorSettings settings,
+                                        float x, float y, float padding) {
+        return PreviewNotePicker.pick(this, scene, viewport, settings, x, y, padding);
+    }
 
     public void release() {
         previewPaintRenderer.clearPaintSurfaces();
@@ -109,6 +118,49 @@ public final class PreviewRenderer {
         paint.setColor(argb((int) Math.round(255 * PhiraBackgroundMetrics.gameplayDim(chartBackgroundDim)), 0));
         gameplay.drawRect(viewport, paint);
         drawScene(gameplay, scene, viewport, settings, activeLineIndex, false, false);
+        drawShaderOverlay(overlay, scene, viewport);
+    }
+
+    /** A separate backdrop lets native DisabledBlock appear below judge lines. */
+    public void drawSeparatedShaderLayers(Canvas backdrop, Canvas gameplay, Canvas overlay,
+                                         RenderScene scene, RectF viewport, RectF backgroundArea,
+                                         Bitmap background, EditorSettings settings,
+                                         int activeLineIndex, double chartBackgroundDim) {
+        paint.setFakeBoldText(false);
+        drawBackdrop(backdrop, backgroundArea, background);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(argb((int) Math.round(255 * PhiraBackgroundMetrics.gameplayDim(chartBackgroundDim)), 0));
+        backdrop.drawRect(viewport, paint);
+        drawScene(gameplay, scene, viewport, settings, activeLineIndex, false, false);
+        drawShaderOverlay(overlay, scene, viewport);
+    }
+
+    /** Same illustration/crop as the note grid; no preview veil or chart background dim. */
+    public void drawEditorBackdrop(Canvas canvas, RectF bounds, Bitmap background, EditorSettings settings) {
+        paint.setStyle(Paint.Style.FILL); paint.setColor(Color.rgb(10, 14, 18));
+        canvas.drawRect(bounds, paint);
+        if (background == null || background.isRecycled() || bounds.isEmpty()) return;
+        CenterCropCalculator.Crop crop = CenterCropCalculator.calculate(background.getWidth(),
+                background.getHeight(), bounds.width(), bounds.height());
+        backgroundPaint.setAlpha(settings.backgroundBrightness);
+        canvas.drawBitmap(background, new Rect(crop.left, crop.top, crop.right, crop.bottom), bounds, backgroundPaint);
+    }
+
+    /** Under-grid preview keeps its HUD hidden and hit particles after local shaders. */
+    public void drawEditorShaderLayers(Canvas backdrop, Canvas gameplay, Canvas overlay,
+                                       RenderScene scene, RectF viewport, RectF area, Bitmap background,
+                                       EditorSettings settings, int activeLineIndex) {
+        paint.setFakeBoldText(false);
+        drawEditorBackdrop(backdrop, area, background, settings);
+        drawScene(gameplay, scene, viewport, settings, activeLineIndex, false, false);
+        int save = overlay.save(); overlay.clipRect(viewport);
+        Projection projection = new Projection(viewport);
+        drawBadNotes(overlay, projection, scene);
+        previewHitEffects.drawHitEffects(overlay, projection, scene);
+        overlay.restoreToCount(save);
+    }
+
+    private void drawShaderOverlay(Canvas overlay, RenderScene scene, RectF viewport) {
         int save = overlay.save();
         overlay.clipRect(viewport);
         Projection projection = new Projection(viewport);
@@ -127,6 +179,8 @@ public final class PreviewRenderer {
     private void drawScene(Canvas canvas, RenderScene scene, RectF viewport,
                            EditorSettings settings, int activeLineIndex,
                            boolean includeHud, boolean includeParticles) {
+        noteScale = Double.isFinite(settings.previewNoteScale)
+                ? (float) Math.max(.8, Math.min(1.2, settings.previewNoteScale)) : 1f;
         int save = canvas.save();
         canvas.clipRect(viewport);
         Projection projection = new Projection(viewport);

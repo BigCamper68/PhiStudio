@@ -9,16 +9,22 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
-            android:name=".MainActivity"
+            android:name=".app.MainActivity"
             android:launchMode="singleTask"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|locale|layoutDirection"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             tools:ignore="DiscouragedApi">
+        </activity>
+        <!-- Retain the installed launcher component across the package reorganization. -->
+        <activity-alias
+            android:name=".MainActivity"
+            android:targetActivity=".app.MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
     </application>
 </manifest>

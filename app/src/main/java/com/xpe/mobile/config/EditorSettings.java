@@ -6,11 +6,14 @@ public final class EditorSettings {
     public double soundEffectVolume = 1.0;
     public boolean highlightSimultaneousNotes = true;
     public double noteWidthPixels = 58.0;
+    public double previewNoteScale = 1.0;
     public boolean showFakeNoteOutline = true;
     public boolean markLineId = true;
     public boolean highlightCurrentLine = true;
     public int lineColorRgb = 0x5BD3AC;
     public int backgroundBrightness = 50;
+    public boolean gridPreviewShaders = true;
+    public boolean gridPreviewNoiseFields = true;
     public int tapFlickHitsoundOffsetMs;
     public int dragHitsoundOffsetMs = 0;
 
@@ -53,11 +56,14 @@ public final class EditorSettings {
         copy.soundEffectVolume = soundEffectVolume;
         copy.highlightSimultaneousNotes = highlightSimultaneousNotes;
         copy.noteWidthPixels = noteWidthPixels;
+        copy.previewNoteScale = previewNoteScale;
         copy.showFakeNoteOutline = showFakeNoteOutline;
         copy.markLineId = markLineId;
         copy.highlightCurrentLine = highlightCurrentLine;
         copy.lineColorRgb = lineColorRgb;
         copy.backgroundBrightness = backgroundBrightness;
+        copy.gridPreviewShaders = gridPreviewShaders;
+        copy.gridPreviewNoiseFields = gridPreviewNoiseFields;
         copy.tapFlickHitsoundOffsetMs = tapFlickHitsoundOffsetMs;
         copy.dragHitsoundOffsetMs = dragHitsoundOffsetMs;
         copy.autosaveEnabled = autosaveEnabled;
@@ -97,6 +103,7 @@ public final class EditorSettings {
         return inRange(musicVolume, 0.0, 1.0)
                 && inRange(soundEffectVolume, 0.0, 1.0)
                 && finitePositive(noteWidthPixels)
+                && inRange(previewNoteScale, 0.8, 1.2)
                 && lineColorRgb >= 0 && lineColorRgb <= 0xFFFFFF
                 && backgroundBrightness >= 0 && backgroundBrightness <= 255
                 && finitePositive(autosaveIntervalSeconds)

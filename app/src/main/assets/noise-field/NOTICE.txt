@@ -1,0 +1,29 @@
+Phigros 4 noise field rendering reference
+
+The shader programs are GLES2 adaptations of compiled GLSL ES 3 programs extracted
+from Phigros 4.0.1. Their arithmetic, precision qualifiers and material parameters
+are retained. These are compiled game shaders, not the original Unity ShaderLab
+or the complete official game source code.
+
+Published extraction, disassembly and textures:
+https://github.com/CHCAT1320/CHCAT-Docs/tree/054fcfdddc4ddf66b1bbecc45df0d5264e3d3852/knowladge/phigros
+Corrected texture exports and original hover sprite:
+https://github.com/Phira-Pro/Phira-Pro/tree/b67e5e845b58e3cf89d674e782a9b3bd0f5e8af8/assets/blockarea
+
+Game artwork and compiled shaders remain the work of Pigeon Games and their
+respective authors. No ownership of the original game resources is claimed.
+The Java integration, host validation adapter and extraction adapter are PhiStudio
+code. Source hashes and pinned revisions are in sources.json.
+
+The GLES adapter removes GLSL3 interface/location syntax, converts texture calls
+to texture2D and maps scalar/RG render outputs into RGBA attachments. Explicit
+LOD-zero sampling is equivalent on the bundled textures without mipmaps.
+The game clock replaces Unity's global _Time so paused frames, seeking and video
+export remain deterministic. All noise field event times remain in seconds.
+
+Checkpoint 9's PhiraNoiseFieldMarkers adapter follows the Phira-Pro Line2Area
+lifecycle and canvas transform implementation at
+https://github.com/Phira-Pro/Phira-Pro/blob/abf652d2bbf1e04e6e5e0619edd4d5623a52634c/prpr/src/core/rpe_block.rs
+Phira-Pro/Phira source is distributed under GNU GPL version 3; see the bundled
+../shaders/LICENSE-phira.txt. The source checkpoint includes the adapted Java
+implementation and build instructions.

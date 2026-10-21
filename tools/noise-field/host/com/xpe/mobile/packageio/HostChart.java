@@ -1,0 +1,3 @@
+package com.xpe.mobile.packageio;
+import com.xpe.mobile.model.*;import java.util.zip.*;import java.nio.charset.StandardCharsets;import org.json.*;
+public final class HostChart {public static ChartDocument load(String archive)throws Exception{try(ZipFile zip=new ZipFile(archive)){var entry=zip.stream().filter(e->e.getName().endsWith(".json")&&!e.getName().endsWith("extra.json")).findFirst().orElseThrow();try(var input=zip.getInputStream(entry)){JSONObject root=new JSONObject(new String(input.readAllBytes(),StandardCharsets.UTF_8));return root.has("formatVersion")?OfficialPhigrosConverter.convert(root):ChartDocument.fromParsedJson(root);}}}}

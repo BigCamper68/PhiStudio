@@ -138,6 +138,13 @@ public final class JudgeLine {
         return copy;
     }
 
+    /** RPE image anchor is independent of note/line transforms. Preserve its raw JSON. */
+    public float[] imageAnchor() {
+        JSONArray anchor = raw == null ? null : raw.optJSONArray("anchor");
+        return new float[]{anchor == null ? .5f : (float) anchor.optDouble(0, .5),
+                anchor == null ? .5f : (float) anchor.optDouble(1, .5)};
+    }
+
     private static boolean rotationInheritance(Object value) {
         return value instanceof Boolean ? (Boolean) value
                 : value instanceof Number && ((Number) value).intValue() != 0;

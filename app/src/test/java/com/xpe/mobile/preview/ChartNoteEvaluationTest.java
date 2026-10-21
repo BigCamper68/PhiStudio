@@ -4,21 +4,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.xpe.mobile.model.AttachedUiElement;
-import com.xpe.mobile.model.BeatTime;
 import com.xpe.mobile.model.BpmChange;
 import com.xpe.mobile.model.ChartDocument;
-import com.xpe.mobile.model.EventLayer;
 import com.xpe.mobile.model.EventType;
-import com.xpe.mobile.model.ExtendedLineEvents;
 import com.xpe.mobile.model.JudgeLine;
-import com.xpe.mobile.model.LineEvent;
 import com.xpe.mobile.model.Note;
-import com.xpe.mobile.model.NoteControlEvents;
 import com.xpe.mobile.model.NoteType;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.junit.Test;
 
 public final class ChartNoteEvaluationTest extends ChartEvaluatorTestSupport {

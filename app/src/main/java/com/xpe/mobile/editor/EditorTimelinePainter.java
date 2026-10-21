@@ -137,6 +137,17 @@ final class EditorTimelinePainter {
         delegateOwner.drawEventHandles(canvas, rect.centerX(), startY, endY, false);
     }
 
+    final void drawTimelineKeySelection(Canvas canvas, RectF rect, float timeY) {
+        delegateOwner.drawSelection(canvas, rect);
+        delegateOwner.paint.setColor(Color.WHITE);
+        canvas.drawCircle(rect.centerX(), timeY, 9f * delegateOwner.density, delegateOwner.paint);
+        delegateOwner.paint.setColor(Color.rgb(25, 31, 38));
+        delegateOwner.paint.setTextAlign(Paint.Align.CENTER);
+        delegateOwner.paint.setTextSize(8f * delegateOwner.density);
+        canvas.drawText("S", rect.centerX(), timeY + 3f * delegateOwner.density, delegateOwner.paint);
+        delegateOwner.paint.setTextAlign(Paint.Align.LEFT);
+    }
+
     final void drawEventGrid(
             Canvas canvas, float left, float top, float right, float bottom) {
         delegateOwner.drawTimelineRows(canvas, left, top, right, bottom, delegateOwner.currentBeat, delegateOwner.pixelsPerBeat, delegateOwner.subdivision);

@@ -33,13 +33,13 @@ final class ProjectWorkspaceDiscovery {
         Set<String> indexed = new HashSet<>();
         for (ProjectRecord record : state.getProjects()) {
             indexed.add(record.getId());
-            File workspace = delegateOwner.projectWorkspaceFiles.resolveProjectDirectory(record.getId());
-            if (!workspace.isDirectory() || Files.isSymbolicLink(workspace.toPath())) {
-                issues.add(new WorkspaceIssue(WorkspaceStatus.MISSING, record.getId(),
-                        record.getName(), WorkspaceIssue.Reason.MISSING_WORKSPACE, true));
-                continue;
-            }
             try {
+                File workspace = delegateOwner.projectWorkspaceFiles.resolveProjectDirectory(record.getId());
+                if (!workspace.isDirectory() || Files.isSymbolicLink(workspace.toPath())) {
+                    issues.add(new WorkspaceIssue(WorkspaceStatus.MISSING, record.getId(),
+                            record.getName(), WorkspaceIssue.Reason.MISSING_WORKSPACE, true));
+                    continue;
+                }
                 new PackageWorkspaceLoader()
                         .validateIndexedWorkspace(workspace, record.getChartPath());
             } catch (PackageException exception) {

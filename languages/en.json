@@ -20,6 +20,8 @@
     "toolbar_redo": "Redo",
     "toolbar_menu": "Menu",
     "preview_status": "Preview · beat %1$.3f · BPM %2$.2f · %3$d notes · %4$d events",
+    "preview_note_source": "Line %1$d · %2$s · note %3$d · beat %4$s · Edit note ›",
+    "preview_edit_note": "Edit note",
     "preview_hud_autoplay": "AUTOPLAY",
     "menu_title": "Menu",
     "menu_section_projects": "Projects",
@@ -757,7 +759,118 @@
     "playtest_exit": "Back to editor",
     "playtest_stats": "Score  %1$07d    Accuracy  %2$.2f%%\nMax combo  %3$d / %4$d\nPerfect  %5$d    Good  %6$d    Bad  %7$d    Miss  %8$d",
     "playtest_invalid_number": "Enter a finite, non-negative value",
-    "playtest_invalid_time": "Invalid time"
+    "playtest_invalid_time": "Invalid time",
+    "settings_grid_preview": "Preview beneath the note grid",
+    "settings_grid_preview_help": "These options affect only the preview beneath the note grid.",
+    "settings_grid_preview_shaders": "Show shaders",
+    "settings_grid_preview_noise_fields": "Show noise fields",
+    "settings_preview_note_scale": "Preview note scale (0.800–1.200)",
+    "settings_preview_note_scale_help": "Scales notes and hit effects in all previews, Playtest and video export.",
+    "workbench_event": "Event",
+    "workbench_mode": "Editing mode",
+    "noise_title": "Noise Field",
+    "noise_fields": "Fields",
+    "noise_field": "Field %1$d",
+    "noise_add": "+ Field",
+    "noise_add_key": "+ Key",
+    "noise_field_tab": "Area",
+    "noise_move": "Move",
+    "noise_scale": "Scale",
+    "noise_rotate": "Rotate",
+    "noise_name": "Name (optional)",
+    "noise_subtract": "Subtract region",
+    "noise_type_help": "Subtraction uses native odd/even overlap. Coordinates are screen percentages; Y points up.",
+    "noise_appear": "Appear",
+    "noise_enable": "Enable",
+    "noise_disable": "Disable",
+    "noise_disappear": "Disappear",
+    "noise_left": "Left · %",
+    "noise_right": "Right · %",
+    "noise_bottom": "Bottom · %",
+    "noise_top": "Top · %",
+    "noise_x": "X · %",
+    "noise_y": "Y · %",
+    "noise_scale_x": "Scale X",
+    "noise_scale_y": "Scale Y",
+    "noise_angle": "Rotation · °",
+    "noise_anchor_x": "Anchor X · %",
+    "noise_anchor_y": "Anchor Y · %",
+    "noise_time": "Time",
+    "noise_key": "Key %1$d · %2$s",
+    "noise_keys": "Choose key",
+    "noise_no_keys": "No keys yet. Add one at the playhead to begin.",
+    "noise_empty": "Create a noise field at the playhead, or import a chart with block areas.",
+    "noise_apply": "Apply",
+    "noise_reset": "Reset draft",
+    "noise_invalid": "Check values. Use finite numbers; Appear ≤ Disappear and Enable ≤ Disable.",
+    "noise_pending": "Previewing unsaved changes",
+    "noise_duplicate": "Duplicate at playhead",
+    "noise_copy": "Copy field",
+    "noise_paste": "Paste at playhead",
+    "noise_delete": "Delete field",
+    "noise_delete_key": "Delete key",
+    "noise_duplicate_key": "Duplicate key at playhead",
+    "noise_shift": "Move whole field to playhead",
+    "noise_fullscreen": "Full-screen bounds",
+    "noise_more": "More",
+    "noise_snap": "Snap to beats",
+    "noise_guides": "Guides",
+    "noise_fit": "Fit",
+    "noise_zoom_in": "Zoom in",
+    "noise_zoom_out": "Zoom out",
+    "noise_seek": "Seek to time",
+    "noise_ease_x": "Easing X",
+    "noise_ease_y": "Easing Y",
+    "noise_ease": "Easing",
+    "noise_animation_help": "Easing and anchor belong to the outgoing key. Equal-time keys are allowed; the last one wins. Scale may be zero or negative.",
+    "noise_help": "Each field has its own vertical grid: Area, Active, Move, Scale and Rotate. Switch fields below without moving the playhead; Locate seeks to their appearance. All fields shows one lane per field, with horizontal header scrolling; tap a block to open its grid. Drag vertically to seek, pinch to zoom, and drag selected S/E handles to change times. Tap a key to edit its values. Valid property changes save immediately. Undo/Redo groups a continuous edit in one input or palette. Invalid input stays highlighted and keeps the last valid value. Delete field/key removes the selection; Undo restores it. Edges ⇄ switches between bounds and center/size. Fields supports search and a snapshot at the playhead. Scale/Rotate have screen anchor presets. More → Guides toggles the selected outline and yellow key anchor. Colors export automatically for Phira-Pro; Native red restores Phigros colors.",
+    "noise_timeline": "Noise field timeline",
+    "noise_preview": "Noise field preview",
+    "noise_search": "Find a field…",
+    "noise_loop": "Loop field",
+    "noise_seconds": "Seconds",
+    "noise_beats": "Beats",
+    "noise_basics": "Bounds and lifetime",
+    "noise_phase_help": "Native seconds are stored in the chart. Beat display follows the chart BPM. Fade and touch/audio behavior follow Phigros automatically.",
+    "noise_normal": "Normal",
+    "noise_subtract_short": "Subtract",
+    "noise_help_title": "Editing noise fields",
+    "noise_choose_key": "Choose a key, or add one at the playhead.",
+    "noise_clock": "Noise Field · %1$s · %2$s",
+    "noise_activation": "Active",
+    "noise_deleted": "Field deleted. Undo restores it.",
+    "noise_filter_all": "All",
+    "noise_filter_here": "At playhead",
+    "noise_state_active": "Active",
+    "noise_state_ready": "Ready",
+    "noise_state_inactive": "Inactive",
+    "noise_state_outside": "Outside lifetime",
+    "noise_field_detail": "%1$s · %2$s · %3$d keys",
+    "noise_field_count": "%1$d / %2$d fields · %3$s",
+    "noise_no_matches": "No matching fields. Try another filter or search.",
+    "noise_bounds": "Edges ⇄",
+    "noise_center_size": "Center/size ⇄",
+    "noise_center_x": "Center X · %",
+    "noise_center_y": "Center Y · %",
+    "noise_width": "Width · %",
+    "noise_height": "Height · %",
+    "noise_invalid_number": "Enter a finite number.",
+    "noise_time_order": "%1$s must not be after %2$s.",
+    "noise_anchor_presets": "Anchor presets",
+    "noise_anchor_presets_help": "Screen anchors: X increases right, Y increases up. The middle is 50%, 50%.",
+    "noise_anchor_preset": "Anchor: X %1$d%%, Y %2$d%%",
+    "noise_guides_help": "Guides outline the selected field, even outside its lifetime (dashed). Yellow marks the selected key’s anchor. Toggle in More → Guides.",
+    "noise_previous_key": "Previous key",
+    "noise_next_key": "Next key",
+    "noise_previous_field": "Previous field",
+    "noise_next_field": "Next field",
+    "noise_overview": "All fields",
+    "noise_selected_grid": "Field grid",
+    "noise_locate": "Locate",
+    "noise_locate_description": "Seek to the selected field’s appearance",
+    "noise_color": "Color",
+    "noise_color_default": "Native red",
+    "noise_color_help": "Color is saved and exported automatically for Phira-Pro. Exported fields stay editable in the Noise Field timeline. The package keeps its authored aspect ratio."
   },
   "plurals": {
     "complex_move_preview_ready": {
@@ -911,6 +1024,23 @@
       "Keep original values",
       "Add the same offset to every line",
       "Change the offset from first line to last"
+    ],
+    "noise_easings": [
+      "Linear",
+      "Quad in",
+      "Quad out",
+      "Quad in/out",
+      "Cubic in",
+      "Cubic out",
+      "Cubic in/out",
+      "Quart in",
+      "Quart out",
+      "Quart in/out",
+      "Quint in",
+      "Quint out",
+      "Quint in/out",
+      "Hold start",
+      "Jump to end"
     ]
   },
   "options": {
@@ -937,6 +1067,45 @@
     },
     "curve_notes_default_density": {
       "translatable": false
+    },
+    "noise_left": {
+      "formatted": false
+    },
+    "noise_right": {
+      "formatted": false
+    },
+    "noise_bottom": {
+      "formatted": false
+    },
+    "noise_top": {
+      "formatted": false
+    },
+    "noise_x": {
+      "formatted": false
+    },
+    "noise_y": {
+      "formatted": false
+    },
+    "noise_anchor_x": {
+      "formatted": false
+    },
+    "noise_anchor_y": {
+      "formatted": false
+    },
+    "noise_center_x": {
+      "formatted": false
+    },
+    "noise_center_y": {
+      "formatted": false
+    },
+    "noise_width": {
+      "formatted": false
+    },
+    "noise_height": {
+      "formatted": false
+    },
+    "noise_anchor_presets_help": {
+      "formatted": false
     }
   }
 }

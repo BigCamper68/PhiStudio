@@ -53,6 +53,7 @@ public final class PlaytestJudge {
     private final ChartDocument chart;
     private final PreparedChart prepared;
     private final double yScale;
+    private final NoiseFieldInput noiseFields;
     private final List<List<Entry>> lines = new ArrayList<>();
     private final int[] cursors;
     private final Map<Note, Entry> entries = new IdentityHashMap<>();
@@ -75,6 +76,7 @@ public final class PlaytestJudge {
         this.chart = chart;
         prepared = PreviewChartIndex.prepared(chart, useRpe170Speed);
         yScale = 1.5 / (Double.isFinite(aspect) && aspect > 0 ? aspect : 16.0 / 9);
+        noiseFields = new NoiseFieldInput(chart, prepared, 1.5 / yScale);
         cursors = new int[prepared.lines.length];
         lastTime = lastEnd = startSeconds;
         for (int li = 0; li < prepared.lines.length; li++) {
@@ -126,7 +128,9 @@ public final class PlaytestJudge {
     }
 
     /** Pause/cancellation must never leave a finger or a pending click behind. */
-    public void clearTouches() { fingers.clear(); inputs.clear(); }
+    public void clearTouches() { fingers.clear(); inputs.clear(); noiseFields.clear(); }
+    public boolean touchingNoiseField() { return noiseFields.touching(); }
+    NoiseFieldFrame noiseFieldFrame(double time) { return noiseFields.frame(time); }
 
     public void update(double time) {
         if (!Double.isFinite(time) || time < lastTime) return;
@@ -141,6 +145,11 @@ public final class PlaytestJudge {
         double trackerTime = lastTime;
         for (Input in : inputs) {
             trackerTime += step;
+            if (!noiseFields.event(in.id, in.phase, in.x, in.y, in.at)) {
+                Finger removed = frame.remove(in.id);
+                presses.remove(removed); fingers.remove(in.id);
+                continue;
+            }
             Finger f = frame.get(in.id);
             if (in.phase == Phase.DOWN) {
                 f = new Finger(in, (float) trackerTime);
@@ -153,6 +162,10 @@ public final class PlaytestJudge {
             }
         }
         inputs.clear();
+        for (int id : noiseFields.advance(time)) {
+            Finger removed = frame.remove(id);
+            presses.remove(removed); fingers.remove(id);
+        }
         List<Selection> selections = new ArrayList<>();
         Map<Entry, Selection> claimed = new IdentityHashMap<>();
         for (Finger f : presses) allocate(f, true, time, claimed, selections);

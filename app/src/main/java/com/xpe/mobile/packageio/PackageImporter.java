@@ -81,7 +81,9 @@ public final class PackageImporter {
                 analysis.selected.path, analysis.audioPath, analysis.illustrationPath,
                 analysis.manifestOffsetMs, analysis.useRpe170Speed,
                 chart, entries, analysis.manifests);
-        if (converted) PackageWorkspaceWriter.writeChart(result, chart);
+        // Keep restored fields as the project's editable source. Future opens do not
+        // depend on a transport fingerprint or repeat legacy animation reconstruction.
+        if (converted || chart.wasNoiseSourceRestored()) PackageWorkspaceWriter.writeChart(result, chart);
         return result;
     }
 
@@ -93,37 +95,28 @@ public final class PackageImporter {
     private WorkspaceAnalysis analyzeWorkspace(File workspace, String sourceDisplayName,
                                                 List<ChartPackage.Entry> entries) throws IOException {
         List<PackageManifest> manifests = packageResourceSelection.readManifests(workspace, entries);
-        List<JsonCandidate> rpeCandidates = new ArrayList<>();
-        List<JsonCandidate> officialCandidates = new ArrayList<>();
-        List<JsonCandidate> legacyPecCandidates = new ArrayList<>();
         Set<String> filePaths = new HashSet<>();
         for (ChartPackage.Entry entry : entries) {
-            if (entry.isDirectory()) continue;
-            filePaths.add(entry.getPath());
-            File file = resolveInside(workspace, entry.getPath());
-            if (looksLikeLegacyPec(file)) {
-                legacyPecCandidates.add(new JsonCandidate(
-                        entry.getPath(), ChartJsonFormat.LEGACY_PEC));
-                continue;
-            }
-            if (!looksLikeJsonObject(file)) continue;
-            String source = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            if (!source.isEmpty() && source.charAt(0) == '\ufeff') source = source.substring(1);
-            try {
-                JSONObject root = new JSONObject(source);
-                ChartJsonFormat format = ChartJsonFormatDetector.detect(root);
-                if (format == ChartJsonFormat.RPE) {
-                    rpeCandidates.add(new JsonCandidate(entry.getPath(), format));
-                } else if (format == ChartJsonFormat.OFFICIAL_PHIGROS) {
-                    officialCandidates.add(new JsonCandidate(entry.getPath(), format));
-                }
-            } catch (Exception ignored) {
-                // Non-chart JSON is an unknown package resource and remains preserved.
-            }
+            if (!entry.isDirectory()) filePaths.add(entry.getPath());
         }
 
-        JsonCandidate selected = PackageChartSelection.loadCandidate(workspace, packageChartSelection.selectChart(
-                manifests, rpeCandidates, officialCandidates, legacyPecCandidates));
+        // A unique supported manifest reference already determines the selected chart.
+        // Do not deserialize it twice or inspect every image, audio file and extra.json.
+        Set<String> hints = PackageChartSelection.manifestChartPaths(manifests);
+        JsonCandidate selected = null;
+        if (hints.size() == 1) {
+            String path = hints.iterator().next();
+            if (filePaths.contains(path)) {
+                File file = resolveInside(workspace, path);
+                if (looksLikeJsonObject(file)) {
+                    selected = readJsonCandidate(file, path);
+                } else if (looksLikeLegacyPec(file)) {
+                    selected = PackageChartSelection.loadCandidate(
+                            workspace, new JsonCandidate(path, ChartJsonFormat.LEGACY_PEC));
+                }
+            }
+        }
+        if (selected == null) selected = discoverChart(workspace, manifests, entries);
         if (selected.format == ChartJsonFormat.OFFICIAL_PHIGROS) {
             PackageChartSelection.validateOfficialCandidate(selected.root);
         }
@@ -139,6 +132,55 @@ public final class PackageImporter {
         boolean useRpe170Speed = PackageResourceSelection.selectUseRpe170Speed(manifests);
         return new WorkspaceAnalysis(manifests, selected, audioPath, illustrationPath,
                 projectName, manifestOffsetMs, useRpe170Speed);
+    }
+
+    private JsonCandidate discoverChart(File workspace, List<PackageManifest> manifests,
+                                       List<ChartPackage.Entry> entries) throws IOException {
+        List<String> jsonPaths = new ArrayList<>();
+        List<JsonCandidate> rpe = new ArrayList<>();
+        List<JsonCandidate> official = new ArrayList<>();
+        List<JsonCandidate> pec = new ArrayList<>();
+        for (ChartPackage.Entry entry : entries) {
+            if (entry.isDirectory()) continue;
+            File file = resolveInside(workspace, entry.getPath());
+            if (looksLikeJsonObject(file)) {
+                jsonPaths.add(entry.getPath());
+            } else if (looksLikeLegacyPec(file)) {
+                pec.add(new JsonCandidate(entry.getPath(), ChartJsonFormat.LEGACY_PEC));
+            }
+        }
+        JsonCandidate single = null;
+        for (String path : jsonPaths) {
+            JsonCandidate candidate = readJsonCandidate(
+                    resolveInside(workspace, path), path, jsonPaths.size() == 1);
+            if (candidate == null) continue;
+            if (candidate.format == ChartJsonFormat.RPE) rpe.add(new JsonCandidate(path, candidate.format));
+            else official.add(new JsonCandidate(path, candidate.format));
+            // Keep one parsed tree only when there cannot be another JSON tree in memory.
+            // Multi-chart/unknown-JSON packages retain the bounded-memory discovery path.
+            if (jsonPaths.size() == 1) single = candidate;
+        }
+        JsonCandidate choice = packageChartSelection.selectChart(manifests, rpe, official, pec);
+        return single != null && single.path.equals(choice.path)
+                ? single : PackageChartSelection.loadCandidate(workspace, choice);
+    }
+
+    private static JsonCandidate readJsonCandidate(File file, String path) throws IOException {
+        return readJsonCandidate(file, path, true);
+    }
+
+    private static JsonCandidate readJsonCandidate(File file, String path, boolean retainRoot) throws IOException {
+        String source = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        if (!source.isEmpty() && source.charAt(0) == '\ufeff') source = source.substring(1);
+        try {
+            JSONObject root = new JSONObject(source);
+            ChartJsonFormat format = ChartJsonFormatDetector.detect(root);
+            if (format == ChartJsonFormat.UNKNOWN) return null;
+            return retainRoot ? new JsonCandidate(path, root, null, format) : new JsonCandidate(path, format);
+        } catch (JSONException exception) {
+            // Unknown/malformed non-chart resources are preserved, not imported as charts.
+            return null;
+        }
     }
 
     static boolean looksLikeJsonObject(File file) throws IOException {

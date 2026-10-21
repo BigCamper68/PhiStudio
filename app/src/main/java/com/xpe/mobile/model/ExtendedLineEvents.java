@@ -419,7 +419,6 @@ public final class ExtendedLineEvents {
             return red << 16 | green << 8 | blue;
         }
 
-
     }
 
     public static final class TextEvent extends TimedEvent {

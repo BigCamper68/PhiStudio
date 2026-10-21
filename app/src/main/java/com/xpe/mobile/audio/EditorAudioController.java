@@ -169,6 +169,10 @@ public final class EditorAudioController implements AutoCloseable {
         if (!closed && manualJudgements && hitSoundPlayer != null) hitSoundPlayer.prepare();
     }
 
+    public void setNoiseFieldTouching(boolean touching) {
+        if (pcmAudioPlayer != null) pcmAudioPlayer.setNoiseFieldTouching(manualJudgements && touching);
+    }
+
     public void start(long positionMs, float speed) {
         if (manualJudgements) prepareManualHitSounds();
         else if (hitSoundPlayer != null) hitSoundPlayer.stop();
@@ -184,12 +188,14 @@ public final class EditorAudioController implements AutoCloseable {
     }
 
     public void pause() {
+        setNoiseFieldTouching(false);
         hitSoundStartGate.cancel();
         if (hitSoundPlayer != null) hitSoundPlayer.stop();
         if (pcmAudioPlayer != null) pcmAudioPlayer.pause();
     }
 
     public void seek(long positionMs) {
+        setNoiseFieldTouching(false);
         hitSoundStartGate.cancel();
         if (hitSoundPlayer != null) hitSoundPlayer.stop();
         if (isReady()) {

@@ -12,5 +12,5 @@ public final class WorkbenchLayout {
 
     public static float toolbar(float density) { return 48f * density; }
     public static float footer(float density) { return 76f * density; }
-    public static float workbenchFooter(float density) { return 36f * density; }
+    public static float workbenchFooter(float density) { return 34f * density; }
 }

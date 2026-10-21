@@ -179,7 +179,6 @@ public final class XYBindingCommandTest {
                 .getJSONObject(0).getInt("futureY"));
     }
 
-
     @Test
     public void pairedCutCopiesUnknownJsonToBothNewSegments() throws Exception {
         ChartDocument chart = ChartDocument.fromJson("{"

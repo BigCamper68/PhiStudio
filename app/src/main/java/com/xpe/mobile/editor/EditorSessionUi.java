@@ -39,6 +39,7 @@ final class EditorSessionUi {
     }
 
     void setChart(ChartDocument chart) {
+        delegateOwner.previewNoteSource.reset();
         delegateOwner.previewPlayback.reset();
         delegateOwner.setPreviewShaders(ShaderTimeline.EMPTY);
         delegateOwner.setBackgroundIllustration(null);

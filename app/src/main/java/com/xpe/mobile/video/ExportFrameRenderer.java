@@ -25,9 +25,9 @@ import java.util.concurrent.TimeUnit;
 final class ExportFrameRenderer implements AutoCloseable {
     private ShaderEglSession egl;
     private ShaderGlRenderer gl;
-    private ShaderCanvasLayer gameplay, overlay;
+    private ShaderCanvasLayer gameplay, overlay, backdrop;
     private final HandlerThread callbacks = new HandlerThread("PhiStudioExportBuffers");
-    private volatile CountDownLatch gameReady, overlayReady;
+    private volatile CountDownLatch gameReady, overlayReady, backdropReady;
     private NoteTextureSet textures;
     private PreviewRenderer renderer;
     private EditorBackgroundDecoder.Background background;
@@ -64,7 +64,7 @@ final class ExportFrameRenderer implements AutoCloseable {
             }
             renderer.setLineTextures(lineTextures);
             egl = new ShaderEglSession(encoder);
-            gl = new ShaderGlRenderer(message -> { throw new IllegalStateException(message); });
+            gl = new ShaderGlRenderer(message -> { throw new IllegalStateException(message); }, context.getAssets());
             gl.prepare(timeline);
             callbacks.start();
             Handler handler = new Handler(callbacks.getLooper());
@@ -72,6 +72,8 @@ final class ExportFrameRenderer implements AutoCloseable {
                     () -> { CountDownLatch ready = gameReady; if (ready != null) ready.countDown(); });
             overlay = new ShaderCanvasLayer(options.width, options.height, handler,
                     () -> { CountDownLatch ready = overlayReady; if (ready != null) ready.countDown(); });
+            if (!chart.noiseFields.isEmpty() || !chart.noiseMarkerSizes.isEmpty()) backdrop = new ShaderCanvasLayer(options.width, options.height, handler,
+                    () -> { CountDownLatch ready = backdropReady; if (ready != null) ready.countDown(); });
         } catch (RuntimeException | Error exception) { close(); throw exception; }
     }
 
@@ -82,19 +84,28 @@ final class ExportFrameRenderer implements AutoCloseable {
                 trackDurationMs, pack != null && pack.isUseRpe170Speed(),
                 options.width / (double) options.height, playback);
         gameReady = new CountDownLatch(1); overlayReady = new CountDownLatch(1);
-        Canvas game = null, hud = null;
+        backdropReady = backdrop == null ? null : new CountDownLatch(1);
+        Canvas game = null, hud = null, back = null;
         try {
-            game = gameplay.lock(true); hud = overlay.lock(false);
-            renderer.drawShaderLayers(game, hud, scene, viewport, viewport,
-                    background == null ? null : background.blurred, settings, -1, chart.getBackgroundDim());
+            game = gameplay.lock(backdrop == null); hud = overlay.lock(false);
+            if (backdrop != null) {
+                back = backdrop.lock(true);
+                renderer.drawSeparatedShaderLayers(back, game, hud, scene, viewport, viewport,
+                        background == null ? null : background.blurred, settings, -1, chart.getBackgroundDim());
+            } else renderer.drawShaderLayers(game, hud, scene, viewport, viewport,
+                        background == null ? null : background.blurred, settings, -1, chart.getBackgroundDim());
         } finally {
             try { if (hud != null) overlay.post(hud); }
-            finally { if (game != null) gameplay.post(game); }
+            finally {
+                try { if (game != null) gameplay.post(game); }
+                finally { if (back != null) backdrop.post(back); }
+            }
         }
         await(gameReady); await(overlayReady);
+        if (backdropReady != null) { await(backdropReady); backdrop.update(); }
         gameplay.update(); overlay.update();
-        gl.renderLayers(gameplay, overlay, options.width, options.height,
-                timeline, chartSeconds, viewport, options.width, options.height);
+        gl.renderLayers(backdrop, gameplay, overlay, options.width, options.height,
+                timeline, chartSeconds, viewport, options.width, options.height, scene.noiseFields);
         egl.presentAt(options.frameTimeUs(frame) * 1000);
     }
 
@@ -108,7 +119,8 @@ final class ExportFrameRenderer implements AutoCloseable {
 
     @Override public void close() {
         // Continue releasing independent resources even if a driver fails during teardown.
-        try { if (gameplay != null) gameplay.close(); }
+        try { if (backdrop != null) backdrop.close(); }
+        finally { try { if (gameplay != null) gameplay.close(); }
         finally { try { if (overlay != null) overlay.close(); }
         finally { try { if (gl != null) gl.close(); }
         finally { try { if (egl != null) egl.close(); }
@@ -118,6 +130,6 @@ final class ExportFrameRenderer implements AutoCloseable {
             PreviewTextureDecoder.recycleAll(lineTextures);
             if (background != null) background.recycle();
             if (textures != null) textures.recycle();
-        }}}}
+        }}}}}
     }
 }

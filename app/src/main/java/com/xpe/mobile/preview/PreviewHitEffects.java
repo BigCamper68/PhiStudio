@@ -40,7 +40,7 @@ final class PreviewHitEffects {
                 effect.localX, effect.localY, effect.rotationDegrees);
         float progress = (float) Math.max(0.0, Math.min(1.0, effect.progress));
         int alpha = Math.round(PrprParticleMotion.opacity(progress) * effect.alpha);
-        float radius = projection.viewport.width() * PrprParticleMotion.FX_SCALE / 10f;
+        float radius = projection.viewport.width() * PrprParticleMotion.FX_SCALE / 10f * delegateOwner.noteScale;
         if (!PreviewRenderer.isNearViewport(projection.viewport, point, projection.viewport.width() * .25f)) return;
 
         Bitmap hitEffect = delegateOwner.textures.hitEffectBitmap();
@@ -75,11 +75,11 @@ final class PreviewHitEffects {
         for (int index = 0; index < 4; index++) {
             double angle = PreviewHitEffects.particleAngle(effect.seed, index);
             float travel = (float) (projection.viewport.width() * .5 * motion.distance
-                    * (1 - .1 * PreviewHitEffects.deterministicFraction(effect.seed ^ 0x2188A513, index)));
+                    * (1 - .1 * PreviewHitEffects.deterministicFraction(effect.seed ^ 0x2188A513, index))) * delegateOwner.noteScale;
             float x = point.x + (float) Math.cos(angle) * travel;
             float y = point.y + (float) Math.sin(angle) * travel;
             float halfSize = projection.viewport.width() * PrprParticleMotion.FX_SCALE / 88f
-                    * (1 - .3f * PreviewHitEffects.deterministicFraction(effect.seed, index));
+                    * (1 - .3f * PreviewHitEffects.deterministicFraction(effect.seed, index)) * delegateOwner.noteScale;
             canvas.drawRect(x - halfSize, y - halfSize, x + halfSize, y + halfSize, delegateOwner.paint);
         }
     }

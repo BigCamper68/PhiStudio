@@ -73,6 +73,12 @@ abstract class EditorDocumentView extends EditorSurfaceView {
         return playing;
     }
 
+    public com.xpe.mobile.noiseeditor.NoiseFieldDocument createNoiseFieldDocument() {
+        com.xpe.mobile.model.ChartDocument scope = chart;
+        if (scope == null) throw new IllegalStateException("A chart is required");
+        return new com.xpe.mobile.noiseeditor.NoiseFieldDocument(scope, history, () -> chart == scope);
+    }
+
     public BpmApplyResult addBpmChange(BpmChange change) {
         return editorPropertyEdits.addBpmChange(change);
     }

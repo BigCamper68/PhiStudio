@@ -41,11 +41,14 @@ final class PackageMetadataManifestWriter {
     }
 
     private static String update(String original, String key, String value) {
+        return scalar(original, key, JSONObject.quote(value == null ? "" : value));
+    }
+
+    static String scalar(String original, String key, String scalar) {
         int rootIndent = PackageManifest.yamlRootIndent(original);
         Pattern pattern = Pattern.compile("(?im)^(\\ufeff?[ \\t]{" + rootIndent + "}" + key
                 + "[ \\t]*:[ \\t]*)([^\\r\\n]*)(\\r?$)");
         Matcher matcher = pattern.matcher(original);
-        String scalar = JSONObject.quote(value == null ? "" : value);
         if (!matcher.find()) {
             String newline = original.contains("\r\n") ? "\r\n" : "\n";
             return original + (original.isEmpty() || original.endsWith("\n") ? "" : newline)

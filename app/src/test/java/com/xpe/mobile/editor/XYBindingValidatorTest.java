@@ -49,7 +49,6 @@ public final class XYBindingValidatorTest {
         assertEquals(2, layer.events(EventType.MOVE_Y).size());
     }
 
-
     @Test
     public void duplicateIntervalsRemainAmbiguousEvenWhenAxisCountsMatch() {
         EventLayer layer = new EventLayer();

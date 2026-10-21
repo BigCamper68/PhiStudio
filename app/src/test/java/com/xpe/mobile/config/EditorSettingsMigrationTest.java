@@ -8,6 +8,31 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public final class EditorSettingsMigrationTest {
+    @Test public void previewNoteScaleDefaultsToOneAndPersistsWithoutChangingEditorNoteWidth() {
+        SharedPreferences prefs=preferences(new HashMap<>());
+        EditorSettings value=EditorSettingsStore.load(prefs);
+        assertEquals(1,value.previewNoteScale,0);
+        for(double scale:new double[]{.8,1,1.001,1.2}) {
+            value.previewNoteScale=scale;assertTrue(value.isValid());
+            EditorSettingsStore.save(prefs,value.copy());
+            assertEquals(scale,EditorSettingsStore.load(prefs).previewNoteScale,0);
+            assertEquals(58,EditorSettingsStore.load(prefs).noteWidthPixels,0);
+        }
+        for(double invalid:new double[]{.799,1.201,Double.NaN,Double.POSITIVE_INFINITY}) {
+            value.previewNoteScale=invalid;assertFalse(value.isValid());
+        }
+    }
+    @Test public void gridEffectsDefaultOnAndPersistIndependentlyAcrossCopiesAndUpgrades() {
+        SharedPreferences prefs = preferences(new HashMap<>());
+        EditorSettings value = EditorSettingsStore.load(prefs);
+        assertTrue(value.gridPreviewShaders); assertTrue(value.gridPreviewNoiseFields);
+        for (boolean shaders : new boolean[]{false, true}) for (boolean fields : new boolean[]{false, true}) {
+            value.gridPreviewShaders = shaders; value.gridPreviewNoiseFields = fields;
+            EditorSettingsStore.save(prefs, value.copy());
+            EditorSettings loaded = EditorSettingsStore.load(prefs);
+            assertEquals(shaders, loaded.gridPreviewShaders); assertEquals(fields, loaded.gridPreviewNoiseFields);
+        }
+    }
     @Test public void obsoleteCutDensityIsIgnoredAndRemovedWithoutResettingSettings() {
         Map<String,Object> values = new HashMap<>();
         values.put("editor_settings.cutDensity", Double.doubleToRawLongBits(Double.NaN));

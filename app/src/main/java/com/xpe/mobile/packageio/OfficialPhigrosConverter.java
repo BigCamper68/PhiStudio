@@ -40,6 +40,7 @@ final class OfficialPhigrosConverter {
 
             ChartDocument chart = new ChartDocument();
             chart.offsetMs = milliseconds(root.optDouble("offset", 0.0));
+            chart.loadNoiseFields(root);
             BpmChange bpm = new BpmChange();
             bpm.bpm = baseBpm;
             chart.bpmChanges.add(bpm);

@@ -17,10 +17,13 @@ public final class EditorSettingsStore {
         result.highlightSimultaneousNotes = preferences.getBoolean(key("highlightSimultaneousNotes"), defaults.highlightSimultaneousNotes);
         result.showFakeNoteOutline = preferences.getBoolean(key("showFakeNoteOutline"), defaults.showFakeNoteOutline);
         result.noteWidthPixels = getDouble(preferences, "noteWidthPixels", defaults.noteWidthPixels);
+        result.previewNoteScale = getDouble(preferences, "previewNoteScale", defaults.previewNoteScale);
         result.markLineId = preferences.getBoolean(key("markLineId"), defaults.markLineId);
         result.highlightCurrentLine = preferences.getBoolean(key("highlightCurrentLine"), defaults.highlightCurrentLine);
         result.lineColorRgb = preferences.getInt(key("lineColorRgb"), defaults.lineColorRgb);
         result.backgroundBrightness = preferences.getInt(key("backgroundBrightness"), defaults.backgroundBrightness);
+        result.gridPreviewShaders = preferences.getBoolean(key("gridPreviewShaders"), defaults.gridPreviewShaders);
+        result.gridPreviewNoiseFields = preferences.getBoolean(key("gridPreviewNoiseFields"), defaults.gridPreviewNoiseFields);
         result.tapFlickHitsoundOffsetMs = preferences.getInt(key("tapFlickHitsoundOffsetMs"), defaults.tapFlickHitsoundOffsetMs);
         result.dragHitsoundOffsetMs = preferences.getInt(key("dragHitsoundOffsetMs"), defaults.dragHitsoundOffsetMs);
         result.autosaveEnabled = preferences.getBoolean(key("autosaveEnabled"), defaults.autosaveEnabled);
@@ -72,11 +75,14 @@ public final class EditorSettingsStore {
         editor.putBoolean(key("highlightSimultaneousNotes"), value.highlightSimultaneousNotes);
         editor.putBoolean(key("showFakeNoteOutline"), value.showFakeNoteOutline);
         putDouble(editor, "noteWidthPixels", value.noteWidthPixels);
+        putDouble(editor, "previewNoteScale", value.previewNoteScale);
         editor.remove(key("lineDefaultWidth"));
         editor.putBoolean(key("markLineId"), value.markLineId);
         editor.putBoolean(key("highlightCurrentLine"), value.highlightCurrentLine);
         editor.putInt(key("lineColorRgb"), value.lineColorRgb);
         editor.putInt(key("backgroundBrightness"), value.backgroundBrightness);
+        editor.putBoolean(key("gridPreviewShaders"), value.gridPreviewShaders);
+        editor.putBoolean(key("gridPreviewNoiseFields"), value.gridPreviewNoiseFields);
         editor.putInt(key("tapFlickHitsoundOffsetMs"), value.tapFlickHitsoundOffsetMs);
         editor.putInt(key("dragHitsoundOffsetMs"), value.dragHitsoundOffsetMs);
         editor.putBoolean(key("autosaveEnabled"), value.autosaveEnabled);

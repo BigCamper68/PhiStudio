@@ -34,6 +34,21 @@ public final class ChartDocument {
     public int rpeVersion = 123;
     public final List<BpmChange> bpmChanges = new ArrayList<>();
     public final List<JudgeLine> judgeLines = new ArrayList<>();
+    public final List<NoiseField> noiseFields = new ArrayList<>();
+    /** Runtime PNG header dimensions for Phira-Pro Line2Area; never serialized. */
+    public final java.util.Map<String, int[]> noiseMarkerSizes = new java.util.HashMap<>();
+    private boolean hasNoiseFieldList;
+    private boolean restoredNoiseSource;
+    /** A compatible package was converted back to the editor's native field model. */
+    public boolean wasNoiseSourceRestored() { return restoredNoiseSource; }
+
+    public void loadNoiseFields(JSONObject root) throws JSONException {
+        hasNoiseFieldList = root.has("blockAreaList");
+        if (hasNoiseFieldList && root.optJSONArray("blockAreaList") == null)
+            throw new JSONException("blockAreaList must be an array");
+        noiseFields.clear();
+        noiseFields.addAll(NoiseField.fromJson(root.optJSONArray("blockAreaList")));
+    }
     private JSONObject rawRoot;
     private JSONObject rawMeta;
     private JSONObject pecHeights;
@@ -114,13 +129,17 @@ public final class ChartDocument {
     }
 
     public static ChartDocument fromJson(String json) throws JSONException {
-        return fromParsedJson(new JSONObject(json));
+        return fromParsedJson(com.xpe.mobile.preview.NoiseFieldRpeSource.parse(json));
     }
 
     public static ChartDocument fromParsedJson(JSONObject root) throws JSONException {
         if (root == null) throw new JSONException("Chart JSON root is missing");
+        JSONObject originalRoot = root;
+        root = com.xpe.mobile.preview.NoiseFieldRpeSource.restore(root);
         ChartDocument chart = new ChartDocument();
-        chart.rawRoot = RawJson.unknownFields(root, "META", "BPMList", "judgeLineList");
+        chart.restoredNoiseSource = root != originalRoot;
+        chart.rawRoot = RawJson.unknownFields(root, "META", "BPMList", "judgeLineList", "blockAreaList");
+        chart.loadNoiseFields(root);
 
         JSONObject meta = root.optJSONObject("META");
         if (meta != null) {
@@ -175,6 +194,12 @@ public final class ChartDocument {
 
     /** Streams compact JSON so large charts never exist as a second full in-memory String. */
     public void writeJson(Writer output) throws IOException, JSONException {
+        writeJson(output, null, null);
+    }
+
+    /** Export-only line adapter; the editable chart and its history are never modified. */
+    public void writeJson(Writer output, List<JSONObject> noiseLines, JSONObject noiseSource)
+            throws IOException, JSONException {
         output.write('{');
         boolean hasField = false;
         boolean hasGroups = false;
@@ -183,7 +208,8 @@ public final class ChartDocument {
             while (keys.hasNext()) {
                 String key = keys.next();
                 if ("META".equals(key) || "BPMList".equals(key)
-                        || "judgeLineList".equals(key)) continue;
+                        || "judgeLineList".equals(key)
+                        || noiseSource != null && "phiStudioNoiseSource".equals(key)) continue;
                 if (hasField) output.write(',');
                 hasField = true;
                 JsonStreamWriter.value(output, key);
@@ -230,7 +256,28 @@ public final class ChartDocument {
             if (index > 0) output.write(',');
             JsonStreamWriter.value(output, judgeLines.get(index).toJson());
         }
+        if (noiseLines != null) for (int i = 0; i < noiseLines.size(); i++) {
+            if (!judgeLines.isEmpty() || i > 0) output.write(',');
+            JsonStreamWriter.value(output, noiseLines.get(i));
+        }
         output.write(']');
+        if (noiseSource != null) {
+            output.write(',');
+            JsonStreamWriter.value(output, "phiStudioNoiseSource");
+            output.write(':');
+            JsonStreamWriter.value(output, noiseSource);
+        }
+        if (noiseLines == null && (hasNoiseFieldList || !noiseFields.isEmpty())) {
+            output.write(',');
+            JsonStreamWriter.value(output, "blockAreaList");
+            output.write(':');
+            output.write('[');
+            for (int i = 0; i < noiseFields.size(); i++) {
+                if (i > 0) output.write(',');
+                JsonStreamWriter.value(output, noiseFields.get(i).toExportJson());
+            }
+            output.write(']');
+        }
         if (!hasGroups) {
             output.write(',');
             JsonStreamWriter.value(output, "judgeLineGroup");

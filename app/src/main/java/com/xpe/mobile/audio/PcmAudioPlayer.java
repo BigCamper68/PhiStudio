@@ -58,6 +58,7 @@ public final class PcmAudioPlayer {
     private boolean released;
     private volatile float volume = 1f;
     private volatile float hitVolume = 1f;
+    private volatile boolean touchingNoiseField;
     private HitSoundTimeline timeline = HitSoundTimeline.empty();
     private long audioOffsetMs;
     private PcmHitSound[] sounds;
@@ -121,7 +122,7 @@ public final class PcmAudioPlayer {
     }
 
     public void pause() {
-        synchronized (lock) { stopLocked(); }
+        synchronized (lock) { stopLocked(); touchingNoiseField = false; }
     }
 
     public void seek(long positionMs) {
@@ -129,6 +130,7 @@ public final class PcmAudioPlayer {
             if (released) return;
             stopLocked();
             playbackStartFrame = asset.timelineFrameForPositionMillis(positionMs);
+            touchingNoiseField = false;
             lastPositionMs = Math.min(positionMs, asset.durationMillis());
             lastPositionSeconds = lastPositionMs / 1000.0;
             presentationClock = null;
@@ -140,6 +142,7 @@ public final class PcmAudioPlayer {
             if (released) return;
             stopLocked();
             released = true;
+            touchingNoiseField = false;
         }
     }
 
@@ -165,6 +168,7 @@ public final class PcmAudioPlayer {
     public long durationMillis() { return asset.durationMillis(); }
     public void setVolume(float value) { volume = safeVolume(value); }
     public void setHitVolume(float value) { hitVolume = safeVolume(value); }
+    public void setNoiseFieldTouching(boolean touching) { touchingNoiseField = touching; }
 
     private static float safeVolume(float value) {
         return Float.isFinite(value) ? Math.max(0f, Math.min(1f, value)) : 0f;
@@ -221,6 +225,7 @@ public final class PcmAudioPlayer {
             ScheduledHitSoundMixer mixer = new ScheduledHitSoundMixer(
                     asset, schedule, offsetMs, samples, custom, target, speed);
             PcmMusicStream music = new PcmMusicStream(input, asset, target, speed);
+            NoiseFieldLowPassFilter noiseFilter = new NoiseFieldLowPassFilter(asset.sampleRate, asset.channelCount);
             // Native speed MUST stay 1x: only the music has been time-stretched.
             output = outputFactory.create(asset, 1f);
             long framesRead = 0;
@@ -230,6 +235,8 @@ public final class PcmAudioPlayer {
                 int count = music.read(buffer);
                 if (count < 0) break;
                 if (count % frameSize != 0) throw new IOException("Incomplete PCM frame");
+                // Filter the music before adding scheduled hits. Manual hits use their own output.
+                noiseFilter.process(buffer, count, touchingNoiseField);
                 mixer.mix(buffer, count, target + framesRead, volume, hitVolume);
                 framesRead += count / frameSize;
                 int writtenBytes = 0;

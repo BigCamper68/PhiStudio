@@ -2,9 +2,13 @@ package com.xpe.mobile.packageio;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -30,52 +34,79 @@ public final class PackageWorkspaceLoader {
                 .inspectWorkspaceProjectName(workspace, sourceDisplayName, entries);
     }
 
+    /**
+     * Library rows need the indexed chart header, not every resource in every project.
+     * Opening a project still runs the complete inventory, link and size validation.
+     */
     public void validateIndexedWorkspace(File workspace, String chartPath) throws IOException {
-        List<ChartPackage.Entry> entries = scanWorkspace(workspace);
+        Path root = workspaceRoot(workspace);
         String normalized = PackageImporter.normalizePath(chartPath);
-        boolean found = false;
-        for (ChartPackage.Entry entry : entries) {
-            if (!entry.isDirectory() && entry.getPath().equals(normalized)) {
-                found = true;
-                break;
+        Path chart = root;
+        String[] components = normalized.split("/");
+        for (int i = 0; i < components.length; i++) {
+            chart = chart.resolve(components[i]);
+            if (!Files.exists(chart, LinkOption.NOFOLLOW_LINKS))
+                throw new IOException("Indexed project chart is missing: " + normalized);
+            BasicFileAttributes attributes = Files.readAttributes(
+                    chart, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (attributes.isSymbolicLink()) throw new IOException("Symbolic links are not allowed in project workspaces");
+            if (i + 1 < components.length) {
+                if (!attributes.isDirectory()) throw new IOException("Indexed chart parent is not a directory");
+            } else {
+                if (!attributes.isRegularFile()) throw new IOException("Indexed project chart is missing: " + normalized);
+                if (attributes.size() > limits.maxEntryBytes)
+                    throw new PackageException(PackageException.Code.ENTRY_SIZE_LIMIT, "Indexed chart exceeds the size limit");
             }
         }
-        if (!found) throw new IOException("Indexed project chart is missing: " + normalized);
-        File chart = PackageImporter.resolveInside(workspace, normalized);
-        if (!PackageImporter.looksLikeJsonObject(chart)) {
+        if (!PackageImporter.looksLikeJsonObject(chart.toFile())) {
             throw new IOException("Indexed project chart is not a JSON object: " + normalized);
         }
     }
 
     private List<ChartPackage.Entry> scanWorkspace(File workspace) throws IOException {
-        if (workspace == null || !workspace.isDirectory()) {
-            throw new IOException("Project workspace is missing");
-        }
+        Path root = workspaceRoot(workspace);
         List<ChartPackage.Entry> entries = new ArrayList<>();
         long[] totalBytes = new long[]{0L};
-        scan(workspace, workspace, entries, totalBytes);
+        scan(root, root, entries, totalBytes);
         return entries;
     }
 
-    private void scan(File root, File directory, List<ChartPackage.Entry> entries,
+    private static Path workspaceRoot(File workspace) throws IOException {
+        if (workspace == null || !workspace.isDirectory()) throw new IOException("Project workspace is missing");
+        if (Files.isSymbolicLink(workspace.toPath())) throw new IOException("Symbolic project workspaces are not allowed");
+        return workspace.toPath().toRealPath();
+    }
+
+    private void scan(Path root, Path directory, List<ChartPackage.Entry> entries,
                       long[] totalBytes) throws IOException {
-        File[] children = directory.listFiles();
-        if (children == null) throw new IOException("Unable to read project workspace");
-        Arrays.sort(children, Comparator.comparing(File::getName));
-        for (File child : children) {
-            if (Files.isSymbolicLink(child.toPath())) {
-                throw new IOException("Symbolic links are not allowed in project workspaces: " + child.getName());
+        List<Path> children = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path child : stream) {
+                if (entries.size() + children.size() >= limits.maxEntries)
+                    throw new PackageException(PackageException.Code.ENTRY_COUNT_LIMIT,
+                            "Workspace has more than " + limits.maxEntries + " entries");
+                children.add(child);
             }
-            String path = relativePath(root, child);
+        } catch (DirectoryIteratorException exception) {
+            throw exception.getCause();
+        }
+        children.sort(Comparator.comparing(path -> path.getFileName().toString()));
+        for (Path child : children) {
+            BasicFileAttributes attributes = Files.readAttributes(
+                    child, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (attributes.isSymbolicLink()) {
+                throw new IOException("Symbolic links are not allowed in project workspaces: " + child.getFileName());
+            }
+            String path = PackageImporter.normalizePath(root.relativize(child).toString().replace(File.separatorChar, '/'));
             if (entries.size() >= limits.maxEntries) {
                 throw new PackageException(PackageException.Code.ENTRY_COUNT_LIMIT,
                         "Workspace has more than " + limits.maxEntries + " entries");
             }
-            if (child.isDirectory()) {
+            if (attributes.isDirectory()) {
                 entries.add(new ChartPackage.Entry(path, true, 0L));
                 scan(root, child, entries, totalBytes);
-            } else if (child.isFile()) {
-                long size = child.length();
+            } else if (attributes.isRegularFile()) {
+                long size = attributes.size();
                 if (size > limits.maxEntryBytes) {
                     throw new PackageException(PackageException.Code.ENTRY_SIZE_LIMIT,
                             "Workspace entry exceeds the size limit: " + path);
@@ -92,14 +123,4 @@ public final class PackageWorkspaceLoader {
         }
     }
 
-    private static String relativePath(File root, File file) throws IOException {
-        String rootPath = root.getCanonicalPath();
-        String filePath = file.getCanonicalPath();
-        if (!filePath.startsWith(rootPath + File.separator)) {
-            throw new IOException("Workspace entry escapes the project directory");
-        }
-        String relative = filePath.substring(rootPath.length() + 1)
-                .replace(File.separatorChar, '/');
-        return PackageImporter.normalizePath(relative);
-    }
 }

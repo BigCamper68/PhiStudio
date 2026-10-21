@@ -1,0 +1,30 @@
+{
+  "reference": "https://github.com/CHCAT1320/CHCAT-Docs",
+  "commit": "054fcfdddc4ddf66b1bbecc45df0d5264e3d3852",
+  "files": {
+    "knowladge/phigros/shaders/Unlit_BlockSprite.md": "045b628f5a3d8b03f32566611cc62604386c776c1acc0bddf734760eba15eff3",
+    "knowladge/phigros/shaders/Unlit_BlockCompose.md": "1e2217858b4fdbbec5f8f9e99aecb18681061e670095fa969f58ef98c5941712",
+    "knowladge/phigros/shaders/Unlit_SubtractBlockBlender.md": "678301bbd09dc84c7d633a0e7ba05d35b39c487e5bb120a3cce0967c20254eb6",
+    "knowladge/phigros/shaders/Unlit_EdgeMask.md": "37e31d60474c1dbcccacf326c6a174a3ff2bee506a7dc46e0394d06052904877",
+    "knowladge/phigros/shaders/Unlit_GlowMask.md": "71d2fe0fcd9618f218d71ddfbf779aecc4a09a05662f04e31591fc1e25a72f3c",
+    "knowladge/phigros/shaders/Unlit_DisabledBlock.md": "9fde94f8520778dd87b40ac2e7b5bef6f7b6b08262d49c35bf41d6040e35bcc2",
+    "knowladge/phigros/shaders/Unlit_ReadyBlock.md": "77eb189f1c5fb3ad76d1f5dc808b80600b08c6cffcee0c061b352463f86199cf",
+    "knowladge/phigros/shaders/Unlit_ActiveBlock.md": "310de28c09dd68575f383909b5c1586b104040a5b91507c87341c3c6d23ef56c",
+    "knowladge/phigros/tex/Block.png": "68eb562430b8508f014985a342ffc9f43e30a0f13577658c86260df838785d6c",
+    "knowladge/phigros/tex/BlockNoise1.png": "da61ab2294ddb456314caece0565f24fbddccdf5fe7d98ec4a680c3f66033979",
+    "knowladge/phigros/tex/PointNoise.png": "fe1a54ef26f7d95d781f5d801a28ad82a7927c567218cda79e2a66a5988a7984",
+    "knowladge/phigros/tex/FD_Noise.png": "5f98b4bef6073a0190bc59d0fe64db569df1c32c457c7a178310a1fc5b793576",
+    "knowladge/phigros/block-params.md": "f7e762d60fabb49cc1f7aa0481d717b157f97b1f379927789afab36dea866003"
+  },
+  "adaptation": "GLES 3 compiled shader extracts to GLES 2; original arithmetic and precision qualifiers retained. Explicit LOD 0 becomes texture2D on textures without mipmaps.",
+  "corrected_textures": {
+    "reference": "https://github.com/Phira-Pro/Phira-Pro",
+    "commit": "b67e5e845b58e3cf89d674e782a9b3bd0f5e8af8",
+    "files": {
+      "assets/blockarea/BlockNoise1.png": "b47e2dd828d7930919ec7c0e46e242a37ca5bed296bc294c31ff0f5815ffe318",
+      "assets/blockarea/PointNoise.png": "dd4d5defae07f92b4e170b81e5ffd417f7e94cb573d495af534375f043363cfa",
+      "assets/blockarea/FD_Noise_00000.png": "8e8afc8ae88d42716943c15bf241f749a49a84fde6498679b6b3291a16ba621f",
+      "assets/blockarea/TouchHover.png": "7c1128464c57ebfd94989bece328bce5e70f7f87b53a2312b2532eeb0b0b5b6e"
+    }
+  }
+}

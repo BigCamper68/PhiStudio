@@ -16,6 +16,11 @@ public final class RenderScene {
     public final HudState hud;
     final Map<Integer, PaintHistory> paintHistories;
     final List<RenderLine> badNotes;
+    public final NoiseFieldFrame noiseFields;
+
+    public RenderScene withNoiseFields(NoiseFieldFrame fields) {
+        return new RenderScene(beat, chartTimeMs, lines, hud, paintHistories, badNotes, fields);
+    }
 
     RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud) {
         this(beat, chartTimeMs, lines, hud, Collections.emptyMap());
@@ -28,6 +33,12 @@ public final class RenderScene {
 
     RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud,
                 Map<Integer, PaintHistory> paintHistories, List<RenderLine> badNotes) {
+        this(beat, chartTimeMs, lines, hud, paintHistories, badNotes, NoiseFieldFrame.EMPTY);
+    }
+
+    RenderScene(double beat, long chartTimeMs, List<RenderLine> lines, HudState hud,
+                Map<Integer, PaintHistory> paintHistories, List<RenderLine> badNotes, NoiseFieldFrame noiseFields) {
+        this.noiseFields = noiseFields;
         this.badNotes = Collections.unmodifiableList(badNotes);
         this.paintHistories = Collections.unmodifiableMap(new java.util.HashMap<>(paintHistories));
         this.beat = beat;
@@ -142,6 +153,8 @@ public final class RenderScene {
     }
 
     public static final class RenderNote {
+        /** Editor navigation identity only; geometry remains the immutable sampled values below. */
+        public final com.xpe.mobile.model.Note source;
         public final NoteType type;
         public final double x;
         public final double startDistance;
@@ -166,6 +179,15 @@ public final class RenderScene {
         RenderNote(NoteType type, double x, double startDistance, double endDistance,
                    boolean above, double size, int alpha, boolean fake, boolean multiHit,
                    boolean holdHeadVisible, int colorRgb, double sizeY, double yOffset) {
+            this(type, x, startDistance, endDistance, above, size, alpha, fake, multiHit,
+                    holdHeadVisible, colorRgb, sizeY, yOffset, null);
+        }
+
+        RenderNote(NoteType type, double x, double startDistance, double endDistance,
+                   boolean above, double size, int alpha, boolean fake, boolean multiHit,
+                   boolean holdHeadVisible, int colorRgb, double sizeY, double yOffset,
+                   com.xpe.mobile.model.Note source) {
+            this.source = source;
             this.sizeY = sizeY;
             this.yOffset = yOffset;
             this.type = type;

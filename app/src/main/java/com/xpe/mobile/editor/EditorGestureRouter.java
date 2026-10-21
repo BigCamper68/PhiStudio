@@ -23,7 +23,7 @@ final class EditorGestureRouter {
         touchSlop = ViewConfiguration.get(delegateOwner.getContext()).getScaledTouchSlop();
     }
 
-    void cancel() { pendingTap = null; }
+    void cancel() { pendingTap = null; delegateOwner.previewNoteSource.cancelGesture(); }
 
     boolean handleDown(float x, float y) {
         cancel();
@@ -43,6 +43,7 @@ final class EditorGestureRouter {
 
         if (delegateOwner.previewMode) {
             if (y > delegateOwner.toolbarHeight()) {
+                delegateOwner.previewNoteSource.down(x, y);
                 delegateOwner.gestureStartX = x;
                 delegateOwner.gestureStartY = y;
                 delegateOwner.gestureLastY = y;
@@ -162,6 +163,10 @@ final class EditorGestureRouter {
             delegateOwner.updatePlaybackSeek(x);
             delegateOwner.invalidate();
         } else if (delegateOwner.gestureMode == GestureMode.PAN) {
+            if (delegateOwner.previewMode) {
+                if (!delegateOwner.movedDuringGesture) return true;
+                delegateOwner.previewNoteSource.moved();
+            }
             delegateOwner.currentBeat = Math.max(0.0, delegateOwner.currentBeat + (y - delegateOwner.gestureLastY)
                     / delegateOwner.pixelsPerBeat * delegateOwner.settings.timelineScrollSpeed);
             delegateOwner.gestureLastY = y;
@@ -254,6 +259,7 @@ final class EditorGestureRouter {
             }
             delegateOwner.selectionRectangle = null;
         } else if (delegateOwner.gestureMode == GestureMode.PAN) {
+            if (!delegateOwner.movedDuringGesture && delegateOwner.previewMode) delegateOwner.previewNoteSource.up();
             if (!delegateOwner.movedDuringGesture && !delegateOwner.previewMode) {
                 boolean clearing = delegateOwner.clearTimelineSelectionOnTap();
                 if (!clearing && delegateOwner.settings.tapToSeek)

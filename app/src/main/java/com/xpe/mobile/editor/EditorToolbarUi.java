@@ -31,9 +31,12 @@ final class EditorToolbarUi {
                 x, y, 58f * delegateOwner.density, buttonHeight, delegateOwner::togglePlay);
         x = delegateOwner.editorToolbarUi.addButton(canvas, String.format(Locale.US, "%.2fx", delegateOwner.playbackSpeed), x, y,
                 54f * delegateOwner.density, buttonHeight, delegateOwner.editorPlayback::cyclePlaybackSpeed);
-        x = delegateOwner.editorToolbarUi.addButton(canvas, delegateOwner.getResources().getString(delegateOwner.previewMode
-                        ? R.string.toolbar_editor : R.string.toolbar_preview),
-                x, y, 64f * delegateOwner.density, buttonHeight, delegateOwner::togglePreviewMode);
+        boolean source = delegateOwner.previewNoteSource.hasSource();
+        x = delegateOwner.editorToolbarUi.addButton(canvas, delegateOwner.getResources().getString(source
+                        ? R.string.preview_edit_note : delegateOwner.previewMode ? R.string.toolbar_editor : R.string.toolbar_preview),
+                x, y, 64f * delegateOwner.density, buttonHeight,
+                () -> { if (delegateOwner.previewNoteSource.hasSource()) delegateOwner.previewNoteSource.openNote();
+                        else delegateOwner.togglePreviewMode(); });
         x = delegateOwner.editorToolbarUi.addButton(canvas, delegateOwner.getResources().getString(R.string.toolbar_save), x, y,
                 52f * delegateOwner.density, buttonHeight, () -> delegateOwner.callback.requestProjectSave());
         x = delegateOwner.editorToolbarUi.addButton(canvas, delegateOwner.getResources().getString(R.string.toolbar_undo), x, y,

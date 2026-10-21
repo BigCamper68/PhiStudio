@@ -265,7 +265,7 @@ public final class ChartEvaluator {
                         renderedAlpha, note.fake, multiHit,
                         !hold || seconds < cached.startSeconds,
                         note.hasTint ? note.tintRgb : 0xFFFFFF,
-                        chart.noteUniformScale ? renderedSize : 1.0, renderedOffset));
+                        chart.noteUniformScale ? renderedSize : 1.0, renderedOffset, note));
             }
 
             int colorRgb = extended.colorEvents.isEmpty() ? -1
@@ -306,7 +306,8 @@ public final class ChartEvaluator {
             if (alphaExtension.hideLineAndNotes && effects.isEmpty() && !paintMode) continue;
             lines.add(new RenderScene.RenderLine(index, source.zOrder,
                     transform.x, transform.y, transform.rotationDegrees,
-                    clampAlpha(local[index].rawAlpha), local[index].rawAlpha, colorRgb, scaleX, scaleY, incline,
+                    chart.noiseMarkerSizes.containsKey(source.texture) && PhiraNoiseFieldMarkers.kind(source.texture) >= 0
+                            ? 0 : clampAlpha(local[index].rawAlpha), local[index].rawAlpha, colorRgb, scaleX, scaleY, incline,
                     text, source.texture, paintMode, alphaExtension.cover,
                     gif.enabled, gif.controlled, gif.progress, gif.anchorTimeMs,
                     prepared.lines[index].gifTimeline, seconds,
@@ -319,7 +320,9 @@ public final class ChartEvaluator {
         if (judge != null) hud = new RenderScene.HudState(hud.name, hud.level, judge.combo(),
                 judge.score(), hud.progress, hud.transforms, hud.useAttachUiFix);
         return new RenderScene(beat, chartTimeMs, lines, hud, paintHistories,
-                judge == null ? Collections.emptyList() : judge.badNotes(seconds));
+                judge == null ? Collections.emptyList() : judge.badNotes(seconds),
+                judge == null ? PhiraNoiseFieldMarkers.evaluate(chart, prepared, seconds, aspectRatio)
+                        : judge.noiseFieldFrame(seconds));
     }
 
     static int clampAlpha(double value) {

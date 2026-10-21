@@ -24,8 +24,6 @@ import static java.lang.Math.min;
 // Vendored from AndroidX Media 8c6678b657ede1e7883fc164ef73ed483c7796c3.
 // Changes: package relocation, local assertion, and component extraction; no algorithm changes.
 
-
-
 /**
  * Sonic audio stream processor for time/pitch stretching.
  *
@@ -481,6 +479,5 @@ import static java.lang.Math.min;
       adjustRate(r, originalOutputFrameCount);
     }
   }
-
 
 }

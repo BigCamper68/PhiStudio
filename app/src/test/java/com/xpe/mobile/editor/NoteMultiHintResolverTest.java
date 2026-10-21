@@ -26,7 +26,6 @@ public final class NoteMultiHintResolverTest {
         assertTrue(highlighted.contains(second));
     }
 
-
     @Test
     public void highlightsMatchingNotesAcrossJudgeLines() {
         Note first = note(NoteType.HOLD, 8, 0, 1);

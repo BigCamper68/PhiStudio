@@ -1,7 +1,6 @@
 package com.xpe.mobile.audio;
 
 import android.content.Context;
-import com.xpe.mobile.R;
 import com.xpe.mobile.config.EditorSettings;
 import com.xpe.mobile.model.*;
 import com.xpe.mobile.video.VideoExportOptions;
